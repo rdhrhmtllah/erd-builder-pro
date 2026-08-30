@@ -65,6 +65,8 @@ function schemaFingerprint(nodes: Node<Entity>[], edges: Edge[]): string {
       on_delete: (e.data as any)?.on_delete,
       on_update: (e.data as any)?.on_update,
       constraint_name: (e.data as any)?.constraint_name,
+      source_cardinality: (e.data as any)?.source_cardinality,
+      target_cardinality: (e.data as any)?.target_cardinality,
     })).sort((a, b) => `${a.source}.${a.sourceColumn}>${a.target}.${a.targetColumn}`.localeCompare(`${b.source}.${b.sourceColumn}>${b.target}.${b.targetColumn}`)),
   });
 }

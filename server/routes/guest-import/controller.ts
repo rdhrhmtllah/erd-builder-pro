@@ -96,7 +96,10 @@ export async function exportHandler(req: ExpressRequest, res: ExpressResponse): 
             id: r.id, source_entity_id: r.sourceEntityId, target_entity_id: r.targetEntityId,
             source_column_id: r.sourceColumnId, target_column_id: r.targetColumnId,
             source_handle: r.sourceHandle, target_handle: r.targetHandle,
-            type: r.type, label: r.label, created_at: iso(r.createdAt),
+            type: r.type, label: r.label,
+            on_delete: r.onDelete, on_update: r.onUpdate, constraint_name: r.constraintName,
+            source_cardinality: r.sourceCardinality, target_cardinality: r.targetCardinality,
+            created_at: iso(r.createdAt),
           })),
         };
       }),

@@ -14,13 +14,19 @@ describe('edgeToRelationship', () => {
       sourceHandle: 'col-posts.user_id-source',
       targetHandle: 'col-users.id-target',
       label: 'many-to-one',
-      data: { on_delete: 'CASCADE', on_update: 'RESTRICT', constraint_name: 'posts_user_id_fk' },
+      data: {
+        on_delete: 'CASCADE', on_update: 'RESTRICT', constraint_name: 'posts_user_id_fk',
+        source_cardinality: 'one-or-many', target_cardinality: 'zero-or-one',
+      },
     })).toMatchObject({
       source_column_id: 'posts.user_id',
       target_column_id: 'users.id',
       on_delete: 'CASCADE',
       on_update: 'RESTRICT',
       constraint_name: 'posts_user_id_fk',
+      source_cardinality: 'one-or-many',
+      target_cardinality: 'zero-or-one',
+      type: 'one-to-many',
     });
   });
 });

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Entity } from '../../types';
+import { ENDPOINT_CARDINALITIES, inferRelationshipSemantics, relationshipTypeFromEndpoints } from '@/lib/relationship-semantics';
 import {
   Select,
   SelectContent,
@@ -60,6 +61,22 @@ export default function RelationshipPropertiesPanel({
     );
   }
   const relationData = (selectedEdge.data || {}) as Record<string, any>;
+  const semantics = inferRelationshipSemantics(selectedEdge);
+
+  const updateEndpoint = (endpoint: 'source' | 'target', value: string) => {
+    const source = endpoint === 'source' ? value as any : semantics.source;
+    const target = endpoint === 'target' ? value as any : semantics.target;
+    const relationshipType = relationshipTypeFromEndpoints(source, target);
+    const legacy = RELATIONSHIP_TYPES.find(item => item.value === relationshipType);
+    onUpdateEdge(selectedEdge.id, {
+      label: legacy?.shortLabel || '1:N',
+      data: {
+        source_cardinality: source,
+        target_cardinality: target,
+        relationship_type: relationshipType,
+      },
+    });
+  };
 
   const getDisplayName = (nodeId: string, handleId: string | undefined | null) => {
     const node = nodes.find(n => n.id === nodeId);
@@ -81,26 +98,24 @@ export default function RelationshipPropertiesPanel({
             <Link2 className="w-3 h-3" />
             Relationship Cardinality
           </Label>
-          <Select
-            value={RELATIONSHIP_TYPES.find(t => t.shortLabel === selectedEdge.label)?.value || RELATIONSHIP_TYPES[1].value}
-            onValueChange={(value) => {
-              const type = RELATIONSHIP_TYPES.find(t => t.value === value);
-              if (type) onUpdateEdge(selectedEdge.id, type.shortLabel);
-            }}
-          >
-            <SelectTrigger className="w-full h-10 bg-background border-border text-sm">
-              <SelectValue placeholder="Select type">
-                {RELATIONSHIP_TYPES.find(t => t.shortLabel === selectedEdge.label)?.label || RELATIONSHIP_TYPES[1].label}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent className="bg-popover border-border text-popover-foreground">
-              {RELATIONSHIP_TYPES.map((type) => (
-                <SelectItem key={type.value} value={type.value} className="text-xs focus:bg-muted focus:text-foreground">
-                  {type.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="grid grid-cols-2 gap-2">
+            {(['source', 'target'] as const).map(endpoint => (
+              <div key={endpoint} className="space-y-1">
+                <Label className="text-[10px] capitalize">{endpoint} endpoint</Label>
+                <Select value={semantics[endpoint]} onValueChange={value => updateEndpoint(endpoint, value)}>
+                  <SelectTrigger className="h-10 bg-background border-border text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-popover border-border text-popover-foreground">
+                    {ENDPOINT_CARDINALITIES.map(item => (
+                      <SelectItem key={item.value} value={item.value} className="text-xs">
+                        <span className="font-mono font-bold">{item.symbol}</span> — {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] leading-4 text-muted-foreground">Symbols are shown at both ends of the relationship line. Optionality is explicit and independent from one/many cardinality.</p>
         </div>
       </div>
 

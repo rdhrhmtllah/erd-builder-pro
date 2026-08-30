@@ -1,5 +1,6 @@
 import type { Edge, Node } from '@xyflow/react';
 import type { Column, Entity } from '@/types';
+import { inferRelationshipSemantics } from '@/lib/relationship-semantics';
 
 export type SchemaHealthSeverity = 'error' | 'warning' | 'info';
 
@@ -200,6 +201,27 @@ export function analyzeErdSchemaHealth(nodes: Node<Entity>[], edges: Edge[]): Sc
         recommendation: 'Add an index whose first column is this foreign key.',
         nodeIds: [sourceNode.id], edgeIds: [edge.id],
       }));
+    }
+    const targetIsKey = targetColumn.is_pk || targetColumn.is_unique
+      || (targetNode.data.constraints || []).some(constraint =>
+        (constraint.kind === 'primary_key' || constraint.kind === 'unique')
+        && constraint.column_ids?.some(id => key(id) === key(targetColumn.id)));
+    if (!sourceColumn.is_pk && targetIsKey) {
+      const semantics = inferRelationshipSemantics(edge, Boolean(sourceColumn.is_nullable));
+      const targetIsOptional = semantics.target.startsWith('zero-or-');
+      if (targetIsOptional !== Boolean(sourceColumn.is_nullable)) {
+        issues.push(issue({
+          id: `optionality-mismatch:${edge.id}`, rule: 'relationship-optionality-mismatch', severity: 'warning',
+          title: `${sourceNode.data.name}.${sourceColumn.name} optionality conflicts with the relationship`,
+          description: sourceColumn.is_nullable
+            ? `The foreign key accepts NULL, but the target endpoint is ${semantics.targetSymbol}.`
+            : `The foreign key is required, but the target endpoint is ${semantics.targetSymbol}.`,
+          recommendation: sourceColumn.is_nullable
+            ? 'Use 0..1 at the target endpoint or make the foreign key NOT NULL.'
+            : 'Use exactly 1 at the target endpoint or make the foreign key nullable.',
+          nodeIds: [sourceNode.id, targetNode.id], edgeIds: [edge.id],
+        }));
+      }
     }
   }
 

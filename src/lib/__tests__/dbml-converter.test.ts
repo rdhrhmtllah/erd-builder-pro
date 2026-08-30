@@ -282,6 +282,24 @@ Ref "posts_user_id_fk": posts.user_id > users.id [delete: cascade, update: casca
     expect(dbmlToERD(dbml).edges[0].data).toMatchObject({ on_delete: 'cascade', on_update: 'no action' });
   });
 
+  it('round-trips explicit endpoint cardinality and optionality through DBML comments', () => {
+    const nodes = [
+      { id: 'orders', data: { name: 'orders', columns: [{ id: 'orders.user_id', name: 'user_id', type: 'BIGINT', is_pk: false, is_nullable: true }] } },
+      { id: 'users', data: { name: 'users', columns: [{ id: 'users.id', name: 'id', type: 'BIGINT', is_pk: true, is_nullable: false }] } },
+    ] as any;
+    const edges = [{
+      id: 'orders-users', source: 'orders', target: 'users',
+      sourceHandle: 'col-orders.user_id-source', targetHandle: 'col-users.id-target',
+      data: { source_cardinality: 'one-or-many', target_cardinality: 'zero-or-one' },
+    }] as any;
+
+    const dbml = erdToDBML(nodes, edges);
+    expect(dbml).toContain('// erd-cardinality: source=one-or-many target=zero-or-one');
+    expect(dbmlToERD(dbml).edges[0].data).toMatchObject({
+      source_cardinality: 'one-or-many', target_cardinality: 'zero-or-one',
+    });
+  });
+
   it('matches a DBML relation without replacing its canvas edge side', () => {
     const existing = {
       id: 'orders-users', source: 'orders', target: 'users',

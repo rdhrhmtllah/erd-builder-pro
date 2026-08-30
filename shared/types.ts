@@ -67,8 +67,12 @@ export interface Relationship {
   on_delete?: string | null;
   on_update?: string | null;
   constraint_name?: string | null;
+  source_cardinality?: RelationshipEndpointCardinality;
+  target_cardinality?: RelationshipEndpointCardinality;
   data?: Record<string, any>;
 }
+
+export type RelationshipEndpointCardinality = 'zero-or-one' | 'exactly-one' | 'zero-or-many' | 'one-or-many';
 
 export interface Project {
   id: number | string;

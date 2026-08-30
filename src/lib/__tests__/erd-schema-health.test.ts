@@ -49,6 +49,21 @@ describe('ERD schema health', () => {
     ]));
   });
 
+  it('finds endpoint optionality that conflicts with foreign-key nullability', () => {
+    const nodes = [
+      table('users', [column('id')]),
+      table('orders', [column('id'), column('user_id', 'BIGINT', { is_nullable: false })], {
+        indexes: [{ id: 'i1', entity_id: 'orders', name: 'orders_user_id_idx', column_ids: ['user_id'] }],
+      }),
+    ];
+    const edge = {
+      ...relation('r1', 'orders', 'user_id', 'users', 'id'),
+      data: { source_cardinality: 'zero-or-many', target_cardinality: 'zero-or-one' },
+    };
+    expect(analyzeErdSchemaHealth(nodes, [edge]).issues.map(item => item.rule))
+      .toContain('relationship-optionality-mismatch');
+  });
+
   it('detects names that collide without letter case and inconsistent identifiers', () => {
     const nodes = [
       table('Users', [column('id'), { ...column('Email'), name: 'Email' }, { ...column('email'), id: 'email-2', name: 'email' }]),

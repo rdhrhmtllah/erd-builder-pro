@@ -93,6 +93,26 @@ describe('granular ERD MCP operations', () => {
     }])).toThrow(/missing column/);
   });
 
+  it('validates and updates explicit relationship endpoint semantics', () => {
+    const result = service.applyErdPatch(snapshot(), [{
+      op: 'relationship_update', relationship_id: 'orders-user-fk',
+      changes: { source_cardinality: 'one-or-many', target_cardinality: 'zero-or-one' },
+    }]);
+    expect(result.relationships[0]).toMatchObject({
+      source_cardinality: 'one-or-many', target_cardinality: 'zero-or-one', type: 'one-to-many',
+    });
+    expect(() => service.applyErdPatch(snapshot(), [{
+      op: 'relationship_update', relationship_id: 'orders-user-fk', changes: { target_cardinality: 'sometimes' },
+    }])).toThrow(/cardinality/);
+
+    const legacy = service.applyErdPatch(snapshot(), [{
+      op: 'relationship_update', relationship_id: 'orders-user-fk', changes: { type: 'many-to-many' },
+    }]);
+    expect(legacy.relationships[0]).toMatchObject({
+      source_cardinality: 'zero-or-many', target_cardinality: 'zero-or-many', type: 'many-to-many',
+    });
+  });
+
   it('generates IDs in preview and requires exact confirmation before saving', async () => {
     const proposal: any = await service.proposeErdPatch('owner', 'diagram-1', [{
       op: 'column_add', table_id: 'users', column: { name: 'email', type: 'VARCHAR', is_nullable: false },

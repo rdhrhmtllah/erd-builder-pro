@@ -31,6 +31,8 @@ export function canvasFingerprint(nodes: Node<Entity>[], edges: Edge[]): string 
     on_delete: (edge.data as any)?.on_delete || '',
     on_update: (edge.data as any)?.on_update || '',
     constraint_name: (edge.data as any)?.constraint_name || '',
+    source_cardinality: (edge.data as any)?.source_cardinality || '',
+    target_cardinality: (edge.data as any)?.target_cardinality || '',
   })).sort().join('|');
 
   return `${nodeIds}|${edgeIds}|${positions}|${columns}|${metadata}|${relationMetadata}`;

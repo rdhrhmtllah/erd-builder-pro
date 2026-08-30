@@ -3,6 +3,7 @@ import type { Node, Edge } from '@xyflow/react';
 import type { Entity } from '@/types';
 import { COLUMN_TYPES } from '@/lib/utils';
 import { normalizeColumnDefault, parseTypeModifiers, supportsColumnLength, supportsNumericPrecision } from '@/lib/column-metadata';
+import { inferRelationshipSemantics, normalizeEndpointCardinality } from '@/lib/relationship-semantics';
 import { parseSQLToERD } from '@/lib/sqlParser';
 import {
   buildDBMLTableDefinitions,
@@ -378,6 +379,20 @@ function readDBMLRefMetadata(model: any) {
   });
 }
 
+function readDBMLCardinalityMetadata(text: string) {
+  const result = new Map<string, { source: any; target: any }>();
+  for (const line of text.split(/\r?\n/)) {
+    const marker = line.match(/\/\/\s*erd-cardinality:\s*source=(\S+)\s+target=(\S+)/i);
+    if (!marker) continue;
+    const ref = parseDBMLRef(line, '');
+    if (!ref) continue;
+    const source = normalizeEndpointCardinality(marker[1], 'zero-or-many');
+    const target = normalizeEndpointCardinality(marker[2], 'exactly-one');
+    result.set(`${ref.fkTable.toLowerCase()}\u0000${ref.fkCol.toLowerCase()}\u0000${ref.pkTable.toLowerCase()}\u0000${ref.pkCol.toLowerCase()}`, { source, target });
+  }
+  return result;
+}
+
 /**
  * Pre-scan DBML text for invalid column types.
  * Regex-based — catches type issues before the parser does.
@@ -586,6 +601,7 @@ export function dbmlToERD(dbmlText: string): { nodes: Node<Entity>[]; edges: Edg
   }
 
   const refMetadata = readDBMLRefMetadata(normalizedModel);
+  const cardinalityMetadata = readDBMLCardinalityMetadata(dbmlText);
   for (const edge of result.edges) {
     const source = result.nodes.find(node => node.id === edge.source);
     const target = result.nodes.find(node => node.id === edge.target);
@@ -593,6 +609,18 @@ export function dbmlToERD(dbmlText: string): { nodes: Node<Entity>[]; edges: Edg
     const targetColumn = target?.data.columns.find(column => edge.targetHandle?.includes(column.id));
     const ref = refMetadata.find(item => item.endpoints.length === 2 && item.endpoints.some((endpoint: any) => endpoint.table?.toLowerCase() === source?.data.name.toLowerCase() && endpoint.columns.some((column: string) => column.toLowerCase() === sourceColumn?.name.toLowerCase())) && item.endpoints.some((endpoint: any) => endpoint.table?.toLowerCase() === target?.data.name.toLowerCase() && endpoint.columns.some((column: string) => column.toLowerCase() === targetColumn?.name.toLowerCase())));
     if (ref) edge.data = { ...(edge.data || {}), on_delete: ref.onDelete, on_update: ref.onUpdate, constraint_name: ref.name };
+    if (source && target && sourceColumn && targetColumn) {
+      const directKey = `${source.data.name.toLowerCase()}\u0000${sourceColumn.name.toLowerCase()}\u0000${target.data.name.toLowerCase()}\u0000${targetColumn.name.toLowerCase()}`;
+      const reverseKey = `${target.data.name.toLowerCase()}\u0000${targetColumn.name.toLowerCase()}\u0000${source.data.name.toLowerCase()}\u0000${sourceColumn.name.toLowerCase()}`;
+      const direct = cardinalityMetadata.get(directKey);
+      const reverse = cardinalityMetadata.get(reverseKey);
+      const inferred = inferRelationshipSemantics(edge, Boolean(sourceColumn.is_nullable));
+      edge.data = {
+        ...(edge.data || {}),
+        source_cardinality: direct?.source ?? reverse?.target ?? inferred.source,
+        target_cardinality: direct?.target ?? reverse?.source ?? inferred.target,
+      };
+    }
   }
 
   return result;
@@ -824,12 +852,16 @@ export function erdToDBML(nodes: Node<Entity>[], edges: Edge[]): string {
     if (!srcCol || !tgtCol) continue;
 
     const relation = edge.data as any;
+    const semantics = inferRelationshipSemantics(edge, Boolean(srcCol.is_nullable));
     const refName = relation?.constraint_name ? ` "${String(relation.constraint_name).replace(/"/g, '\\"')}"` : '';
     const actions = [
       relation?.on_update ? `update: ${String(relation.on_update).toLowerCase()}` : '',
       relation?.on_delete ? `delete: ${String(relation.on_delete).toLowerCase()}` : '',
     ].filter(Boolean);
-    lines.push(`Ref${refName}: ${tableNear(srcNode.data.name, srcCol.name)} > ${tableNear(tgtNode.data.name, tgtCol.name)}${actions.length ? ` [${actions.join(', ')}]` : ''}`);
+    const operator = semantics.type === 'one-to-one'
+      ? '-'
+      : semantics.source.endsWith('many') ? '>' : '<';
+    lines.push(`Ref${refName}: ${tableNear(srcNode.data.name, srcCol.name)} ${operator} ${tableNear(tgtNode.data.name, tgtCol.name)}${actions.length ? ` [${actions.join(', ')}]` : ''} // erd-cardinality: source=${semantics.source} target=${semantics.target}`);
   }
 
   return lines.join('\n');

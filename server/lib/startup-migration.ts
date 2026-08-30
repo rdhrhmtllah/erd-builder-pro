@@ -512,6 +512,8 @@ export async function applySchemaMigrations(): Promise<void> {
   await addColumnIfMissing("relationships", "on_delete", '"on_delete" TEXT');
   await addColumnIfMissing("relationships", "on_update", '"on_update" TEXT');
   await addColumnIfMissing("relationships", "constraint_name", '"constraint_name" TEXT');
+  await addColumnIfMissing("relationships", "source_cardinality", '"source_cardinality" TEXT DEFAULT \'zero-or-many\'');
+  await addColumnIfMissing("relationships", "target_cardinality", '"target_cardinality" TEXT DEFAULT \'exactly-one\'');
   await createErdMetadataTablesIfMissing();
   await createDiagramSubjectAreasTableIfMissing();
   if (isDesktopMode()) {

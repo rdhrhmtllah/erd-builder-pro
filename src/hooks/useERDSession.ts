@@ -293,6 +293,8 @@ export function useERDSession(
             on_delete: r.on_delete ?? (r as any).onDelete,
             on_update: r.on_update ?? (r as any).onUpdate,
             constraint_name: r.constraint_name ?? (r as any).constraintName,
+            source_cardinality: r.source_cardinality ?? (r as any).sourceCardinality,
+            target_cardinality: r.target_cardinality ?? (r as any).targetCardinality,
           },
           type: 'smoothstep',
           animated: false,
@@ -429,12 +431,23 @@ export function useERDSession(
     const constraintName = foreignKeyNode && foreignKeyColumn
       ? getForeignKeyConstraintName(foreignKeyNode.data.name, foreignKeyColumn.name)
       : undefined;
+    const sourceIsPrimarySide = Boolean(sourceColumn?.is_pk && !targetColumn?.is_pk);
+    const sourceCardinality = sourceIsPrimarySide
+      ? (targetColumn?.is_nullable ? 'zero-or-one' : 'exactly-one')
+      : 'zero-or-many';
+    const targetCardinality = sourceIsPrimarySide
+      ? 'zero-or-many'
+      : (sourceColumn?.is_nullable ? 'zero-or-one' : 'exactly-one');
     const candidate = {
       ...params,
       animated: false,
       type: 'smoothstep',
       label: '1:N',
-      data: constraintName ? { constraint_name: constraintName } : undefined,
+      data: {
+        ...(constraintName ? { constraint_name: constraintName } : {}),
+        source_cardinality: sourceCardinality,
+        target_cardinality: targetCardinality,
+      },
     } as unknown as Edge;
     const candidateKey = getRelationKey(candidate);
     if (candidateKey && sourceNode && targetNode) {

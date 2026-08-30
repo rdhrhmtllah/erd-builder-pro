@@ -1,5 +1,6 @@
 import { Relationship } from '../types';
 import { RELATIONSHIP_TYPES } from './utils';
+import { inferRelationshipSemantics } from './relationship-semantics';
 
 export function getForeignKeyConstraintName(tableName: string, columnName: string) {
   return `fk_${tableName}_${columnName}`.toLowerCase();
@@ -7,6 +8,7 @@ export function getForeignKeyConstraintName(tableName: string, columnName: strin
 
 export function edgeToRelationship(edge: any): Relationship {
   const data = edge.data || {};
+  const semantics = inferRelationshipSemantics(edge);
   const columnId = (handle?: string | null) => handle
     ? handle.replace(/^col-/, '').replace(/-(source|target)(-(l|r))?$/, '')
     : undefined;
@@ -19,10 +21,12 @@ export function edgeToRelationship(edge: any): Relationship {
     target_column_id: columnId(edge.targetHandle),
     source_handle: edge.sourceHandle || undefined,
     target_handle: edge.targetHandle || undefined,
-    type: RELATIONSHIP_TYPES.find(type => type.label === edge.label || type.shortLabel === edge.label)?.value || 'one-to-many',
+    type: semantics.type || RELATIONSHIP_TYPES.find(type => type.label === edge.label || type.shortLabel === edge.label)?.value || 'one-to-many',
     label: edge.label as string,
     on_delete: data.on_delete ?? edge.on_delete,
     on_update: data.on_update ?? edge.on_update,
     constraint_name: data.constraint_name ?? edge.constraint_name,
+    source_cardinality: semantics.source,
+    target_cardinality: semantics.target,
   };
 }

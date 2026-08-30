@@ -244,6 +244,21 @@
   stroke-width: 10 !important;
 }
 
+.erd-cardinality-label {
+  fill: var(--foreground);
+  stroke: var(--background);
+  stroke-width: 4px;
+  paint-order: stroke fill;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.erd-canvas-low-detail .erd-cardinality-labels {
+  display: none;
+}
+
 /* Keep far-zoom navigation cheap while preserving node dimensions and relation topology. */
 .erd-canvas-low-detail .erd-column-row > *,
 .erd-canvas-low-detail .react-flow__handle {

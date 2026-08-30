@@ -42,6 +42,7 @@ import { ErdSubjectAreaPanel } from '@/components/diagram/ErdSubjectAreaPanel';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 import { analyzeErdSchemaHealth } from '@/lib/erd-schema-health';
 import { ErdSchemaHealthPanel, healthScoreTone, type SchemaHealthSelection } from '@/components/diagram/ErdSchemaHealthPanel';
+import { inferRelationshipSemantics } from '@/lib/relationship-semantics';
 
 const nodeTypes = {
   entity: EntityNode,
@@ -112,6 +113,10 @@ const ReadableRelationEdge = React.memo((props: EdgeProps) => {
       `L ${routeX} ${targetY}`,
       `L ${targetX} ${targetY}`,
     ].join(' ');
+  const semantics = inferRelationshipSemantics({ data, label: props.label, type: props.type });
+  const horizontalDirection = sourceX <= targetX ? 1 : -1;
+  const sourceLabelX = sourceX + horizontalDirection * 34;
+  const targetLabelX = targetX - horizontalDirection * 34;
 
   return (
     <>
@@ -138,6 +143,20 @@ const ReadableRelationEdge = React.memo((props: EdgeProps) => {
           strokeLinejoin: 'round',
         }}
       />
+      <g className="erd-cardinality-labels" pointerEvents="none" aria-hidden="true">
+        <text
+          x={sourceLabelX}
+          y={sourceY - 8}
+          textAnchor={horizontalDirection > 0 ? 'start' : 'end'}
+          className="erd-cardinality-label"
+        >{semantics.sourceSymbol}</text>
+        <text
+          x={targetLabelX}
+          y={targetY - 8}
+          textAnchor={horizontalDirection > 0 ? 'end' : 'start'}
+          className="erd-cardinality-label"
+        >{semantics.targetSymbol}</text>
+      </g>
     </>
   );
 });

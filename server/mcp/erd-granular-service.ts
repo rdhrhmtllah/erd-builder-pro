@@ -120,6 +120,9 @@ function normalizeRelationship(value: any, generatedId?: string) {
   const targetEntityId = requiredText(mapped(value, "target_entity_id", "targetEntityId"), "relationship.target_entity_id", 160);
   const sourceColumnId = requiredText(mapped(value, "source_column_id", "sourceColumnId"), "relationship.source_column_id", 160);
   const targetColumnId = requiredText(mapped(value, "target_column_id", "targetColumnId"), "relationship.target_column_id", 160);
+  const legacy = cardinalitiesFromLegacy(value.type || value.label);
+  const sourceCardinality = normalizeCardinality(mapped(value, "source_cardinality", "sourceCardinality"), legacy.source);
+  const targetCardinality = normalizeCardinality(mapped(value, "target_cardinality", "targetCardinality"), legacy.target);
   return {
     id: generatedId || requiredText(value.id, "relationship.id", 160),
     source_entity_id: sourceEntityId,
@@ -128,12 +131,37 @@ function normalizeRelationship(value: any, generatedId?: string) {
     target_column_id: targetColumnId,
     source_handle: `col-${sourceColumnId}-source`,
     target_handle: `col-${targetColumnId}-target`,
-    type: typeof value.type === "string" && value.type ? value.type : "one-to-many",
+    type: relationshipType(sourceCardinality, targetCardinality),
     label: optionalText(value.label, "relationship.label", 500) ?? null,
     on_delete: optionalText(mapped(value, "on_delete", "onDelete"), "relationship.on_delete", 50) ?? null,
     on_update: optionalText(mapped(value, "on_update", "onUpdate"), "relationship.on_update", 50) ?? null,
     constraint_name: optionalText(mapped(value, "constraint_name", "constraintName"), "relationship.constraint_name", 200) ?? null,
+    source_cardinality: sourceCardinality,
+    target_cardinality: targetCardinality,
   };
+}
+
+function relationshipType(source: string, target: string) {
+  const sourceMany = source.endsWith("many");
+  const targetMany = target.endsWith("many");
+  if (sourceMany && targetMany) return "many-to-many";
+  if (!sourceMany && !targetMany) return "one-to-one";
+  return "one-to-many";
+}
+
+function cardinalitiesFromLegacy(value: unknown) {
+  const legacy = String(value || '').toLowerCase();
+  if (legacy.includes('many-to-many') || legacy.includes('n:m')) return { source: 'zero-or-many', target: 'zero-or-many' };
+  if (legacy.includes('one-to-one') || legacy.includes('1:1')) return { source: 'exactly-one', target: 'exactly-one' };
+  return { source: 'zero-or-many', target: 'exactly-one' };
+}
+
+function normalizeCardinality(value: unknown, fallback: string) {
+  const normalized = value ?? fallback;
+  if (!["zero-or-one", "exactly-one", "zero-or-many", "one-or-many"].includes(String(normalized))) {
+    throw new Error("Relationship cardinality must be zero-or-one, exactly-one, zero-or-many, or one-or-many");
+  }
+  return String(normalized);
 }
 
 function normalizeSnapshot(raw: any): ErdSnapshot {
@@ -376,7 +404,16 @@ export function applyErdPatch(snapshot: ErdSnapshot, operations: ErdPatchOperati
       for (const [snake, camel, max] of [["on_delete", "onDelete", 50], ["on_update", "onUpdate", 50], ["constraint_name", "constraintName", 200]] as const) {
         if (patch[snake] !== undefined || patch[camel] !== undefined) relationship[snake] = optionalText(mapped(patch, snake, camel), `changes.${snake}`, max) ?? null;
       }
-      if (patch.type !== undefined) relationship.type = requiredText(patch.type, "changes.type", 50);
+      for (const [snake, camel, fallback] of [["source_cardinality", "sourceCardinality", relationship.source_cardinality], ["target_cardinality", "targetCardinality", relationship.target_cardinality]] as const) {
+        if (patch[snake] !== undefined || patch[camel] !== undefined) relationship[snake] = normalizeCardinality(mapped(patch, snake, camel), fallback);
+      }
+      if (patch.type !== undefined && patch.source_cardinality === undefined && patch.sourceCardinality === undefined
+        && patch.target_cardinality === undefined && patch.targetCardinality === undefined) {
+        const legacy = cardinalitiesFromLegacy(requiredText(patch.type, "changes.type", 50));
+        relationship.source_cardinality = legacy.source;
+        relationship.target_cardinality = legacy.target;
+      }
+      relationship.type = relationshipType(relationship.source_cardinality, relationship.target_cardinality);
       if (patch.label !== undefined) relationship.label = optionalText(patch.label, "changes.label", 500) ?? null;
       relationship.source_handle = `col-${relationship.source_column_id}-source`;
       relationship.target_handle = `col-${relationship.target_column_id}-target`;

@@ -193,6 +193,11 @@ export async function importDiagrams(
         sourceHandle,
         targetHandle,
         label: rel.label || null,
+        onDelete: rel.on_delete ?? rel.onDelete ?? null,
+        onUpdate: rel.on_update ?? rel.onUpdate ?? null,
+        constraintName: rel.constraint_name ?? rel.constraintName ?? null,
+        sourceCardinality: rel.source_cardinality ?? rel.sourceCardinality ?? "zero-or-many",
+        targetCardinality: rel.target_cardinality ?? rel.targetCardinality ?? "exactly-one",
         createdAt: safeDate(rel.created_at),
       });
     }

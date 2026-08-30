@@ -1,6 +1,7 @@
 import { apiFetch } from '@/lib/api';
 import { MAX_CHARS_TOTAL, EntityContextData } from './types';
 import { erdToDBML } from '@/lib/dbml-converter';
+import { inferRelationshipSemantics } from '@/lib/relationship-semantics';
 
 export async function fetchDiagram(uid: string) {
   try {
@@ -32,7 +33,15 @@ export async function fetchDiagram(uid: string) {
       for (const rel of relationships) {
         const src = entities.find((e: any) => String(e.id) === String(rel.source_entity_id))?.name || rel.source_entity_id;
         const tgt = entities.find((e: any) => String(e.id) === String(rel.target_entity_id))?.name || rel.target_entity_id;
-        parts.push(`  ${src} → ${tgt} (${rel.type || 'one-to-many'})`);
+        const semantics = inferRelationshipSemantics({
+          data: {
+            relationship_type: rel.type,
+            source_cardinality: rel.source_cardinality ?? rel.sourceCardinality,
+            target_cardinality: rel.target_cardinality ?? rel.targetCardinality,
+          },
+          label: rel.label,
+        });
+        parts.push(`  ${src} [${semantics.sourceSymbol}] → [${semantics.targetSymbol}] ${tgt} (${semantics.type})`);
       }
     }
 
@@ -85,7 +94,8 @@ export function buildDiagramContext(data: EntityContextData): string | null {
     const colInfo = sourceCol && targetCol
       ? ` (${sNode.data.name}.${sourceCol.name} → ${tNode.data.name}.${targetCol.name})`
       : '';
-    return `  - ${sNode.data.name} → ${tNode.data.name}${colInfo} (${e.label || '1:N'})`;
+    const semantics = inferRelationshipSemantics(e, Boolean(sourceCol?.is_nullable));
+    return `  - ${sNode.data.name} [${semantics.sourceSymbol}] → [${semantics.targetSymbol}] ${tNode.data.name}${colInfo} (${semantics.type})`;
   }).filter(Boolean).join('\n');
 
   let context = `[Database schema — current ERD]

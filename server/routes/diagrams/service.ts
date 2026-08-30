@@ -91,6 +91,17 @@ function columnIsNullable(value: any): boolean {
   return value !== undefined ? Boolean(value) : true;
 }
 
+function legacyRelationshipCardinalities(row: any) {
+  const legacy = String(row.type || row.label || '').toLowerCase();
+  if (legacy.includes('many-to-many') || legacy.includes('n:m')) {
+    return { source: 'zero-or-many', target: 'zero-or-many' };
+  }
+  if (legacy.includes('one-to-one') || legacy.includes('1:1')) {
+    return { source: 'exactly-one', target: 'exactly-one' };
+  }
+  return { source: 'zero-or-many', target: 'exactly-one' };
+}
+
 async function upsertEntities(rows: any[], diagramId: number) {
   if (rows.length === 0 || !prisma) return;
   await prisma.$transaction(
@@ -160,8 +171,9 @@ export { upsertColumns };
 async function upsertRelationships(rows: any[], diagramId: number) {
   if (rows.length === 0 || !prisma) return;
   await prisma.$transaction(
-    rows.map(r =>
-      prisma!.relationship.upsert({
+    rows.map(r => {
+      const legacy = legacyRelationshipCardinalities(r);
+      return prisma!.relationship.upsert({
         where: { id: r.id },
         create: {
           id: r.id, diagramId,
@@ -176,6 +188,8 @@ async function upsertRelationships(rows: any[], diagramId: number) {
           onDelete: r.on_delete || null,
           onUpdate: r.on_update || null,
           constraintName: r.constraint_name || null,
+          sourceCardinality: r.source_cardinality || legacy.source,
+          targetCardinality: r.target_cardinality || legacy.target,
         },
         update: {
           diagramId,
@@ -190,9 +204,11 @@ async function upsertRelationships(rows: any[], diagramId: number) {
           onDelete: r.on_delete || null,
           onUpdate: r.on_update || null,
           constraintName: r.constraint_name || null,
+          sourceCardinality: r.source_cardinality || legacy.source,
+          targetCardinality: r.target_cardinality || legacy.target,
         },
-      })
-    ),
+      });
+    }),
     { timeout: 30000 }
   );
 }

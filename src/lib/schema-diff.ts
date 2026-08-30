@@ -122,7 +122,13 @@ export function computeSchemaDiff(
     const id = `relation:${relation}`;
     if (!current && proposed) changes.push({ id, kind: 'relation', state: 'new', label: relation, proposed });
     else if (current && !proposed) changes.push({ id, kind: 'relation', state: 'deleted', label: relation, current });
-    else if (current && proposed && (current.label || '') !== (proposed.label || '')) {
+    else if (current && proposed && (
+      (current.label || '') !== (proposed.label || '')
+      || (current.data as any)?.source_cardinality !== (proposed.data as any)?.source_cardinality
+      || (current.data as any)?.target_cardinality !== (proposed.data as any)?.target_cardinality
+      || (current.data as any)?.on_delete !== (proposed.data as any)?.on_delete
+      || (current.data as any)?.on_update !== (proposed.data as any)?.on_update
+    )) {
       changes.push({ id, kind: 'relation', state: 'modified', label: relation, current, proposed });
     }
   }
