@@ -19,7 +19,7 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban } from 'lucide-react';
+import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,6 +40,8 @@ import { syncERDEdgeHandles } from '@/lib/autoLayoutERD';
 import { ErdRelationExplorer, type ErdExplorerSelection } from '@/components/diagram/ErdRelationExplorer';
 import { ErdSubjectAreaPanel } from '@/components/diagram/ErdSubjectAreaPanel';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
+import { analyzeErdSchemaHealth } from '@/lib/erd-schema-health';
+import { ErdSchemaHealthPanel, healthScoreTone, type SchemaHealthSelection } from '@/components/diagram/ErdSchemaHealthPanel';
 
 const nodeTypes = {
   entity: EntityNode,
@@ -238,6 +240,8 @@ const ERDViewComponent = ({
   const [explorerSelection, setExplorerSelection] = useState<ErdExplorerSelection | null>(null);
   const [subjectAreasOpen, setSubjectAreasOpen] = useState(false);
   const [activeSubjectArea, setActiveSubjectArea] = useState<ErdSubjectArea | null>(null);
+  const [schemaHealthOpen, setSchemaHealthOpen] = useState(false);
+  const [schemaHealthSelection, setSchemaHealthSelection] = useState<SchemaHealthSelection | null>(null);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   const lowDetailRef = React.useRef(false);
 
@@ -314,6 +318,8 @@ const ERDViewComponent = ({
   React.useEffect(() => {
     setSubjectAreasOpen(false);
     setActiveSubjectArea(null);
+    setSchemaHealthOpen(false);
+    setSchemaHealthSelection(null);
   }, [activeFileUid]);
 
   const subjectAreaVisibility = React.useMemo(() => activeSubjectArea
@@ -321,6 +327,7 @@ const ERDViewComponent = ({
     : null, [activeSubjectArea, nodes, edges]);
 
   const nodeNames = React.useMemo(() => new Map(nodes.map(node => [node.id, String(node.data.name || node.id)])), [nodes]);
+  const schemaHealthReport = React.useMemo(() => analyzeErdSchemaHealth(nodes, edges), [nodes, edges]);
 
   const styledNodes = React.useMemo(() => {
     return nodes.map(node => {
@@ -331,14 +338,17 @@ const ERDViewComponent = ({
       const explorerClass = explorerActive
         ? explorerPath ? 'erd-path-node' : explorerVisible ? 'erd-focus-active' : 'erd-focus-dimmed'
         : '';
-      const className = [node.className, explorerClass].filter(Boolean).join(' ');
+      const healthClass = schemaHealthSelection
+        ? schemaHealthSelection.nodeIds.has(node.id) ? `erd-health-${schemaHealthSelection.severity}` : 'erd-health-dimmed'
+        : '';
+      const className = [node.className, explorerClass, healthClass].filter(Boolean).join(' ');
       const hidden = subjectAreaVisibility ? !subjectAreaVisibility.visibleNodeIds.has(node.id) : !!node.hidden;
       // Use !! to normalize undefined/null to boolean — avoids creating wrappers
       // for all nodes on the first drag after setNodes() (which may lack `selected`)
       if (!!node.selected === selected && node.className === className && !!node.hidden === hidden) return node;
       return { ...node, selected, className, hidden };
     });
-  }, [nodes, allSelectedIds, explorerSelection, subjectAreaVisibility]);
+  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, subjectAreaVisibility]);
 
   const diffNodesWithMode = React.useMemo(() => {
     if (!pendingDiff) return [];
@@ -403,12 +413,17 @@ const ERDViewComponent = ({
       } else if (hasSelection) {
         classes.push('edge-dimmed');
       }
+      if (schemaHealthSelection) {
+        classes.push(schemaHealthSelection.edgeIds.has(edge.id)
+          ? `edge-health-${schemaHealthSelection.severity}`
+          : 'edge-health-dimmed');
+      }
 
       const newClassName = classes.join(' ');
       if (baseEdge.className === newClassName) return baseEdge;
       return { ...baseEdge, className: newClassName };
     });
-  }, [nodes, edges, allSelectedIds, explorerSelection, subjectAreaVisibility]);
+  }, [nodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, subjectAreaVisibility]);
 
   // Filter out selection-only changes to avoid unnecessary re-renders from React Flow
   const handleNodesChangeLocal = useCallback(
@@ -736,6 +751,8 @@ const ERDViewComponent = ({
             <Button
               onClick={() => {
                 setSubjectAreasOpen(false);
+                setSchemaHealthOpen(false);
+                setSchemaHealthSelection(null);
                 setExplorerOpen(open => {
                   if (open) setExplorerSelection(null);
                   return !open;
@@ -754,6 +771,8 @@ const ERDViewComponent = ({
                 onClick={() => {
                   setExplorerOpen(false);
                   setExplorerSelection(null);
+                  setSchemaHealthOpen(false);
+                  setSchemaHealthSelection(null);
                   setSubjectAreasOpen(open => !open);
                 }}
                 variant={subjectAreasOpen || activeSubjectArea ? 'default' : 'outline'}
@@ -765,6 +784,25 @@ const ERDViewComponent = ({
                 <span className="hidden sm:inline">{activeSubjectArea?.name || 'Areas'}</span>
               </Button>
             )}
+            <Button
+              onClick={() => {
+                setExplorerOpen(false);
+                setExplorerSelection(null);
+                setSubjectAreasOpen(false);
+                setActiveSubjectArea(null);
+                setSchemaHealthOpen(open => {
+                  if (open) setSchemaHealthSelection(null);
+                  return !open;
+                });
+              }}
+              variant={schemaHealthOpen ? 'default' : 'outline'}
+              size="sm"
+              className="h-9 px-3 text-xs font-semibold cursor-pointer"
+              title="Audit schema keys, relationships, indexes, and naming"
+            >
+              <ShieldCheck className={cn('w-3.5 h-3.5 sm:mr-1.5', !schemaHealthOpen && healthScoreTone(schemaHealthReport.score))} />
+              <span className="hidden sm:inline">Health {schemaHealthReport.score}</span>
+            </Button>
 
             {isProductionDb && (
               <Button onClick={handleSync} variant="outline" size="sm" className="h-9 px-3 border-amber-500/50 hover:bg-amber-500/10 bg-amber-500/5 text-amber-600 dark:text-amber-400 text-xs font-semibold cursor-pointer" disabled={isSyncing}>
@@ -828,6 +866,16 @@ const ERDViewComponent = ({
           readOnly={isReadOnly}
           onActiveAreaChange={setActiveSubjectArea}
           onClose={() => setSubjectAreasOpen(false)}
+        />
+      )}
+      {schemaHealthOpen && !pendingDiff && (
+        <ErdSchemaHealthPanel
+          report={schemaHealthReport}
+          onSelectionChange={setSchemaHealthSelection}
+          onClose={() => {
+            setSchemaHealthOpen(false);
+            setSchemaHealthSelection(null);
+          }}
         />
       )}
       {isLoading && (

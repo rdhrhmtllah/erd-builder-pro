@@ -316,6 +316,39 @@
   filter: drop-shadow(0 0 3px rgb(245 158 11 / 55%));
 }
 
+/* Schema Health issue navigation highlights the exact affected subgraph. */
+.erd-health-dimmed {
+  opacity: 0.18 !important;
+  filter: saturate(0.3);
+}
+
+.erd-health-error .erd-node-container {
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 70%), 0 8px 28px rgb(15 23 42 / 18%);
+}
+
+.erd-health-warning .erd-node-container {
+  box-shadow: 0 0 0 3px rgb(245 158 11 / 70%), 0 8px 28px rgb(15 23 42 / 18%);
+}
+
+.erd-health-info .erd-node-container {
+  box-shadow: 0 0 0 3px rgb(14 165 233 / 65%), 0 8px 28px rgb(15 23 42 / 18%);
+}
+
+.edge-health-dimmed .react-flow__edge-path {
+  opacity: 0.08 !important;
+}
+
+.edge-health-error .react-flow__edge-path,
+.edge-health-warning .react-flow__edge-path,
+.edge-health-info .react-flow__edge-path {
+  opacity: 1 !important;
+  stroke-width: 3 !important;
+}
+
+.edge-health-error .react-flow__edge-path { stroke: #ef4444 !important; }
+.edge-health-warning .react-flow__edge-path { stroke: #f59e0b !important; }
+.edge-health-info .react-flow__edge-path { stroke: #0ea5e9 !important; }
+
 .react-flow__controls {
   @apply bg-card! border-border! shadow-none! rounded-lg! overflow-hidden;
 }
