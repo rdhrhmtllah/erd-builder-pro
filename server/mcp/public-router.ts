@@ -51,7 +51,7 @@ export function createPublicMcpRouter(): Router | null {
     const canWrite = authInfo?.scopes?.includes("mcp:write") === true;
     const server = new McpServer({ name: "erdbpro-web", version: process.env.APP_VERSION || "3.3.4" }, {
       instructions: canWrite
-        ? "You can read and modify this authenticated user's ERD Builder Pro Web App workspace. Use workspace_write_propose first for every mutation, show its preview, and call workspace_write_apply only after explicit user confirmation. Permanent deletion, project cascades, sharing changes, and backups are sensitive. DB Client catalogs, production database diagrams, credentials, arbitrary SQL, and filesystem access are unavailable through this Web MCP."
+        ? "You can read and modify this authenticated user's ERD Builder Pro Web App workspace. For ERD table, column, or relationship edits, prefer erd_schema_read then erd_patch_propose; show the exact preview and call erd_patch_apply only after explicit user confirmation. Use workspace_write_propose/apply for other mutations. Never resend a full ERD when a granular patch is sufficient. Permanent deletion, project cascades, sharing changes, and backups are sensitive. DB Client catalogs, production database diagrams, credentials, arbitrary SQL, and filesystem access are unavailable through this Web MCP."
         : "Read ERD Builder Pro Web App workspace content only. Request an OAuth token with mcp:write for mutation tools. DB Client catalogs, production database diagrams, credentials, SQL execution, filesystem access, and all writes are unavailable without that scope.",
     });
     registerPublicMcpTools(server, userId);
