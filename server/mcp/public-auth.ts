@@ -58,7 +58,9 @@ export function getPublicMcpConfig(env: NodeJS.ProcessEnv = process.env): Public
   if (supabaseUrl) throw new Error("Local MCP OAuth cannot be combined with Supabase Auth");
   const issuerUrl = new URL("/", resourceUrl);
   const consentUrl = canonicalUrl(env.MCP_CONSENT_URL?.trim() || new URL("/oauth/consent", resourceUrl).href, "MCP_CONSENT_URL", env);
-  return { authProvider: "local", resourceUrl, issuerUrl, consentUrl, scopes: ["mcp:read"] };
+  const scopes = ["mcp:read"];
+  if (env.MCP_PUBLIC_WRITE_ENABLED?.trim().toLowerCase() === "true") scopes.push("mcp:write");
+  return { authProvider: "local", resourceUrl, issuerUrl, consentUrl, scopes };
 }
 
 export function getPublicMcpClientConfig(env: NodeJS.ProcessEnv = process.env) {

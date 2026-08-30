@@ -14,6 +14,7 @@ import { logger } from "../lib/logger.js";
 import { createSupabaseMcpTokenVerifier, getPublicMcpConfig } from "./public-auth.js";
 import { activateLocalMcpOAuth, hashOAuthSecret } from "./local-oauth.js";
 import { registerPublicMcpTools } from "./public-tools.js";
+import { registerWorkspaceMcpTools } from "./workspace-tools.js";
 
 export function createPublicMcpRouter(): Router | null {
   if (["desktop", "cli"].includes(getInstallMode())) {
@@ -47,10 +48,14 @@ export function createPublicMcpRouter(): Router | null {
   const handler = createMcpHandler(({ authInfo }) => {
     const userId = authInfo?.extra?.userId;
     if (typeof userId !== "string" || !userId) throw new Error("Authenticated MCP user is missing");
+    const canWrite = authInfo?.scopes?.includes("mcp:write") === true;
     const server = new McpServer({ name: "erdbpro-web", version: process.env.APP_VERSION || "3.3.4" }, {
-      instructions: "Read ERD Builder Pro Web App workspace content only. DB Client, production database diagrams, credentials, SQL execution, filesystem access, and all write operations are unavailable.",
+      instructions: canWrite
+        ? "You can read and modify this authenticated user's ERD Builder Pro Web App workspace. Use workspace_write_propose first for every mutation, show its preview, and call workspace_write_apply only after explicit user confirmation. Permanent deletion, project cascades, sharing changes, and backups are sensitive. DB Client catalogs, production database diagrams, credentials, arbitrary SQL, and filesystem access are unavailable through this Web MCP."
+        : "Read ERD Builder Pro Web App workspace content only. Request an OAuth token with mcp:write for mutation tools. DB Client catalogs, production database diagrams, credentials, SQL execution, filesystem access, and all writes are unavailable without that scope.",
     });
     registerPublicMcpTools(server, userId);
+    registerWorkspaceMcpTools(server, userId, canWrite);
     return server;
   }, { legacy: "stateless", responseMode: "json", onerror: error => logger.warn({ err: error }, "Public MCP request failed") });
   const nodeHandler = toNodeHandler(handler, { onerror: error => logger.error({ err: error }, "Public MCP transport failed") });
@@ -94,7 +99,7 @@ export function createPublicMcpRouter(): Router | null {
     secureOrigin,
     limiter,
     express.json({ limit: "1mb", type: ["application/json", "application/*+json"] }),
-    requireBearerAuth({ verifier, requiredScopes: config.scopes, resourceMetadataUrl: metadataUrl }),
+    requireBearerAuth({ verifier, requiredScopes: ["mcp:read"], resourceMetadataUrl: metadataUrl }),
     (req, res, next) => { void nodeHandler(req, res, req.body).catch(next); },
   );
   router.all(endpointPath, secureHost, (_req, res) => {

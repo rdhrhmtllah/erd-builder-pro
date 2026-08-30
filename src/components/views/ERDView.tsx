@@ -11,10 +11,13 @@ import {
   Edge,
   MarkerType,
   ConnectionLineType,
+  BaseEdge,
+  getSmoothStepPath,
   useReactFlow,
   addEdge,
   reconnectEdge,
 } from '@xyflow/react';
+import type { EdgeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download } from 'lucide-react';
 
@@ -33,9 +36,109 @@ import { apiFetch } from '@/lib/api';
 import { EyeOff, Monitor } from 'lucide-react';
 import { buildErdIndexes, erdColumnKey, erdSourceColumnKey } from '@/lib/erd-indexes';
 import { databaseColumnToERD } from '@/lib/column-metadata';
+import { syncERDEdgeHandles } from '@/lib/autoLayoutERD';
 
 const nodeTypes = {
   entity: EntityNode,
+};
+
+/**
+ * Keeps relationship lines readable when several of them cross the same
+ * corridor. The neutral halo separates neighbouring lines without changing
+ * their semantic colour or arrow direction.
+ */
+const ReadableRelationEdge = React.memo((props: EdgeProps) => {
+  const {
+    id,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    type: _type,
+    animated: _animated,
+    data,
+    selected,
+    source,
+    target,
+    selectable: _selectable,
+    deletable: _deletable,
+    sourceHandleId: _sourceHandleId,
+    targetHandleId: _targetHandleId,
+    pathOptions: _pathOptions,
+    interactionWidth,
+    markerStart,
+    markerEnd,
+    style,
+    ...edgeProps
+  } = props;
+  const routeY = typeof data?.layoutRouteY === 'number' ? data.layoutRouteY : null;
+  const routeX = typeof data?.layoutRouteX === 'number' ? data.layoutRouteX : null;
+  const path = routeY === null && routeX === null
+    ? getSmoothStepPath({
+      sourceX,
+      sourceY,
+      targetX,
+      targetY,
+      sourcePosition,
+      targetPosition,
+      borderRadius: 10,
+      offset: 24,
+      stepPosition: 0.5,
+    })[0]
+    : routeY !== null ? (() => {
+      const direction = sourceX <= targetX ? 1 : -1;
+      const sourceLaneX = sourceX + direction * 24;
+      const targetLaneX = targetX - direction * 24;
+      // A dedicated outer lane prevents long-rank relationships from being
+      // routed through every table in the intervening rank.
+      return [
+        `M ${sourceX} ${sourceY}`,
+        `L ${sourceLaneX} ${sourceY}`,
+        `L ${sourceLaneX} ${routeY}`,
+        `L ${targetLaneX} ${routeY}`,
+        `L ${targetLaneX} ${targetY}`,
+        `L ${targetX} ${targetY}`,
+      ].join(' ');
+    })() : [
+      `M ${sourceX} ${sourceY}`,
+      `L ${routeX} ${sourceY}`,
+      `L ${routeX} ${targetY}`,
+      `L ${targetX} ${targetY}`,
+    ].join(' ');
+
+  return (
+    <>
+      <path
+        d={path}
+        fill="none"
+        stroke="var(--background)"
+        strokeWidth={8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        pointerEvents="none"
+      />
+      <BaseEdge
+        {...edgeProps}
+        id={id}
+        path={path}
+        markerStart={markerStart}
+        markerEnd={markerEnd}
+        interactionWidth={interactionWidth ?? 20}
+        style={{
+          ...style,
+          strokeWidth: selected ? 2.5 : 2.2,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+        }}
+      />
+    </>
+  );
+});
+
+const edgeTypes = {
+  erdRelation: ReadableRelationEdge,
 };
 
 interface ERDViewProps {
@@ -222,10 +325,16 @@ const ERDViewComponent = ({
     }));
   }, [pendingDiff]);
 
+  const diffEdgesWithMode = React.useMemo(() => {
+    if (!pendingDiff) return [];
+    return pendingDiff.diffEdges.map(edge => ({ ...edge, type: 'erdRelation' }));
+  }, [pendingDiff]);
+
   const styledEdges = React.useMemo(() => {
     const hasSelection = allSelectedIds.length > 0;
+    const readableEdges = syncERDEdgeHandles(nodes, edges);
 
-    return edges.map(edge => {
+    return readableEdges.map(edge => {
       const isConnectedToSelected = hasSelection && allSelectedIds.some(
         id => edge.source === id || edge.target === id
       );
@@ -234,7 +343,7 @@ const ERDViewComponent = ({
         : 'var(--edge-color)';
       const baseEdge = {
         ...edge,
-        type: 'smoothstep',
+        type: 'erdRelation',
         style: {
           ...edge.style,
           stroke: edgeColor,
@@ -262,7 +371,7 @@ const ERDViewComponent = ({
       if (baseEdge.className === newClassName) return baseEdge;
       return { ...baseEdge, className: newClassName };
     });
-  }, [edges, allSelectedIds]);
+  }, [nodes, edges, allSelectedIds]);
 
   // Filter out selection-only changes to avoid unnecessary re-renders from React Flow
   const handleNodesChangeLocal = useCallback(
@@ -398,7 +507,7 @@ const ERDViewComponent = ({
             target: targetId,
             sourceHandle: `col-${srcColId}-source`,
             targetHandle: `col-${tgtColId}-target`,
-            type: 'smoothstep',
+            type: 'erdRelation',
           });
         });
       });
@@ -438,7 +547,7 @@ const ERDViewComponent = ({
   }, [pendingDiff, approvedChangeIds, setNodes, setEdges, saveDiagram, triggerDebouncedSync, getViewport]);
 
   const defaultEdgeOptions = React.useMemo(() => ({
-    type: 'smoothstep' as const,
+    type: 'erdRelation' as const,
     animated: false,
     reconnectable: true,
     style: {
@@ -637,7 +746,7 @@ const ERDViewComponent = ({
       <div ref={canvasRef} className="flex-1">
         <ReactFlow
           nodes={pendingDiff ? diffNodesWithMode : styledNodes}
-          edges={pendingDiff ? pendingDiff.diffEdges : styledEdges}
+          edges={pendingDiff ? diffEdgesWithMode : styledEdges}
           onNodesChange={handleNodesChangeLocal}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
@@ -706,6 +815,7 @@ const ERDViewComponent = ({
             setEdges(deduped);
           }}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           onNodeClick={handleNodeClickLocal}
           onNodeDoubleClick={onNodeDoubleClick}
           onEdgeClick={onEdgeClick}

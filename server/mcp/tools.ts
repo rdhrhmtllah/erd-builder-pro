@@ -28,7 +28,7 @@ export function registerTools(server: McpServer) {
   }, async ({ project_uid }) => jsonResult(await listWorkspaceFiles(await resolveMcpUserId(), project_uid)));
 
   server.registerTool("document_read", {
-    description: "Read one local Note, Flowchart, or ERD diagram by UUID or numeric ID.",
+    description: "Read one local Note, Flowchart, Drawing, or ERD diagram by UUID or numeric ID.",
     inputSchema: { type: documentType, uid: z.string().min(1) }, annotations: readOnly,
   }, async ({ type, uid }) => jsonResult(await readDocument(await resolveMcpUserId(), type, uid)));
 
@@ -78,4 +78,5 @@ export function registerTools(server: McpServer) {
     inputSchema: { proposal_id: z.string().uuid(), confirmation: z.string().uuid() },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async ({ proposal_id, confirmation }) => jsonResult(await applyNoteAppend(await resolveMcpUserId(), proposal_id, confirmation)));
+
 }

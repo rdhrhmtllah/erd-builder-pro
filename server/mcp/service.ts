@@ -6,10 +6,11 @@ import { buildCatalogConnectionInfo } from "../routes/connections/middleware.js"
 import { normalizeSelectQuery } from "../routes/connections/query-helpers.js";
 import { getNote, updateNote } from "../routes/notes/service.js";
 import { getFlowchart } from "../routes/flowcharts/service.js";
+import { getDrawing } from "../routes/drawings/service.js";
 import { getDiagramWithData } from "../routes/diagrams/save-service.js";
 import { listHistory, readHistoryRevision, restoreHistoryRevision } from "../routes/entity-changes/service.js";
 
-export const MCP_DOCUMENT_TYPES = ["notes", "flowcharts", "diagrams"] as const;
+export const MCP_DOCUMENT_TYPES = ["notes", "flowcharts", "drawings", "diagrams"] as const;
 export type McpDocumentType = (typeof MCP_DOCUMENT_TYPES)[number];
 
 type NoteProposal = {
@@ -108,6 +109,8 @@ export async function readDocument(userId: string, type: McpDocumentType, uid: s
     ? await getNote(uid, userId)
     : type === "flowcharts"
       ? await getFlowchart(uid, userId)
+      : type === "drawings"
+        ? await getDrawing(uid, userId)
       : await getDiagramWithData(uid, userId);
   if (!value || (value as any).isDeleted || (type === "diagrams" && (value as any).sourceType === "production_db")) {
     throw new Error("Document not found");
@@ -178,7 +181,7 @@ function historyPreview(type: McpDocumentType, snapshot: any) {
     const content = String(snapshot?.content ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
     return { title: String(snapshot?.title ?? "Untitled"), content_preview: content.slice(0, 500) };
   }
-  if (type === "flowcharts") {
+  if (type === "flowcharts" || type === "drawings") {
     const data = typeof snapshot?.data === "string" ? snapshot.data : JSON.stringify(snapshot?.data ?? "");
     return { title: String(snapshot?.title ?? "Untitled"), data_preview: data.slice(0, 500) };
   }

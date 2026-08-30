@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useEdgesState, useNodesState, useReactFlow, type Node } from '@xyflow/react';
 import { Database } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
-import { autoLayoutERD } from '@/lib/autoLayoutERD';
+import { autoLayoutERD, syncERDEdgeHandles } from '@/lib/autoLayoutERD';
 import { canvasLayout, dbSchemaToCanvas } from '@/lib/db-client-schema';
 import { getDbClientCache, getSchemaCache, setDbClientCache, setSchemaCache } from '@/hooks/useDataViewerHelpers';
 import { useImageExporter } from '@/hooks/useImageExporter';
@@ -28,7 +28,7 @@ export function DbClientEditorRoute() {
   const viewportRef = useRef({ x: 0, y: 0, zoom: 1 });
   const clientRef = useRef<any>(null);
   const layoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { setViewport, getNodes } = useReactFlow<Node<Entity>>();
+  const { setViewport, getNodes, fitView } = useReactFlow<Node<Entity>>();
   const { handleExportImage } = useImageExporter();
   const { setBreadcrumbLabel } = useWorkspace();
   const mode = (params.get('tab') || 'data') as DataViewerMode;
@@ -134,9 +134,14 @@ export function DbClientEditorRoute() {
 
   const handleAutoLayout = useCallback(() => {
     const nextNodes = autoLayoutERD(nodes, edges);
+    const nextEdges = syncERDEdgeHandles(nextNodes, edges);
     setNodes(nextNodes);
+    setEdges(nextEdges);
     void saveLayout(viewportRef.current, nextNodes);
-  }, [edges, nodes, saveLayout, setNodes]);
+    requestAnimationFrame(() => {
+      void fitView({ nodes: nextNodes, padding: 0.2, duration: 250, minZoom: 0.1, maxZoom: 1.25 });
+    });
+  }, [edges, nodes, saveLayout, setNodes, setEdges, fitView]);
 
   if (loading) return <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Loading DB Client…</div>;
   if (!client) return (

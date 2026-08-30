@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { autoLayoutERD } from '../autoLayoutERD';
+import { autoLayoutERD, syncERDEdgeHandles } from '../autoLayoutERD';
 import { Node, Edge } from '@xyflow/react';
 import type { Entity, Column } from '@/types';
 
@@ -89,7 +89,7 @@ describe('autoLayoutERD', () => {
     expect(result[0].position.y).toBe(result[1].position.y);
   });
 
-  it('places dependent tables in a deeper layer', () => {
+  it('places dependent tables in a layer to the right of their parent', () => {
     const nodes = [
       makeNode('t1', 'users'),
       makeNode('t2', 'posts'),
@@ -101,8 +101,8 @@ describe('autoLayoutERD', () => {
     const usersNode = result.find(n => n.id === 't1')!;
     const postsNode = result.find(n => n.id === 't2')!;
 
-    // posts references users → posts should be in a later layer (higher y)
-    expect(postsNode.position.y).toBeGreaterThan(usersNode.position.y);
+    // The FK holder is to the right so the row handles face each other.
+    expect(postsNode.position.x).toBeGreaterThan(usersNode.position.x);
   });
 
   it('handles 3-level FK chain', () => {
@@ -122,9 +122,9 @@ describe('autoLayoutERD', () => {
     const postsNode = result.find(n => n.id === 't2')!;
     const commentsNode = result.find(n => n.id === 't3')!;
 
-    // Layered: users (top) → posts (mid) → comments (bottom)
-    expect(postsNode.position.y).toBeGreaterThan(usersNode.position.y);
-    expect(commentsNode.position.y).toBeGreaterThan(postsNode.position.y);
+    // Layered left-to-right: users → posts → comments.
+    expect(postsNode.position.x).toBeGreaterThan(usersNode.position.x);
+    expect(commentsNode.position.x).toBeGreaterThan(postsNode.position.x);
   });
 
   it('sorts nodes alphabetically within each layer', () => {
@@ -215,6 +215,47 @@ describe('autoLayoutERD', () => {
     const alpha = result.find(n => n.id === 't1')!;
     const small = result.find(n => n.id === 't2')!;
 
-    expect(small.position.x - alpha.position.x).toBe(244);
+    // The wide table must not inflate the gap between earlier siblings.
+    expect(small.position.x - alpha.position.x).toBeLessThan(700);
+  });
+
+  it('keeps connected tables non-overlapping using measured dimensions', () => {
+    const nodes = [
+      { ...makeNode('t1', 'users'), measured: { width: 420, height: 160 } },
+      makeNode('t2', 'posts'),
+    ];
+    const result = autoLayoutERD(nodes, [makeEdge('t2', 't1')]);
+    const users = result.find(node => node.id === 't1')!;
+    const posts = result.find(node => node.id === 't2')!;
+
+    expect(posts.position.x - users.position.x).toBeGreaterThanOrEqual(420 + 72);
+  });
+
+  it('recalculates row handles after changing the layout direction', () => {
+    const nodes = [
+      makeNode('parent', 'parent'),
+      makeNode('child', 'child'),
+    ];
+    const edges = [makeEdge('child', 'parent')];
+    const positioned = autoLayoutERD(nodes, edges);
+    const result = syncERDEdgeHandles(positioned, edges);
+
+    expect(result[0].sourceHandle).toBe('col-0-source-l');
+    expect(result[0].targetHandle).toBe('col-0-target-r');
+  });
+
+  it('assigns separate routing lanes to relationships in the same corridor', () => {
+    const nodes = [
+      makeNode('parent', 'parent'),
+      makeNode('child_a', 'child_a'),
+      makeNode('child_b', 'child_b'),
+    ];
+    const edges = [makeEdge('child_a', 'parent'), makeEdge('child_b', 'parent')];
+    const positioned = autoLayoutERD(nodes, edges);
+    const result = syncERDEdgeHandles(positioned, edges);
+
+    expect(result[0].data?.layoutRouteX).toEqual(expect.any(Number));
+    expect(result[1].data?.layoutRouteX).toEqual(expect.any(Number));
+    expect(result[0].data?.layoutRouteX).not.toBe(result[1].data?.layoutRouteX);
   });
 });

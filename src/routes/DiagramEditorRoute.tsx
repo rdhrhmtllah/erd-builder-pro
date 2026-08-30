@@ -1,8 +1,9 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { useWorkspace } from '@/providers/WorkspaceProvider';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useReactFlow } from '@xyflow/react';
 import { Database } from 'lucide-react';
-import { autoLayoutERD } from '@/lib/autoLayoutERD';
+import { autoLayoutERD, syncERDEdgeHandles } from '@/lib/autoLayoutERD';
 
 import { ERDView } from '@/components/views/ERDView';
 import { DataViewer } from '@/components/db-connect/DataViewer';
@@ -14,9 +15,10 @@ export function DiagramEditorRoute() {
   const ctx = useWorkspace();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { fitView } = useReactFlow();
 
   const {
-    nodes, edges, setNodes, isPublicView, publicData, activeDiagramId, activeDiagram,
+    nodes, edges, setNodes, setEdges, isPublicView, publicData, activeDiagramId, activeDiagram,
     onNodesChange, onEdgesChange, onConnect,
     selectedNodeId, addEntity, undo, redo, canUndo, canRedo,
     takeSnapshot, onNodeDragStop, onMoveEnd,
@@ -84,9 +86,17 @@ export function DiagramEditorRoute() {
   const handleAutoLayout = useCallback(() => {
     if (!nodes || nodes.length === 0) return;
     const repositions = autoLayoutERD(nodes, edges);
+    const nextEdges = syncERDEdgeHandles(repositions, edges);
     takeSnapshot?.(nodes, edges);
     setNodes(repositions);
-  }, [nodes, edges, setNodes, takeSnapshot]);
+    setEdges(nextEdges);
+    if (!isPublicView) {
+      void saveDiagram?.(repositions, nextEdges, viewportRef.current);
+    }
+    requestAnimationFrame(() => {
+      void fitView({ nodes: repositions, padding: 0.2, duration: 250, minZoom: 0.1, maxZoom: 1.25 });
+    });
+  }, [nodes, edges, setNodes, setEdges, takeSnapshot, isPublicView, saveDiagram, viewportRef, fitView]);
   useEffect(() => {
     if (isPublicView || !id) return;
     if (processedUrlRef.current) return;

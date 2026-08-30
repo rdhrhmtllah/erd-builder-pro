@@ -1,0 +1,11 @@
+# Reuse the upstream runtime/dependency image, but rebuild the frontend from
+# this checkout so UI fixes (including auto-layout) are included in the image.
+FROM bekenweb/erd-builder-pro:latest
+
+WORKDIR /app
+
+COPY . .
+
+# The base image already contains node_modules and the package versions used by
+# the application, so this only rebuilds the Vite bundle from the local source.
+RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build
