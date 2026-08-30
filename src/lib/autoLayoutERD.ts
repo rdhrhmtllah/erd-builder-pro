@@ -4,10 +4,12 @@ import type { Entity } from '@/types';
 const START_X = 50;
 const START_Y = 50;
 const BASE_TABLE_WIDTH = 220;
-const HORIZONTAL_GAP = 360;
-const VERTICAL_GAP = 120;
+const HORIZONTAL_GAP = 280;
+const VERTICAL_GAP = 90;
+const TRACK_GAP = 220;
+const MAX_TRACK_HEIGHT = 1900;
 const COMPONENT_GAP = 240;
-const OUTER_ROUTE_GAP = 90;
+const ROUTE_CLEARANCE = 36;
 const ROUTE_LANE_GAP = 44;
 
 const HEADER_H = 44;
@@ -353,25 +355,60 @@ function layoutConnected(
     }
   }
 
-  const widths = Array.from({ length: maxRank + 1 }, (_, rank) =>
-    Math.max(...(layers.get(rank) || []).map(id => footprint(nodesById.get(id)!).width), BASE_TABLE_WIDTH),
-  );
-  const xByRank: number[] = [];
-  widths.forEach((_, rank) => {
-    xByRank[rank] = rank === 0
-      ? START_X
-      : xByRank[rank - 1] + widths[rank - 1] + HORIZONTAL_GAP;
-  });
-
-  const heights = Array.from({ length: maxRank + 1 }, (_, rank) => layerHeight(layers.get(rank) || [], nodesById));
-  const maxHeight = Math.max(...heights, 0);
-  const positioned = new Map<string, Node<Entity>>();
+  const tracksByRank = new Map<number, string[][]>();
   for (let rank = 0; rank <= maxRank; rank += 1) {
     const idsInLayer = layers.get(rank) || [];
-    let y = START_Y + (maxHeight - heights[rank]) / 2;
-    for (const id of idsInLayer) {
+    if (layerHeight(idsInLayer, nodesById) <= MAX_TRACK_HEIGHT) {
+      tracksByRank.set(rank, [idsInLayer]);
+      continue;
+    }
+
+    const outer = idsInLayer.filter(id => validEdges.some(edge =>
+      edge.target === id && (rankOf.get(edge.source) || 0) > rank,
+    ));
+    const outerSet = new Set(outer);
+    const inner = idsInLayer.filter(id => !outerSet.has(id));
+    const tracks: string[][] = [];
+    const appendPacked = (trackIds: string[]) => {
+      let current: string[] = [];
+      for (const id of trackIds) {
+        const next = [...current, id];
+        if (current.length && layerHeight(next, nodesById) > MAX_TRACK_HEIGHT) {
+          tracks.push(current);
+          current = [id];
+        } else {
+          current = next;
+        }
+      }
+      if (current.length) tracks.push(current);
+    };
+    // Supporting tables stay on the inner side; tables referenced by the next
+    // rank occupy the outermost track, closest to their children.
+    appendPacked(inner);
+    appendPacked(outer);
+    tracksByRank.set(rank, tracks.length ? tracks : [idsInLayer]);
+  }
+
+  const trackEntries: Array<{ rank: number; track: number; ids: string[]; width: number; height: number; x: number }> = [];
+  let rankX = START_X;
+  for (let rank = 0; rank <= maxRank; rank += 1) {
+    const tracks = tracksByRank.get(rank) || [[]];
+    let trackX = rankX;
+    tracks.forEach((trackIds, track) => {
+      const width = Math.max(...trackIds.map(id => footprint(nodesById.get(id)!).width), BASE_TABLE_WIDTH);
+      trackEntries.push({ rank, track, ids: trackIds, width, height: layerHeight(trackIds, nodesById), x: trackX });
+      trackX += width + TRACK_GAP;
+    });
+    rankX = trackX - TRACK_GAP + HORIZONTAL_GAP;
+  }
+
+  const maxHeight = Math.max(...trackEntries.map(entry => entry.height), 0);
+  const positioned = new Map<string, Node<Entity>>();
+  for (const entry of trackEntries) {
+    let y = START_Y + (maxHeight - entry.height) / 2;
+    for (const id of entry.ids) {
       const node = nodesById.get(id)!;
-      positioned.set(id, applyPosition(node, xByRank[rank], y));
+      positioned.set(id, applyPosition(node, entry.x, y));
       y += footprint(node).height + VERTICAL_GAP;
     }
   }
@@ -380,11 +417,9 @@ function layoutConnected(
   // sweeps pull related rows together while preserving a generous gap between
   // tables in the same column.
   for (let pass = 0; pass < 10; pass += 1) {
-    const ranks = pass % 2 === 0
-      ? Array.from({ length: maxRank + 1 }, (_, index) => maxRank - index)
-      : Array.from({ length: maxRank + 1 }, (_, index) => index);
-    for (const rank of ranks) {
-      const idsInLayer = layers.get(rank) || [];
+    const entries = pass % 2 === 0 ? [...trackEntries].reverse() : trackEntries;
+    for (const entry of entries) {
+      const idsInLayer = entry.ids;
       if (!idsInLayer.length) continue;
       const desired = idsInLayer.map(id => {
         const node = positioned.get(id)!;
@@ -481,27 +516,51 @@ function layoutByComponent(
   });
 
   const mainWidth = laidOut[0].width;
-  const shelfWidth = Math.max(mainWidth, 1000);
-  let cursorX = START_X;
-  let cursorY = START_Y;
-  let rowHeight = 0;
+  const totalArea = laidOut.reduce((sum, component) => sum + component.width * component.height, 0);
+  // Aim for a landscape-balanced packing area. Small disconnected groups can
+  // then share one row instead of creating a mostly empty row per component.
+  const shelfWidth = Math.max(mainWidth, Math.sqrt(totalArea) * 1.35, 1200);
   const positionedById = new Map<string, Node<Entity>>();
+  const placed: Array<{ x: number; y: number; width: number; height: number }> = [];
 
   laidOut.forEach((component, index) => {
-    if (index > 0 && cursorX > START_X && cursorX + component.width > START_X + shelfWidth) {
-      cursorX = START_X;
-      cursorY += rowHeight + COMPONENT_GAP;
-      rowHeight = 0;
+    let componentX = START_X;
+    let componentY = START_Y;
+    if (index > 0) {
+      const candidateXs = [...new Set([
+        START_X,
+        ...placed.map(item => item.x),
+        ...placed.map(item => item.x + item.width + COMPONENT_GAP),
+      ])].sort((a, b) => a - b);
+      const candidateYs = [...new Set([
+        START_Y,
+        ...placed.map(item => item.y + item.height + COMPONENT_GAP),
+      ])].sort((a, b) => a - b);
+      const fits = (x: number, y: number) => x + component.width <= START_X + shelfWidth
+        && placed.every(item =>
+          x + component.width + COMPONENT_GAP <= item.x
+          || x >= item.x + item.width + COMPONENT_GAP
+          || y + component.height + COMPONENT_GAP <= item.y
+          || y >= item.y + item.height + COMPONENT_GAP,
+        );
+      const candidates = candidateYs.flatMap(y => candidateXs.map(x => ({ x, y })))
+        .filter(candidate => fits(candidate.x, candidate.y))
+        .sort((a, b) => a.y - b.y || a.x - b.x);
+      if (candidates.length) {
+        componentX = candidates[0].x;
+        componentY = candidates[0].y;
+      } else {
+        componentY = Math.max(...placed.map(item => item.y + item.height)) + COMPONENT_GAP;
+      }
     }
     for (const node of component.positioned) {
       positionedById.set(node.id, applyPosition(
         node,
-        cursorX + node.position.x - component.minX,
-        cursorY + node.position.y - component.minY,
+        componentX + node.position.x - component.minX,
+        componentY + node.position.y - component.minY,
       ));
     }
-    cursorX += component.width + COMPONENT_GAP;
-    rowHeight = Math.max(rowHeight, component.height);
+    placed.push({ x: componentX, y: componentY, width: component.width, height: component.height });
   });
 
   return result.map(node => positionedById.get(node.id)!);
@@ -535,8 +594,7 @@ export function syncERDEdgeHandles(
   const componentIds = weakComponents(nodes.map(node => node.id), edges);
   const componentByNode = new Map<string, string[]>();
   componentIds.forEach(ids => ids.forEach(id => componentByNode.set(id, ids)));
-  let topLane = 0;
-  let bottomLane = 0;
+  const usedLongRouteYs: number[] = [];
 
   const handledEdges = edges.map(edge => {
     const source = nodesById.get(edge.source);
@@ -630,17 +688,32 @@ export function syncERDEdgeHandles(
 
     let layoutRouteY: number | undefined;
     if (intermediateNodes.length) {
-      const componentNodes = component.map(id => nodesById.get(id)!).filter(Boolean);
-      const minY = Math.min(...componentNodes.map(node => node.position.y));
-      const maxY = Math.max(...componentNodes.map(node => node.position.y + footprint(node).height));
-      const midpoint = (source.position.y + target.position.y) / 2;
-      if (midpoint <= (minY + maxY) / 2) {
-        layoutRouteY = minY - OUTER_ROUTE_GAP - topLane * ROUTE_LANE_GAP;
-        topLane += 1;
-      } else {
-        layoutRouteY = maxY + OUTER_ROUTE_GAP + bottomLane * ROUTE_LANE_GAP;
-        bottomLane += 1;
+      const sourceAnchorY = source.position.y + columnAnchorOffset(source, edge.sourceHandle);
+      const targetAnchorY = target.position.y + columnAnchorOffset(target, edge.targetHandle);
+      const midpoint = (sourceAnchorY + targetAnchorY) / 2;
+      const blockedIntervals = intermediateNodes.map(node => ({
+        min: node.position.y - ROUTE_CLEARANCE,
+        max: node.position.y + footprint(node).height + ROUTE_CLEARANCE,
+      }));
+      const candidates = [
+        sourceAnchorY,
+        targetAnchorY,
+        midpoint,
+        ...blockedIntervals.flatMap(interval => [interval.min, interval.max]),
+      ].sort((a, b) => {
+        const score = (value: number) => Math.abs(value - sourceAnchorY)
+          + Math.abs(value - targetAnchorY)
+          + Math.abs(value - midpoint) * 0.2;
+        return score(a) - score(b);
+      });
+      const isFree = (value: number) => blockedIntervals.every(interval => value <= interval.min || value >= interval.max)
+        && usedLongRouteYs.every(used => Math.abs(value - used) >= ROUTE_LANE_GAP);
+      layoutRouteY = candidates.find(isFree);
+      if (layoutRouteY === undefined) {
+        layoutRouteY = Math.min(...blockedIntervals.map(interval => interval.min)) - ROUTE_LANE_GAP;
+        while (!isFree(layoutRouteY)) layoutRouteY -= ROUTE_LANE_GAP;
       }
+      usedLongRouteYs.push(layoutRouteY);
     }
 
     if (layoutRouteY !== undefined) nextData.layoutRouteY = layoutRouteY;
