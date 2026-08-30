@@ -6,6 +6,7 @@ import { decrypt } from "../../lib/crypto.js";
 import { prisma } from "../../lib/prisma.js";
 import * as diagService from "./service.js";
 import * as saveService from "./save-service.js";
+import * as subjectAreaService from "./subject-area-service.js";
 import type { ConnectionInfo } from "../../lib/db-connectors/types.js";
 
 export async function list(req: ExpressRequest, res: ExpressResponse): Promise<void> {
@@ -133,6 +134,52 @@ export async function moveToProject(req: ExpressRequest, res: ExpressResponse): 
     res.json(result);
   } catch (err: any) {
     handleError(res, err, "Failed to move diagram to project");
+  }
+}
+
+export async function listSubjectAreas(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const result = await subjectAreaService.listSubjectAreas(req.params.uid, (req as any).user.id);
+    if (!result) { res.status(404).json({ error: "Diagram not found" }); return; }
+    res.json({ data: result });
+  } catch (err) {
+    handleError(res, err, "Failed to load subject areas");
+  }
+}
+
+export async function createSubjectArea(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const result = await subjectAreaService.createSubjectArea(req.params.uid, (req as any).user.id, req.body);
+    if (!result) { res.status(404).json({ error: "Diagram not found" }); return; }
+    res.status(201).json(result);
+  } catch (err) {
+    if (err instanceof subjectAreaService.InvalidSubjectAreaNodesError) {
+      res.status(400).json({ error: err.message }); return;
+    }
+    handleError(res, err, "Failed to create subject area");
+  }
+}
+
+export async function updateSubjectArea(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const result = await subjectAreaService.updateSubjectArea(req.params.uid, req.params.areaId, (req as any).user.id, req.body);
+    if (!result) { res.status(404).json({ error: "Subject area not found" }); return; }
+    res.json(result);
+  } catch (err) {
+    if (err instanceof subjectAreaService.InvalidSubjectAreaNodesError) {
+      res.status(400).json({ error: err.message }); return;
+    }
+    handleError(res, err, "Failed to update subject area");
+  }
+}
+
+export async function deleteSubjectArea(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const result = await subjectAreaService.deleteSubjectArea(req.params.uid, req.params.areaId, (req as any).user.id);
+    if (!result) { res.status(404).json({ error: "Subject area not found" }); return; }
+    res.json(result);
+  } catch (err) {
+    handleError(res, err, "Failed to delete subject area");
   }
 }
 

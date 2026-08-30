@@ -19,7 +19,7 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch } from 'lucide-react';
+import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -38,6 +38,8 @@ import { buildErdIndexes, erdColumnKey, erdSourceColumnKey } from '@/lib/erd-ind
 import { databaseColumnToERD } from '@/lib/column-metadata';
 import { syncERDEdgeHandles } from '@/lib/autoLayoutERD';
 import { ErdRelationExplorer, type ErdExplorerSelection } from '@/components/diagram/ErdRelationExplorer';
+import { ErdSubjectAreaPanel } from '@/components/diagram/ErdSubjectAreaPanel';
+import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 
 const nodeTypes = {
   entity: EntityNode,
@@ -226,7 +228,7 @@ const ERDViewComponent = ({
 
   const { registerContentHandler, setSelectionText, setActionContextData, setRightPanelMode } = useAIAction();
   const { getViewport } = useReactFlow();
-  const { resolvedTheme } = useWorkspace();
+  const { resolvedTheme, activeFileUid, isPublicView } = useWorkspace();
   const bgColor = resolvedTheme === 'dark' ? '#222' : '#ccc';
   const isProductionDb = isDbClient;
 
@@ -234,6 +236,8 @@ const ERDViewComponent = ({
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [explorerSelection, setExplorerSelection] = useState<ErdExplorerSelection | null>(null);
+  const [subjectAreasOpen, setSubjectAreasOpen] = useState(false);
+  const [activeSubjectArea, setActiveSubjectArea] = useState<ErdSubjectArea | null>(null);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   const lowDetailRef = React.useRef(false);
 
@@ -307,6 +311,17 @@ const ERDViewComponent = ({
     return [];
   }, [multiSelectedIds, selectedNodeId]);
 
+  React.useEffect(() => {
+    setSubjectAreasOpen(false);
+    setActiveSubjectArea(null);
+  }, [activeFileUid]);
+
+  const subjectAreaVisibility = React.useMemo(() => activeSubjectArea
+    ? getSubjectAreaVisibility(nodes, edges, activeSubjectArea.node_ids)
+    : null, [activeSubjectArea, nodes, edges]);
+
+  const nodeNames = React.useMemo(() => new Map(nodes.map(node => [node.id, String(node.data.name || node.id)])), [nodes]);
+
   const styledNodes = React.useMemo(() => {
     return nodes.map(node => {
       const selected = allSelectedIds.includes(node.id);
@@ -317,12 +332,13 @@ const ERDViewComponent = ({
         ? explorerPath ? 'erd-path-node' : explorerVisible ? 'erd-focus-active' : 'erd-focus-dimmed'
         : '';
       const className = [node.className, explorerClass].filter(Boolean).join(' ');
+      const hidden = subjectAreaVisibility ? !subjectAreaVisibility.visibleNodeIds.has(node.id) : !!node.hidden;
       // Use !! to normalize undefined/null to boolean — avoids creating wrappers
       // for all nodes on the first drag after setNodes() (which may lack `selected`)
-      if (!!node.selected === selected && node.className === className) return node;
-      return { ...node, selected, className };
+      if (!!node.selected === selected && node.className === className && !!node.hidden === hidden) return node;
+      return { ...node, selected, className, hidden };
     });
-  }, [nodes, allSelectedIds, explorerSelection]);
+  }, [nodes, allSelectedIds, explorerSelection, subjectAreaVisibility]);
 
   const diffNodesWithMode = React.useMemo(() => {
     if (!pendingDiff) return [];
@@ -358,6 +374,7 @@ const ERDViewComponent = ({
       const baseEdge = {
         ...edge,
         type: 'erdRelation',
+        hidden: subjectAreaVisibility ? !subjectAreaVisibility.visibleEdgeIds.has(edge.id) : !!edge.hidden,
         style: {
           ...edge.style,
           stroke: edgeColor,
@@ -391,7 +408,7 @@ const ERDViewComponent = ({
       if (baseEdge.className === newClassName) return baseEdge;
       return { ...baseEdge, className: newClassName };
     });
-  }, [nodes, edges, allSelectedIds, explorerSelection]);
+  }, [nodes, edges, allSelectedIds, explorerSelection, subjectAreaVisibility]);
 
   // Filter out selection-only changes to avoid unnecessary re-renders from React Flow
   const handleNodesChangeLocal = useCallback(
@@ -718,6 +735,7 @@ const ERDViewComponent = ({
             </Button>
             <Button
               onClick={() => {
+                setSubjectAreasOpen(false);
                 setExplorerOpen(open => {
                   if (open) setExplorerSelection(null);
                   return !open;
@@ -731,6 +749,22 @@ const ERDViewComponent = ({
               <GitBranch className="w-3.5 h-3.5 sm:mr-1.5" />
               <span className="hidden sm:inline">Explorer</span>
             </Button>
+            {activeFileUid && !isPublicView && !isProductionDb && (
+              <Button
+                onClick={() => {
+                  setExplorerOpen(false);
+                  setExplorerSelection(null);
+                  setSubjectAreasOpen(open => !open);
+                }}
+                variant={subjectAreasOpen || activeSubjectArea ? 'default' : 'outline'}
+                size="sm"
+                className="h-9 px-3 text-xs font-semibold cursor-pointer"
+                title="Create and open saved module views"
+              >
+                <FolderKanban className="w-3.5 h-3.5 sm:mr-1.5" />
+                <span className="hidden sm:inline">{activeSubjectArea?.name || 'Areas'}</span>
+              </Button>
+            )}
 
             {isProductionDb && (
               <Button onClick={handleSync} variant="outline" size="sm" className="h-9 px-3 border-amber-500/50 hover:bg-amber-500/10 bg-amber-500/5 text-amber-600 dark:text-amber-400 text-xs font-semibold cursor-pointer" disabled={isSyncing}>
@@ -783,6 +817,17 @@ const ERDViewComponent = ({
             setExplorerOpen(false);
             setExplorerSelection(null);
           }}
+        />
+      )}
+      {subjectAreasOpen && activeFileUid && !isPublicView && !pendingDiff && (
+        <ErdSubjectAreaPanel
+          diagramUid={activeFileUid}
+          selectedNodeIds={allSelectedIds}
+          nodeNames={nodeNames}
+          activeArea={activeSubjectArea}
+          readOnly={isReadOnly}
+          onActiveAreaChange={setActiveSubjectArea}
+          onClose={() => setSubjectAreasOpen(false)}
         />
       )}
       {isLoading && (

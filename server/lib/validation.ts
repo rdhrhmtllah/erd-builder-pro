@@ -43,6 +43,28 @@ export const createDiagramSchema = z.object({
   uid: z.string().uuid().optional(),
 });
 
+const subjectAreaFields = {
+  name: z.string().trim().min(1).max(80),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  node_ids: z.array(z.string().min(1).max(160)).min(1).max(1000),
+  viewport_x: z.number().finite().min(-1_000_000).max(1_000_000),
+  viewport_y: z.number().finite().min(-1_000_000).max(1_000_000),
+  viewport_zoom: z.number().finite().min(0.05).max(4),
+};
+
+export const createSubjectAreaSchema = z.object(subjectAreaFields).strict();
+
+export const updateSubjectAreaSchema = z.object({
+  name: subjectAreaFields.name.optional(),
+  color: subjectAreaFields.color.optional(),
+  node_ids: subjectAreaFields.node_ids.optional(),
+  viewport_x: subjectAreaFields.viewport_x.optional(),
+  viewport_y: subjectAreaFields.viewport_y.optional(),
+  viewport_zoom: subjectAreaFields.viewport_zoom.optional(),
+}).strict().refine(value => Object.keys(value).length > 0, {
+  message: "At least one subject area field must be provided",
+});
+
 export const createNoteSchema = z.object({
   title: z.string().min(1).max(255),
   content: z.string().max(10_000_000).optional(),

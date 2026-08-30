@@ -240,6 +240,30 @@ async function createErdMetadataTablesIfMissing(): Promise<void> {
   }
 }
 
+async function createDiagramSubjectAreasTableIfMissing(): Promise<void> {
+  if (!prisma) return;
+  try {
+    const dateType = isLocalPostgres() ? "TIMESTAMP(3)" : "DATETIME";
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "diagram_subject_areas" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "diagram_id" INTEGER NOT NULL,
+        "name" TEXT NOT NULL,
+        "color" TEXT NOT NULL DEFAULT '#6366f1',
+        "node_ids" TEXT NOT NULL,
+        "viewport_x" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "viewport_y" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "viewport_zoom" DOUBLE PRECISION NOT NULL DEFAULT 1,
+        "created_at" ${dateType} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updated_at" ${dateType} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "diagram_subject_areas_diagram_id_fkey" FOREIGN KEY ("diagram_id") REFERENCES "diagrams" ("id") ON DELETE CASCADE ON UPDATE NO ACTION
+      )`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "idx_diagram_subject_areas_diagram" ON "diagram_subject_areas"("diagram_id")`);
+  } catch (err: any) {
+    logger.warn({ err: err?.message }, "Failed to create diagram subject areas table (non-fatal)");
+  }
+}
+
 async function normalizeLegacyColumnIds(): Promise<void> {
   if (!prisma) return;
 
@@ -489,6 +513,7 @@ export async function applySchemaMigrations(): Promise<void> {
   await addColumnIfMissing("relationships", "on_update", '"on_update" TEXT');
   await addColumnIfMissing("relationships", "constraint_name", '"constraint_name" TEXT');
   await createErdMetadataTablesIfMissing();
+  await createDiagramSubjectAreasTableIfMissing();
   if (isDesktopMode()) {
     await createDbConnectTablesIfMissing();
     await createSqlQueriesTableIfMissing();
