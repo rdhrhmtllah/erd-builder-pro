@@ -19,7 +19,7 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download } from 'lucide-react';
+import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,6 +37,7 @@ import { EyeOff, Monitor } from 'lucide-react';
 import { buildErdIndexes, erdColumnKey, erdSourceColumnKey } from '@/lib/erd-indexes';
 import { databaseColumnToERD } from '@/lib/column-metadata';
 import { syncERDEdgeHandles } from '@/lib/autoLayoutERD';
+import { ErdRelationExplorer, type ErdExplorerSelection } from '@/components/diagram/ErdRelationExplorer';
 
 const nodeTypes = {
   entity: EntityNode,
@@ -231,6 +232,8 @@ const ERDViewComponent = ({
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [explorerOpen, setExplorerOpen] = useState(false);
+  const [explorerSelection, setExplorerSelection] = useState<ErdExplorerSelection | null>(null);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   const lowDetailRef = React.useRef(false);
 
@@ -307,12 +310,19 @@ const ERDViewComponent = ({
   const styledNodes = React.useMemo(() => {
     return nodes.map(node => {
       const selected = allSelectedIds.includes(node.id);
+      const explorerActive = explorerSelection !== null;
+      const explorerVisible = explorerSelection?.nodeIds.has(node.id) === true;
+      const explorerPath = explorerSelection?.pathNodeIds.has(node.id) === true;
+      const explorerClass = explorerActive
+        ? explorerPath ? 'erd-path-node' : explorerVisible ? 'erd-focus-active' : 'erd-focus-dimmed'
+        : '';
+      const className = [node.className, explorerClass].filter(Boolean).join(' ');
       // Use !! to normalize undefined/null to boolean — avoids creating wrappers
       // for all nodes on the first drag after setNodes() (which may lack `selected`)
-      if (!!node.selected === selected) return node;
-      return { ...node, selected };
+      if (!!node.selected === selected && node.className === className) return node;
+      return { ...node, selected, className };
     });
-  }, [nodes, allSelectedIds]);
+  }, [nodes, allSelectedIds, explorerSelection]);
 
   const diffNodesWithMode = React.useMemo(() => {
     if (!pendingDiff) return [];
@@ -338,7 +348,11 @@ const ERDViewComponent = ({
       const isConnectedToSelected = hasSelection && allSelectedIds.some(
         id => edge.source === id || edge.target === id
       );
-      const edgeColor = isConnectedToSelected || edge.selected
+      const isExplorerVisible = explorerSelection?.edgeIds.has(edge.id) === true;
+      const isExplorerPath = explorerSelection?.pathEdgeIds.has(edge.id) === true;
+      const edgeColor = isExplorerPath
+        ? '#f59e0b'
+        : isExplorerVisible || isConnectedToSelected || edge.selected
         ? 'var(--edge-selected)'
         : 'var(--edge-color)';
       const baseEdge = {
@@ -361,7 +375,13 @@ const ERDViewComponent = ({
       const classes: string[] = [];
       if (edge.className) classes.push(edge.className);
 
-      if (isConnectedToSelected) {
+      if (explorerSelection && isExplorerPath) {
+        classes.push('edge-path-active');
+      } else if (explorerSelection && isExplorerVisible) {
+        classes.push('edge-explorer-active');
+      } else if (explorerSelection) {
+        classes.push('edge-explorer-dimmed');
+      } else if (isConnectedToSelected) {
         classes.push('edge-animated-active');
       } else if (hasSelection) {
         classes.push('edge-dimmed');
@@ -371,7 +391,7 @@ const ERDViewComponent = ({
       if (baseEdge.className === newClassName) return baseEdge;
       return { ...baseEdge, className: newClassName };
     });
-  }, [nodes, edges, allSelectedIds]);
+  }, [nodes, edges, allSelectedIds, explorerSelection]);
 
   // Filter out selection-only changes to avoid unnecessary re-renders from React Flow
   const handleNodesChangeLocal = useCallback(
@@ -696,6 +716,21 @@ const ERDViewComponent = ({
               <LayoutGrid className="w-3.5 h-3.5 sm:mr-1.5" />
               <span className="hidden sm:inline">Auto Layout</span>
             </Button>
+            <Button
+              onClick={() => {
+                setExplorerOpen(open => {
+                  if (open) setExplorerSelection(null);
+                  return !open;
+                });
+              }}
+              variant={explorerOpen ? 'default' : 'outline'}
+              size="sm"
+              className="h-9 px-3 text-xs font-semibold cursor-pointer"
+              title="Trace upstream/downstream relationships and find paths"
+            >
+              <GitBranch className="w-3.5 h-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Explorer</span>
+            </Button>
 
             {isProductionDb && (
               <Button onClick={handleSync} variant="outline" size="sm" className="h-9 px-3 border-amber-500/50 hover:bg-amber-500/10 bg-amber-500/5 text-amber-600 dark:text-amber-400 text-xs font-semibold cursor-pointer" disabled={isSyncing}>
@@ -737,6 +772,18 @@ const ERDViewComponent = ({
             )}
           </div>
         </div>
+      )}
+      {explorerOpen && !pendingDiff && (
+        <ErdRelationExplorer
+          nodes={nodes}
+          edges={edges}
+          selectedNodeIds={allSelectedIds}
+          onSelectionChange={setExplorerSelection}
+          onClose={() => {
+            setExplorerOpen(false);
+            setExplorerSelection(null);
+          }}
+        />
       )}
       {isLoading && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-opacity duration-150">
@@ -826,7 +873,7 @@ const ERDViewComponent = ({
           // Production DB ERD stays read-only for schema edits, but table positions are editable.
           nodesDraggable={!pendingDiff && (!isReadOnly || isProductionDb)}
           nodesConnectable={!pendingDiff && (!isReadOnly || (isProductionDb && isReconnecting))}
-          elementsSelectable={!isReadOnly && !pendingDiff}
+          elementsSelectable={(!isReadOnly || explorerOpen) && !pendingDiff}
           onNodeDragStop={onNodeDragStop}
           onMoveEnd={onMoveEnd}
           minZoom={0.1}

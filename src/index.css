@@ -283,6 +283,39 @@
   opacity: 0.55 !important;
 }
 
+/* Relation Explorer keeps the layout stable while isolating a subgraph. */
+.erd-focus-dimmed {
+  opacity: 0.12 !important;
+  filter: saturate(0.25);
+  transition: opacity 160ms ease, filter 160ms ease;
+}
+
+.erd-focus-active,
+.erd-path-node {
+  opacity: 1 !important;
+  transition: opacity 160ms ease;
+}
+
+.erd-path-node .erd-node-container {
+  box-shadow: 0 0 0 3px color-mix(in oklab, #f59e0b 65%, transparent), 0 8px 28px rgb(15 23 42 / 18%);
+}
+
+.edge-explorer-dimmed .react-flow__edge-path {
+  opacity: 0.06 !important;
+}
+
+.edge-explorer-active .react-flow__edge-path {
+  opacity: 1 !important;
+  stroke-width: 2.4 !important;
+}
+
+.edge-path-active .react-flow__edge-path {
+  opacity: 1 !important;
+  stroke: #f59e0b !important;
+  stroke-width: 3 !important;
+  filter: drop-shadow(0 0 3px rgb(245 158 11 / 55%));
+}
+
 .react-flow__controls {
   @apply bg-card! border-border! shadow-none! rounded-lg! overflow-hidden;
 }
