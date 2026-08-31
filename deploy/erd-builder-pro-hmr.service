@@ -1,0 +1,21 @@
+[Unit]
+Description=ERD Builder Pro remote Vite HMR
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hermes-admin
+Group=hermes-admin
+WorkingDirectory=/home/hermes-admin/services/erd-builder-pro/app
+Environment=PATH=/home/hermes-admin/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=ERD_DEV_PUBLIC_URL=https://dev-server-diagram.ajt.my.id
+Environment=ERD_DEV_PROXY_TARGET=http://127.0.0.1:3101
+ExecStart=/home/hermes-admin/services/erd-builder-pro/app/node_modules/.bin/vite --host 127.0.0.1 --port 5174 --strictPort
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

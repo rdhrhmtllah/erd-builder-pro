@@ -10,6 +10,9 @@ ERD_DEV_PROXY_TARGET=http://127.0.0.1:3101 \
 npx vite --host 127.0.0.1 --port 5174 --strictPort
 ```
 
+On the self-hosted server this command is installed as the persistent
+`erd-builder-pro-hmr.service`, with automatic startup and restart on failure.
+
 Do not set `VITE_API_URL` for this setup. A `VITE_` variable is embedded in the
 browser bundle, while `ERD_DEV_PROXY_TARGET` remains server-only.
 
