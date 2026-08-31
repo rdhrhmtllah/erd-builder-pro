@@ -6,6 +6,7 @@ import pkg from './package.json';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  const webBuild = process.env.ERD_WEB_BUILD === '1';
   const allowedHosts = new Set<string>();
   for (const value of [env.MCP_PUBLIC_URL, ...(env.CORS_ORIGINS || '').split(',')]) {
     if (!value) continue;
@@ -24,11 +25,15 @@ export default defineConfig(({mode}) => {
       },
     },
     build: {
-      // Force single JS bundle — avoids Windows Tauri chunk-missing bug
+      // Desktop packaging still needs one bundle. The self-hosted web image is
+      // allowed to split vendor code, which keeps Rollup below the host's
+      // BuildKit memory limit and makes web-only deploys reliable.
       chunkSizeWarningLimit: 10000,
       rollupOptions: {
         output: {
-          manualChunks: () => 'app',
+          manualChunks: webBuild ? {
+            react: ['react', 'react-dom', '@xyflow/react'],
+          } : () => 'app',
         },
       },
     },
