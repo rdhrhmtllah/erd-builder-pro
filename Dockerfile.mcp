@@ -1,12 +1,16 @@
-# Reuse the upstream runtime/dependency image.  The frontend bundle already
-# exists in that image; MCP changes are served by tsx from the copied server
-# source at runtime.
+# Preserve the deployed UI bundle, which contains our layout and Perspective
+# improvements. The MCP/server source is copied from this checkout below.
+FROM erd-builder-pro:rollback-pre-3d60501 AS preserved_ui
+
+# Reuse the upstream runtime/dependency image. MCP changes are served by tsx
+# from the copied server source at runtime.
 FROM bekenweb/erd-builder-pro:latest
 
 WORKDIR /app
 
 COPY . .
 
-# Do not rebuild Vite here.  On this host BuildKit applies a memory cgroup that
-# is too small for the production bundle, while the MCP/server source does not
-# require a new client bundle.
+# Do not rebuild Vite here: BuildKit's memory cgroup on this host is too small
+# for it. Keep the last known-good custom frontend bundle instead of falling
+# back to the upstream bundle.
+COPY --from=preserved_ui /app/dist ./dist
