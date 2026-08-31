@@ -7,6 +7,7 @@ import {
 } from "../../lib/entity-history.js";
 import { saveDiagram } from "../diagrams/save-service.js";
 import { useLocalAuth } from "../../lib/config.js";
+import { governanceFrom } from "../../../shared/erd-governance.js";
 
 function ownedWhere(uid: string, userId: string): any {
   const numericId = /^\d+$/.test(uid) ? (useLocalAuth() ? Number(uid) : BigInt(uid)) : null;
@@ -64,6 +65,7 @@ async function diagramSnapshot(diagram: any) {
       y: entity.y,
       color: entity.color,
       comment: entity.comment ?? "",
+      governance: governanceFrom(entity),
       columns: columns.filter(column => column.entityId === entity.id).map((column: any) => ({
         id: column.id,
         name: column.name,
@@ -74,6 +76,7 @@ async function diagramSnapshot(diagram: any) {
         default_value: column.defaultValue ?? null,
         enum_values: column.enumValues ?? "",
         comment: column.comment ?? "",
+        governance: governanceFrom(column),
         max_length: column.maxLength ?? null,
         numeric_precision: column.numericPrecision ?? null,
         numeric_scale: column.numericScale ?? null,

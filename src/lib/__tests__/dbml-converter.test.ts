@@ -300,6 +300,26 @@ Ref "posts_user_id_fk": posts.user_id > users.id [delete: cascade, update: casca
     });
   });
 
+  it('round-trips table and column governance through valid namespaced DBML comments', () => {
+    const nodes = [{
+      id: 'users', type: 'entity', position: { x: 0, y: 0 },
+      data: {
+        id: 'users', name: 'users', x: 0, y: 0, color: '#6366f1',
+        governance: { business_name: 'User Accounts', owner: 'IAM', domain: 'Identity', classification: 'internal', tags: ['core'] },
+        columns: [{
+          id: 'users-email', name: 'email', type: 'VARCHAR', is_pk: false, is_nullable: false,
+          governance: { description: 'Login email', classification: 'confidential', glossary_terms: ['email address'] },
+        }],
+      },
+    }] as any;
+    const dbml = erdToDBML(nodes, []);
+    expect(dbml).toContain('// erd-governance-table:');
+    expect(dbml).toContain('// erd-governance-column:');
+    const parsed = dbmlToERD(dbml);
+    expect(parsed.nodes[0].data.governance).toMatchObject({ business_name: 'User Accounts', owner: 'IAM', classification: 'internal' });
+    expect(parsed.nodes[0].data.columns[0].governance).toMatchObject({ description: 'Login email', classification: 'confidential', glossary_terms: ['email address'] });
+  });
+
   it('matches a DBML relation without replacing its canvas edge side', () => {
     const existing = {
       id: 'orders-users', source: 'orders', target: 'users',

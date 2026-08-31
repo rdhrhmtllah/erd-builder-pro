@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
+import { serializeErdGovernance } from "../../../shared/erd-governance.js";
 
 // ── Helpers ──
 
@@ -113,11 +114,13 @@ async function upsertEntities(rows: any[], diagramId: number) {
           name: e.name, x: e.x, y: e.y,
           color: e.color || "#6366f1",
           comment: e.comment || null,
+          governanceData: serializeErdGovernance(e.governance ?? e.governance_data ?? e.governanceData),
         },
         update: {
           name: e.name, x: e.x, y: e.y,
           color: e.color || "#6366f1",
           comment: e.comment || null,
+          governanceData: serializeErdGovernance(e.governance ?? e.governance_data ?? e.governanceData),
         },
       })
     ),
@@ -142,6 +145,7 @@ async function upsertColumns(rows: any[]) {
           defaultValue: normalizePersistedColumnDefault(col.default_value, columnIsNullable(col.is_nullable)),
           enumValues: col.enum_values || null,
           comment: col.comment || null,
+          governanceData: serializeErdGovernance(col.governance ?? col.governance_data ?? col.governanceData),
           maxLength: col.max_length ?? null,
           numericPrecision: col.numeric_precision ?? null,
           numericScale: col.numeric_scale ?? null,
@@ -155,6 +159,7 @@ async function upsertColumns(rows: any[]) {
           defaultValue: normalizePersistedColumnDefault(col.default_value, columnIsNullable(col.is_nullable)),
           enumValues: col.enum_values || null,
           comment: col.comment || null,
+          governanceData: serializeErdGovernance(col.governance ?? col.governance_data ?? col.governanceData),
           maxLength: col.max_length ?? null,
           numericPrecision: col.numeric_precision ?? null,
           numericScale: col.numeric_scale ?? null,

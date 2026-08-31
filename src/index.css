@@ -397,6 +397,27 @@
   opacity: 0.14 !important;
   filter: saturate(0.25);
 }
+
+.erd-governance-dimmed {
+  opacity: 0.16;
+  filter: grayscale(0.55);
+}
+
+.erd-governance-selected .erd-node-container,
+.erd-governance-public .erd-node-container,
+.erd-governance-internal .erd-node-container,
+.erd-governance-confidential .erd-node-container,
+.erd-governance-restricted .erd-node-container {
+  box-shadow: 0 0 0 4px rgb(59 130 246 / 22%), 0 14px 38px rgb(15 23 42 / 22%);
+}
+
+.erd-governance-confidential .erd-node-container {
+  box-shadow: 0 0 0 4px rgb(245 158 11 / 30%), 0 14px 38px rgb(245 158 11 / 16%);
+}
+
+.erd-governance-restricted .erd-node-container {
+  box-shadow: 0 0 0 4px rgb(239 68 68 / 30%), 0 14px 38px rgb(239 68 68 / 16%);
+}
 .erd-migration-safe .erd-node-container { box-shadow: 0 0 0 3px rgb(16 185 129 / 68%); }
 .erd-migration-caution .erd-node-container { box-shadow: 0 0 0 3px rgb(245 158 11 / 72%); }
 .erd-migration-breaking .erd-node-container { box-shadow: 0 0 0 3px rgb(239 68 68 / 76%); }

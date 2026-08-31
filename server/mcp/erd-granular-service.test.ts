@@ -127,6 +127,43 @@ describe('granular ERD MCP operations', () => {
     expect(mocks.saveDiagram).not.toHaveBeenCalled();
   });
 
+  it('normalizes governance metadata in safe table and column patch previews', async () => {
+    const proposal: any = await service.proposeErdPatch('owner', 'diagram-1', [
+      { op: 'table_update', table_id: 'users', changes: { governance: {
+        businessName: 'User Accounts', description: 'Identity records', domain: 'IAM', owner: 'Platform',
+        classification: 'internal', reviewStatus: 'approved', tags: ['core', 'core'],
+      } } },
+      { op: 'column_update', table_id: 'users', column_id: 'users-id', changes: { governance: {
+        description: 'Stable identifier', classification: 'restricted',
+      } } },
+    ]);
+    expect(proposal.changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ after: expect.objectContaining({ governance: expect.objectContaining({
+        business_name: 'User Accounts', review_status: 'approved', tags: ['core'],
+      }) }) }),
+      expect.objectContaining({ after: expect.objectContaining({ governance: expect.objectContaining({ classification: 'restricted' }) }) }),
+    ]));
+    expect(proposal.migration_plan.summary.total).toBe(0);
+    expect(mocks.saveDiagram).not.toHaveBeenCalled();
+    expect(() => service.applyErdPatch(snapshot(), [{
+      op: 'table_update', table_id: 'users', changes: { governance: { classification: 'secret' } },
+    }])).toThrow(/classification/);
+  });
+
+  it('reads governance coverage and export content without writing', async () => {
+    const database = databaseDiagram();
+    database.entities[0].governanceData = JSON.stringify({
+      description: 'Identity records', domain: 'IAM', owner: 'Platform', classification: 'internal',
+    });
+    database.entities[0].columns[0].governanceData = JSON.stringify({ description: 'Identifier' });
+    mocks.getDiagram.mockResolvedValue(database);
+    const dictionary: any = await service.readGranularErdDictionary('owner', 'diagram-1', 'markdown');
+    expect(dictionary.report).toMatchObject({ total: 5, documented: 2 });
+    expect(dictionary.content).toContain('# Commerce — Data Dictionary');
+    expect(dictionary.content).toContain('Domain: IAM');
+    expect(mocks.saveDiagram).not.toHaveBeenCalled();
+  });
+
   it('generates IDs in preview and requires exact confirmation before saving', async () => {
     const proposal: any = await service.proposeErdPatch('owner', 'diagram-1', [{
       op: 'column_add', table_id: 'users', column: { name: 'email', type: 'VARCHAR', is_nullable: false },

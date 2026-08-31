@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useMemo, CSSProperties } from 'react';
 import { Handle, Position, NodeProps, Node, useUpdateNodeInternals } from '@xyflow/react';
-import { MoreHorizontal, Pencil, Trash2, Database, AlertTriangle, Copy, MessageSquare } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2, Database, AlertTriangle, Copy, MessageSquare, Shield } from 'lucide-react';
 import { Entity } from '../../types';
 import { cn } from '../../lib/utils';
 import { formatColumnType } from '../../lib/column-metadata';
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useWorkspace } from '../../providers/WorkspaceProvider';
 import { useAIAction } from '@/contexts/AIActionContext';
+import { governanceFrom } from '../../../shared/erd-governance';
 
 import {
   AlertDialog,
@@ -35,14 +36,16 @@ interface ColumnRowProps {
   typeColor: string;
   hideHandles?: boolean;
   onDoubleClick?: (event: React.MouseEvent) => void;
+  tableClassification?: string;
 }
 
 const handleBaseClass = '!w-2 !h-2 !border-none cursor-crosshair opacity-0 transition-opacity duration-150 group-hover:!opacity-100 group-focus-within:!opacity-100';
 const readOnlyHandleClass = '!w-2 !h-2 !border-none !opacity-0 !pointer-events-none';
 
-const EntityColumnRow = memo(({ col, borderColor, typeColor, hideHandles, onDoubleClick }: ColumnRowProps) => {
+const EntityColumnRow = memo(({ col, borderColor, typeColor, hideHandles, onDoubleClick, tableClassification }: ColumnRowProps) => {
   const isFk = col._is_fk;
   const diffState = col.diffState as 'new' | 'deleted' | undefined;
+  const classification = governanceFrom(col).classification || tableClassification;
 
   const leftStyle: CSSProperties = useMemo(() => ({
     top: '50%', left: '-4px', transform: 'translate(-50%, -50%)', backgroundColor: borderColor, zIndex: 50,
@@ -91,6 +94,7 @@ const EntityColumnRow = memo(({ col, borderColor, typeColor, hideHandles, onDoub
             {formatColumnType(col.type, col.max_length, col.numeric_precision, col.numeric_scale).toLowerCase()}
           </span>
           {col.comment && <MessageSquare className="w-3 h-3 text-muted-foreground" />}
+          {(classification === 'confidential' || classification === 'restricted') && <Shield className={cn('h-3 w-3', classification === 'restricted' ? 'text-red-500' : 'text-amber-500')} aria-label={`${classification} data`} />}
           {(col.is_pk || isFk) && (
             <div className="flex items-center gap-1">
               {col.is_pk && <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-tighter">pk</span>}
@@ -154,6 +158,7 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
   };
 
   const diffState = data.diffState as 'new' | 'deleted' | 'modified' | undefined;
+  const tableGovernance = governanceFrom(data);
 
   const { borderColor, headerBg, typeColor } = useMemo(() => {
     if (diffState === 'new') {
@@ -217,6 +222,13 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
             )}>
               {data.name}
             </span>
+            {tableGovernance.classification && <span className={cn(
+              'rounded border px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide',
+              tableGovernance.classification === 'restricted' ? 'border-red-500/40 bg-red-500/10 text-red-500'
+                : tableGovernance.classification === 'confidential' ? 'border-amber-500/40 bg-amber-500/10 text-amber-500'
+                : tableGovernance.classification === 'internal' ? 'border-sky-500/40 bg-sky-500/10 text-sky-500'
+                : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-500',
+            )}>{tableGovernance.classification}</span>}
             {diffState === 'new' && (
               <span className="px-1 py-0.5 text-[8px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded uppercase tracking-wider">NEW</span>
             )}
@@ -277,6 +289,7 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
               typeColor={typeColor}
               hideHandles={isProductionDb}
               onDoubleClick={isReadOnly ? undefined : handleEdit}
+              tableClassification={tableGovernance.classification}
             />
           ))}
         </div>

@@ -9,6 +9,7 @@ import { importDiagrams } from "./diagram-importer.js";
 import { importFlowcharts } from "./importers.js";
 import { importDrawings } from "./importers.js";
 import { importAiChatSessions } from "./importers.js";
+import { governanceFrom } from "../../../shared/erd-governance.js";
 
 // Assert Prisma is available at module level
 if (!prisma) {
@@ -80,6 +81,7 @@ export async function exportHandler(req: ExpressRequest, res: ExpressResponse): 
           created_at: iso(d.createdAt), updated_at: iso(d.updatedAt),
           entities: (d.entities || []).map((e: any) => ({
             id: e.id, name: e.name, x: e.x, y: e.y, color: e.color,
+            governance: governanceFrom(e),
             created_at: iso(e.createdAt),
             columns: (e.columns || []).map((c: any) => ({
               id: c.id, name: c.name, type: c.type,
@@ -89,6 +91,7 @@ export async function exportHandler(req: ExpressRequest, res: ExpressResponse): 
               max_length: c.maxLength,
               numeric_precision: c.numericPrecision,
               numeric_scale: c.numericScale,
+              governance: governanceFrom(c),
               created_at: iso(c.createdAt),
             })),
           })),

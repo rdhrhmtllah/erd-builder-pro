@@ -509,6 +509,8 @@ export async function applySchemaMigrations(): Promise<void> {
   await addColumnIfMissing("columns", "default_value", '"default_value" TEXT');
   await addColumnIfMissing("columns", "is_unique", '"is_unique" BOOLEAN DEFAULT false');
   await addColumnIfMissing("entities", "comment", '"comment" TEXT');
+  await addColumnIfMissing("entities", "governance_data", '"governance_data" TEXT');
+  await addColumnIfMissing("columns", "governance_data", '"governance_data" TEXT');
   await addColumnIfMissing("relationships", "on_delete", '"on_delete" TEXT');
   await addColumnIfMissing("relationships", "on_update", '"on_update" TEXT');
   await addColumnIfMissing("relationships", "constraint_name", '"constraint_name" TEXT');

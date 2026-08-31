@@ -120,6 +120,7 @@ CREATE TABLE "public"."columns" (
     "is_unique" bool DEFAULT false,
     "default_value" text,
     "enum_values" text,
+    "governance_data" text,
     "sort_order" int4 DEFAULT 0,
     "created_at" timestamp(3) DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY ("id")
@@ -193,6 +194,7 @@ CREATE TABLE "public"."entities" (
     "y" float8 NOT NULL,
     "color" text DEFAULT '#6366f1'::text,
     "comment" text,
+    "governance_data" text,
     "created_at" timestamp(3) DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY ("id")
 );

@@ -21,6 +21,9 @@ export interface Column {
   numeric_precision?: number | null;
   numeric_scale?: number | null;
   sort_order?: number;
+  governance?: ErdGovernanceMetadata;
+  governance_data?: string | ErdGovernanceMetadata | null;
+  governanceData?: string | ErdGovernanceMetadata | null;
 }
 
 export interface Entity {
@@ -34,6 +37,24 @@ export interface Entity {
   comment?: string | null;
   constraints?: TableConstraint[];
   indexes?: TableIndex[];
+  governance?: ErdGovernanceMetadata;
+  governance_data?: string | ErdGovernanceMetadata | null;
+  governanceData?: string | ErdGovernanceMetadata | null;
+}
+
+export interface ErdGovernanceMetadata {
+  business_name?: string;
+  description?: string;
+  domain?: string;
+  owner?: string;
+  steward?: string;
+  classification?: 'public' | 'internal' | 'confidential' | 'restricted';
+  lifecycle?: 'draft' | 'active' | 'deprecated';
+  review_status?: 'unreviewed' | 'in-review' | 'approved';
+  reviewed_at?: string;
+  retention?: string;
+  glossary_terms?: string[];
+  tags?: string[];
 }
 
 export interface TableConstraint {

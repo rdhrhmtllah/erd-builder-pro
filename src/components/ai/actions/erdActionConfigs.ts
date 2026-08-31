@@ -1,4 +1,5 @@
 import { AIAction } from './types';
+import { governanceFrom } from '../../../../shared/erd-governance';
 
 const typeSuffix = (c: any) => c.max_length
   ? `(${c.max_length})`
@@ -12,12 +13,18 @@ function erdTableList(context: Record<string, any>): string {
   return nodes
     .map((n: any) => {
       const data = n.data || {};
+      const governance = governanceFrom(data);
       const cols = (data.columns || []).map((c: any) => {
         const pk = c.primaryKey || c.is_pk ? ' 🔑' : '';
         const comment = c.comment ? ` -- ${c.comment}` : '';
-        return `    - ${c.name}: ${c.type || c.columnType || 'unknown'}${typeSuffix(c)}${pk}${comment}`;
+        const columnGovernance = governanceFrom(c);
+        const business = columnGovernance.business_name ? ` (${columnGovernance.business_name})` : '';
+        const classification = columnGovernance.classification ? ` [${columnGovernance.classification}]` : '';
+        const description = columnGovernance.description ? ` — ${columnGovernance.description}` : comment;
+        return `    - ${c.name}${business}: ${c.type || c.columnType || 'unknown'}${typeSuffix(c)}${pk}${classification}${description}`;
       }).join('\n');
-      return `  ${data.name || data.label || 'unnamed'}:\n${cols || '    (no columns)'}`;
+      const governanceSummary = [governance.business_name, governance.domain && `domain=${governance.domain}`, governance.owner && `owner=${governance.owner}`, governance.classification && `classification=${governance.classification}`].filter(Boolean).join(', ');
+      return `  ${data.name || data.label || 'unnamed'}${governanceSummary ? ` (${governanceSummary})` : ''}:\n${governance.description ? `    Business definition: ${governance.description}\n` : ''}${cols || '    (no columns)'}`;
     })
     .join('\n');
 }
@@ -134,12 +141,14 @@ If the user does NOT specify any column changes, ask them what columns they want
       const selectedNode = ctx.selectedNode;
       if (!selectedNode) return 'Explain the selected table in the ERD diagram.';
       const data = selectedNode.data || {};
+      const governance = governanceFrom(data);
       const cols = (data.columns || []).map((c: any) => {
         const pk = c.primaryKey || c.is_pk ? ' (PK)' : '';
         const comment = c.comment ? ` -- ${c.comment}` : '';
-        return `- ${c.name}: ${c.type || c.columnType || 'unknown'}${typeSuffix(c)}${pk}${comment}`;
+        const metadata = governanceFrom(c);
+        return `- ${c.name}${metadata.business_name ? ` (${metadata.business_name})` : ''}: ${c.type || c.columnType || 'unknown'}${typeSuffix(c)}${pk}${metadata.classification ? ` [${metadata.classification}]` : ''}${metadata.description ? ` — ${metadata.description}` : comment}`;
       }).join('\n');
-      return `Explain this database table in plain language — what it stores, what each column means, and common use cases:\n\nTable: ${data.name || data.label || 'unnamed'}\nColumns:\n${cols || '(no columns defined)'}`;
+      return `Explain this database table in plain language — what it stores, what each column means, and common use cases. Respect its governance classification and do not invent undocumented business definitions.\n\nTable: ${data.name || data.label || 'unnamed'}\nBusiness name: ${governance.business_name || 'not documented'}\nDefinition: ${governance.description || data.comment || 'not documented'}\nDomain: ${governance.domain || 'not documented'}\nOwner: ${governance.owner || 'not documented'}\nClassification: ${governance.classification || 'unclassified'}\nColumns:\n${cols || '(no columns defined)'}`;
     },
   },
   {

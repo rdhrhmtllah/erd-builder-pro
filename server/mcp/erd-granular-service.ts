@@ -2,6 +2,12 @@ import { randomUUID } from "node:crypto";
 import { getDiagramWithData, saveDiagram } from "../routes/diagrams/save-service.js";
 import { analyzeErdImpact, type ErdImpactOperation } from "../../shared/erd-impact.js";
 import { planErdMigration } from "../../shared/erd-migration-planner.js";
+import {
+  analyzeErdGovernance,
+  exportErdDictionaryCsv,
+  exportErdDictionaryMarkdown,
+  normalizeErdGovernance,
+} from "../../shared/erd-governance.js";
 
 const MAX_OPERATIONS = 100;
 const MAX_TABLES = 2_000;
@@ -89,6 +95,7 @@ function normalizeColumn(value: any, generatedId?: string) {
     enum_values: optionalText(mapped(value, "enum_values", "enumValues"), "column.enum_values", 20_000) || "",
     enum_name: optionalText(mapped(value, "enum_name", "enumName"), "column.enum_name", 200) || "",
     comment: optionalText(value.comment, "column.comment", 10_000) ?? null,
+    governance: normalizeErdGovernance(value.governance ?? value.governance_data ?? value.governanceData),
     max_length: mapped(value, "max_length", "maxLength") ?? null,
     numeric_precision: mapped(value, "numeric_precision", "numericPrecision") ?? null,
     numeric_scale: mapped(value, "numeric_scale", "numericScale") ?? null,
@@ -105,6 +112,7 @@ function normalizeEntity(value: any) {
     y: finiteNumber(value.y, "entity.y", 0),
     color: typeof value.color === "string" && /^#[0-9a-f]{6}$/i.test(value.color) ? value.color.toLowerCase() : "#6366f1",
     comment: optionalText(value.comment, "entity.comment", 10_000) ?? null,
+    governance: normalizeErdGovernance(value.governance ?? value.governance_data ?? value.governanceData),
     columns,
     constraints: Array.isArray(value.constraints) ? value.constraints.map((item: any) => ({
       id: item.id, entity_id: value.id, kind: item.kind, name: item.name ?? null,
@@ -282,7 +290,7 @@ export function applyErdPatch(snapshot: ErdSnapshot, operations: ErdPatchOperati
     } else if (operation.op === "table_update") {
       const entity = findEntity(entities, operation.table_id);
       const patch = changesObject(operation.changes, "changes");
-      const before = { name: entity.name, x: entity.x, y: entity.y, color: entity.color, comment: entity.comment };
+      const before = { name: entity.name, x: entity.x, y: entity.y, color: entity.color, comment: entity.comment, governance: entity.governance };
       if (patch.name !== undefined) entity.name = requiredText(patch.name, "changes.name", 200);
       if (patch.x !== undefined) entity.x = finiteNumber(patch.x, "changes.x", entity.x);
       if (patch.y !== undefined) entity.y = finiteNumber(patch.y, "changes.y", entity.y);
@@ -291,7 +299,10 @@ export function applyErdPatch(snapshot: ErdSnapshot, operations: ErdPatchOperati
         entity.color = patch.color.toLowerCase();
       }
       if (patch.comment !== undefined) entity.comment = optionalText(patch.comment, "changes.comment", 10_000) ?? null;
-      changes.push({ op: operation.op, table_id: entity.id, before, after: { name: entity.name, x: entity.x, y: entity.y, color: entity.color, comment: entity.comment } });
+      if (patch.governance !== undefined || patch.governance_data !== undefined || patch.governanceData !== undefined) {
+        entity.governance = normalizeErdGovernance(patch.governance ?? patch.governance_data ?? patch.governanceData);
+      }
+      changes.push({ op: operation.op, table_id: entity.id, before, after: { name: entity.name, x: entity.x, y: entity.y, color: entity.color, comment: entity.comment, governance: entity.governance } });
     } else if (operation.op === "table_delete") {
       const entity = findEntity(entities, operation.table_id);
       const index = entities.indexOf(entity);
@@ -320,6 +331,9 @@ export function applyErdPatch(snapshot: ErdSnapshot, operations: ErdPatchOperati
       }
       if (patch.default_value !== undefined || patch.defaultValue !== undefined) column.default_value = optionalText(mapped(patch, "default_value", "defaultValue"), "changes.default_value", 10_000) ?? null;
       if (patch.comment !== undefined) column.comment = optionalText(patch.comment, "changes.comment", 10_000) ?? null;
+      if (patch.governance !== undefined || patch.governance_data !== undefined || patch.governanceData !== undefined) {
+        column.governance = normalizeErdGovernance(patch.governance ?? patch.governance_data ?? patch.governanceData);
+      }
       for (const [snake, camel, max] of [["enum_values", "enumValues", 20_000], ["enum_name", "enumName", 200]] as const) {
         if (patch[snake] !== undefined || patch[camel] !== undefined) column[snake] = optionalText(mapped(patch, snake, camel), `changes.${snake}`, max) || "";
       }
@@ -500,6 +514,14 @@ export async function readGranularErd(userId: string, uid: string, tableId?: str
   const entity = snapshot.entities.find(item => item.id === tableId);
   if (!entity) throw new Error("Table not found");
   return serialize({ ...snapshot, entities: [entity], relationships: snapshot.relationships.filter(item => item.source_entity_id === tableId || item.target_entity_id === tableId) });
+}
+
+export async function readGranularErdDictionary(userId: string, uid: string, format: 'json' | 'markdown' | 'csv' = 'json') {
+  const snapshot = await ownedSnapshot(userId, uid);
+  const report = analyzeErdGovernance(snapshot.entities);
+  if (format === 'markdown') return serialize({ format, report, content: exportErdDictionaryMarkdown(snapshot.name, snapshot.entities) });
+  if (format === 'csv') return serialize({ format, report, content: exportErdDictionaryCsv(snapshot.entities) });
+  return serialize({ format, diagram_uid: snapshot.uid, diagram_name: snapshot.name, report, tables: snapshot.entities });
 }
 
 export async function analyzeGranularErdImpact(

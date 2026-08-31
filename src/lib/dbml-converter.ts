@@ -5,6 +5,7 @@ import { COLUMN_TYPES } from '@/lib/utils';
 import { normalizeColumnDefault, parseTypeModifiers, supportsColumnLength, supportsNumericPrecision } from '@/lib/column-metadata';
 import { inferRelationshipSemantics, normalizeEndpointCardinality } from '@/lib/relationship-semantics';
 import { parseSQLToERD } from '@/lib/sqlParser';
+import { governanceFrom, normalizeErdGovernance } from '../../shared/erd-governance';
 import {
   buildDBMLTableDefinitions,
   findEnumNamingErrors,
@@ -393,6 +394,29 @@ function readDBMLCardinalityMetadata(text: string) {
   return result;
 }
 
+function readDBMLGovernanceMetadata(text: string) {
+  const tables = new Map<string, any>();
+  const columns = new Map<string, any>();
+  let currentTable = '';
+  for (const line of text.split(/\r?\n/)) {
+    const tableName = parseDBMLTableName(line);
+    if (tableName) currentTable = tableName;
+    const tableMarker = line.match(/\/\/\s*erd-governance-table:\s*(\S+)/i);
+    if (tableMarker && currentTable) {
+      try { tables.set(currentTable.toLowerCase(), normalizeErdGovernance(JSON.parse(decodeURIComponent(tableMarker[1])))); } catch { /* ignore malformed metadata comments */ }
+    }
+    const columnMarker = line.match(/\/\/\s*erd-governance-column:\s*name=(\S+)\s+data=(\S+)/i);
+    if (columnMarker && currentTable) {
+      try {
+        const columnName = decodeURIComponent(columnMarker[1]).toLowerCase();
+        columns.set(`${currentTable.toLowerCase()}\u0000${columnName}`, normalizeErdGovernance(JSON.parse(decodeURIComponent(columnMarker[2]))));
+      } catch { /* ignore malformed metadata comments */ }
+    }
+    if (line.trim() === '}') currentTable = '';
+  }
+  return { tables, columns };
+}
+
 /**
  * Pre-scan DBML text for invalid column types.
  * Regex-based — catches type issues before the parser does.
@@ -563,6 +587,7 @@ export function dbmlToERD(dbmlText: string): { nodes: Node<Entity>[]; edges: Edg
   const enumColumns = readDBMLEnumColumns(normalizedDBML, enums);
   const columnMetadata = readDBMLColumnMetadata(dbmlText);
   const modelMetadata = readDBMLModelMetadata(normalizedModel, dbmlText);
+  const governanceMetadata = readDBMLGovernanceMetadata(dbmlText);
   for (const node of result.nodes) {
     const tableMetadata = modelMetadata.get(node.data.name.toLowerCase());
     if (tableMetadata) {
@@ -578,6 +603,7 @@ export function dbmlToERD(dbmlText: string): { nodes: Node<Entity>[]; edges: Edg
         column_ids: index.column_names.map((name: string) => node.data.columns.find(column => column.name.toLowerCase() === name.toLowerCase())?.id).filter(Boolean),
       }));
     }
+    node.data.governance = governanceMetadata.tables.get(node.data.name.toLowerCase()) || {};
     for (const column of node.data.columns) {
       const metadata = columnMetadata.get(`${node.data.name.toLowerCase()}\u0000${column.name.toLowerCase()}`);
       if (metadata) {
@@ -597,6 +623,7 @@ export function dbmlToERD(dbmlText: string): { nodes: Node<Entity>[]; edges: Edg
         column.enum_name = enumColumn.name;
         column.enum_values = enumColumn.values;
       }
+      column.governance = governanceMetadata.columns.get(`${node.data.name.toLowerCase()}\u0000${column.name.toLowerCase()}`) || {};
     }
   }
 
@@ -701,12 +728,13 @@ export function applyDBMLMetadata(nodes: Node<Entity>[], dbmlText: string): Node
         data: {
           ...node.data,
           comment: parsedNode.data.comment ?? node.data.comment,
+          governance: parsedNode.data.governance ?? node.data.governance,
           constraints,
           indexes,
           columns: node.data.columns.map(column => {
             const parsedColumn = parsedColumns.get(column.name.toLowerCase());
             return parsedColumn
-              ? { ...column, default_value: normalizeColumnDefault(parsedColumn.default_value, Boolean(column.is_nullable)), is_unique: Boolean(parsedColumn.is_unique) }
+              ? { ...column, governance: parsedColumn.governance ?? column.governance, default_value: normalizeColumnDefault(parsedColumn.default_value, Boolean(column.is_nullable)), is_unique: Boolean(parsedColumn.is_unique) }
               : column;
           }),
         },
@@ -763,6 +791,8 @@ export function erdToDBML(nodes: Node<Entity>[], edges: Edge[]): string {
   for (const node of nodes) {
     const tableName = needsQuote(node.data.name) ? `"${node.data.name}"` : node.data.name;
     lines.push(`Table ${tableName} {`);
+    const tableGovernance = governanceFrom(node.data);
+    if (Object.keys(tableGovernance).length) lines.push(`  // erd-governance-table: ${encodeURIComponent(JSON.stringify(tableGovernance))}`);
     for (const col of node.data.columns) {
       const settings: string[] = [];
       if (col.is_pk) settings.push('pk');
@@ -777,6 +807,8 @@ export function erdToDBML(nodes: Node<Entity>[], edges: Edge[]): string {
       const enumName = colEnumName.get(`${node.id}:${col.id}`);
       const colType = enumName ? formatIdentifier(enumName) : formatTypeWithModifiers(col.type, col.max_length, col.numeric_precision, col.numeric_scale);
       lines.push(`  ${colName} ${colType}${suffix}`);
+      const columnGovernance = governanceFrom(col);
+      if (Object.keys(columnGovernance).length) lines.push(`  // erd-governance-column: name=${encodeURIComponent(col.name)} data=${encodeURIComponent(JSON.stringify(columnGovernance))}`);
     }
     const constraints = node.data.constraints || [];
     const indexes = node.data.indexes || [];

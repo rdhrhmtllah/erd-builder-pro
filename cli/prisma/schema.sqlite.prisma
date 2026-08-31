@@ -271,6 +271,7 @@ model Entity {
   y                 Float
   color             String?           @default("#6366f1")
   comment           String?
+  governanceData    String?           @map("governance_data")
   createdAt         DateTime?         @default(now()) @map("created_at")
   columns           Column[]
   constraints       TableConstraint[]
@@ -294,6 +295,7 @@ model Column {
   defaultValue     String?   @map("default_value")
   enumValues       String?   @map("enum_values")
   comment          String?
+  governanceData   String?   @map("governance_data")
   maxLength        Int?      @map("max_length")
   numericPrecision Int?      @map("numeric_precision")
   numericScale     Int?      @map("numeric_scale")

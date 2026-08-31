@@ -2,6 +2,7 @@ import { prisma } from "../../lib/prisma.js";
 import type { Response as ExpressResponse } from "express";
 import type { ImportStats } from "./helpers.js";
 import { uuid, safeDate, sendProgress, resolveProjectId, BATCH_SIZE } from "./helpers.js";
+import { serializeErdGovernance } from "../../../shared/erd-governance.js";
 
 // ── Phase 2b: Diagrams (ERD) — the heavy phase ──
 // Unpacks entities, columns, and relationships with ID remapping
@@ -87,6 +88,7 @@ export async function importDiagrams(
           x: Number(entity.x) || 0,
           y: Number(entity.y) || 0,
           color: entity.color || "#6366f1",
+          governanceData: serializeErdGovernance(entity.governance ?? entity.governance_data ?? entity.governanceData),
           createdAt: safeDate(entity.created_at),
         },
       });
@@ -131,6 +133,7 @@ export async function importDiagrams(
             isNullable: col.is_nullable ?? col.isNullable ?? true,
             enumValues: col.enum_values ?? col.enumValues ?? null,
             comment: col.comment ?? null,
+            governanceData: serializeErdGovernance(col.governance ?? col.governance_data ?? col.governanceData),
             maxLength: col.max_length ?? col.maxLength ?? null,
             numericPrecision: col.numeric_precision ?? col.numericPrecision ?? null,
             numericScale: col.numeric_scale ?? col.numericScale ?? null,

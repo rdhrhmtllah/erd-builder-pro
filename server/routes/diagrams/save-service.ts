@@ -5,6 +5,7 @@ import type { ConnectionInfo } from "../../lib/db-connectors/types.js";
 import { encrypt } from "../../lib/crypto.js";
 import { captureEntityRevisionSafely } from "../../lib/entity-history.js";
 import { isDesktopMode, isLocalPostgres } from "../../lib/config.js";
+import { governanceFrom } from "../../../shared/erd-governance.js";
 import {
   uidWhereClause,
   dedupe,
@@ -294,6 +295,7 @@ export async function getDiagramWithData(uid: string, userId: string) {
       // disappeared after a browser reload, so DBML could no longer emit it.
       return {
         ...entity,
+        governance: governanceFrom(entity),
         constraints: constraints.filter(item => item.entityId === entity.id).map(item => ({
           ...item,
           entity_id: item.entityId,
@@ -306,6 +308,7 @@ export async function getDiagramWithData(uid: string, userId: string) {
         })),
         columns: columns.map((column: any) => ({
           ...column,
+          governance: governanceFrom(column),
           enum_values: column.enumValues ?? column.enum_values ?? '',
           is_unique: column.isUnique ?? column.is_unique ?? false,
           default_value: column.defaultValue ?? column.default_value ?? null,

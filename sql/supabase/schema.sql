@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS entities (
   y DOUBLE PRECISION DEFAULT 0,
   color TEXT DEFAULT '#6366f1',
   comment TEXT,
+  governance_data TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -73,6 +74,7 @@ CREATE TABLE IF NOT EXISTS columns (
   default_value TEXT,
   enum_values TEXT, -- comma separated
   comment TEXT,
+  governance_data TEXT,
   max_length INTEGER,
   numeric_precision INTEGER,
   numeric_scale INTEGER,

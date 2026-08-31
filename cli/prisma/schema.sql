@@ -189,6 +189,7 @@ CREATE TABLE "entities" (
     "y" REAL NOT NULL,
     "color" TEXT DEFAULT '#6366f1',
     "comment" TEXT,
+    "governance_data" TEXT,
     "created_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "entities_diagram_id_fkey" FOREIGN KEY ("diagram_id") REFERENCES "diagrams" ("id") ON DELETE CASCADE ON UPDATE NO ACTION
 );
@@ -205,6 +206,7 @@ CREATE TABLE "columns" (
     "default_value" TEXT,
     "enum_values" TEXT,
     "comment" TEXT,
+    "governance_data" TEXT,
     "max_length" INTEGER,
     "numeric_precision" INTEGER,
     "numeric_scale" INTEGER,

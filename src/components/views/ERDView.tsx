@@ -19,7 +19,7 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck, Radar, GitCompareArrows } from 'lucide-react';
+import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck, Radar, GitCompareArrows, BookOpenCheck } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,6 +45,10 @@ import { ErdSchemaHealthPanel, healthScoreTone, type SchemaHealthSelection } fro
 import { inferRelationshipSemantics } from '@/lib/relationship-semantics';
 import { ErdImpactAnalysisPanel, type ErdImpactSelection } from '@/components/diagram/ErdImpactAnalysisPanel';
 import { ErdMigrationPlannerPanel, type ErdMigrationSelection } from '@/components/diagram/ErdMigrationPlannerPanel';
+import { ErdDataDictionaryPanel, type ErdGovernanceSelection } from '@/components/diagram/ErdDataDictionaryPanel';
+import { analyzeErdGovernance } from '../../../shared/erd-governance';
+import type { ErdGovernanceMetadata } from '@/types';
+import { governanceFrom } from '../../../shared/erd-governance';
 
 const nodeTypes = {
   entity: EntityNode,
@@ -251,7 +255,7 @@ const ERDViewComponent = ({
 
   const { registerContentHandler, setSelectionText, setActionContextData, setRightPanelMode } = useAIAction();
   const { getViewport } = useReactFlow();
-  const { resolvedTheme, activeFileUid, isPublicView } = useWorkspace();
+  const { resolvedTheme, activeFileUid, isPublicView, activeDocument } = useWorkspace();
   const bgColor = resolvedTheme === 'dark' ? '#222' : '#ccc';
   const isProductionDb = isDbClient;
 
@@ -267,6 +271,8 @@ const ERDViewComponent = ({
   const [impactSelection, setImpactSelection] = useState<ErdImpactSelection | null>(null);
   const [migrationPlannerOpen, setMigrationPlannerOpen] = useState(false);
   const [migrationSelection, setMigrationSelection] = useState<ErdMigrationSelection | null>(null);
+  const [dataDictionaryOpen, setDataDictionaryOpen] = useState(false);
+  const [governanceSelection, setGovernanceSelection] = useState<ErdGovernanceSelection | null>(null);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   const lowDetailRef = React.useRef(false);
 
@@ -349,6 +355,8 @@ const ERDViewComponent = ({
     setImpactSelection(null);
     setMigrationPlannerOpen(false);
     setMigrationSelection(null);
+    setDataDictionaryOpen(false);
+    setGovernanceSelection(null);
   }, [activeFileUid]);
 
   const subjectAreaVisibility = React.useMemo(() => activeSubjectArea
@@ -357,6 +365,7 @@ const ERDViewComponent = ({
 
   const nodeNames = React.useMemo(() => new Map(nodes.map(node => [node.id, String(node.data.name || node.id)])), [nodes]);
   const schemaHealthReport = React.useMemo(() => analyzeErdSchemaHealth(nodes, edges), [nodes, edges]);
+  const governanceReport = React.useMemo(() => analyzeErdGovernance(nodes.map(node => node.data)), [nodes]);
 
   const styledNodes = React.useMemo(() => {
     return nodes.map(node => {
@@ -378,14 +387,17 @@ const ERDViewComponent = ({
       const migrationClass = migrationSelection
         ? migrationSelection.nodeIds.has(node.id) ? `erd-migration-${migrationSelection.risk}` : 'erd-migration-dimmed'
         : '';
-      const className = [node.className, explorerClass, healthClass, impactClass, migrationClass].filter(Boolean).join(' ');
+      const governanceClass = governanceSelection
+        ? governanceSelection.nodeIds.has(node.id) ? `erd-governance-${governanceSelection.classification || 'selected'}` : 'erd-governance-dimmed'
+        : '';
+      const className = [node.className, explorerClass, healthClass, impactClass, migrationClass, governanceClass].filter(Boolean).join(' ');
       const hidden = subjectAreaVisibility ? !subjectAreaVisibility.visibleNodeIds.has(node.id) : !!node.hidden;
       // Use !! to normalize undefined/null to boolean — avoids creating wrappers
       // for all nodes on the first drag after setNodes() (which may lack `selected`)
       if (!!node.selected === selected && node.className === className && !!node.hidden === hidden) return node;
       return { ...node, selected, className, hidden };
     });
-  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, subjectAreaVisibility]);
+  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, governanceSelection, subjectAreaVisibility]);
 
   const diffNodesWithMode = React.useMemo(() => {
     if (!pendingDiff) return [];
@@ -491,6 +503,32 @@ const ERDViewComponent = ({
   edgesRef.current = edges;
   selectedNodeIdRef.current = selectedNodeId;
   allSelectedIdsRef.current = allSelectedIds;
+  const takeSnapshotRef = React.useRef(takeSnapshot);
+  takeSnapshotRef.current = takeSnapshot;
+
+  const handleGovernanceUpdate = useCallback((tableId: string, columnId: string | null, metadata: ErdGovernanceMetadata) => {
+    takeSnapshotRef.current?.(nodesRef.current, edgesRef.current);
+    const nextNodes = nodesRef.current.map(node => {
+      if (node.id !== tableId && node.data.id !== tableId) return node;
+      if (!columnId) return { ...node, data: { ...node.data, governance: metadata } };
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          columns: node.data.columns.map(column => column.id === columnId ? { ...column, governance: metadata } : column),
+        },
+      };
+    });
+    setNodes(nextNodes);
+    if (saveDiagram) {
+      void saveDiagram(nextNodes, edgesRef.current, getViewport())
+        .then(() => triggerDebouncedSync?.())
+        .catch(error => {
+          console.error('Error saving governance metadata:', error);
+          toast.error('Failed to save governance metadata');
+        });
+    }
+  }, [getViewport, saveDiagram, setNodes, triggerDebouncedSync]);
 
   // ─── Send selected tables context to AI ──────────────
   // Only fires when selection (set of IDs) changes — NOT on position changes during drag
@@ -503,8 +541,13 @@ const ERDViewComponent = ({
 
       const tableDetails = selectedNodes.map(n => {
         const name = n.data.name || n.data.label || n.id;
-        const cols = (n.data.columns || []).map((c: any) => `${c.name}: ${c.type}${c.max_length ? `(${c.max_length})` : ''}${c.numeric_precision ? `(${c.numeric_precision}${c.numeric_scale !== null && c.numeric_scale !== undefined ? `,${c.numeric_scale}` : ''})` : ''}${c.is_pk ? ' PK' : ''}${c.is_nullable ? ' NULL' : ''}${c.comment ? ` -- ${c.comment}` : ''}`);
-        return `${name} (${cols.join(', ')})`;
+        const tableMetadata = governanceFrom(n.data);
+        const cols = (n.data.columns || []).map((c: any) => {
+          const metadata = governanceFrom(c);
+          return `${c.name}: ${c.type}${c.max_length ? `(${c.max_length})` : ''}${c.numeric_precision ? `(${c.numeric_precision}${c.numeric_scale !== null && c.numeric_scale !== undefined ? `,${c.numeric_scale}` : ''})` : ''}${c.is_pk ? ' PK' : ''}${c.is_nullable ? ' NULL' : ''}${metadata.classification ? ` [${metadata.classification}]` : ''}${metadata.description ? ` -- ${metadata.description}` : c.comment ? ` -- ${c.comment}` : ''}`;
+        });
+        const business = [tableMetadata.business_name, tableMetadata.domain && `domain=${tableMetadata.domain}`, tableMetadata.owner && `owner=${tableMetadata.owner}`, tableMetadata.classification && `classification=${tableMetadata.classification}`].filter(Boolean).join(', ');
+        return `${name}${business ? ` [${business}]` : ''} (${cols.join(', ')})`;
       }).join('; ');
       setSelectionText(`Tables: ${tableDetails}`);
     } else {
@@ -524,9 +567,6 @@ const ERDViewComponent = ({
       multiSelectedNodes: multiSelected,
     });
   }, [selectedNodeId, allSelectedIds, setActionContextData]);
-  const takeSnapshotRef = React.useRef(takeSnapshot);
-  takeSnapshotRef.current = takeSnapshot;
-
   // ─── Visual Schema Diffing Callbacks ────────────────
   const startDiff = useCallback((origNodes: Node<Entity>[], origEdges: Edge[], propNodes: Node<Entity>[], propEdges: Edge[]) => {
     const diffData = computeSchemaDiff(origNodes, origEdges, propNodes, propEdges);
@@ -804,6 +844,8 @@ const ERDViewComponent = ({
                 setImpactSelection(null);
                 setMigrationPlannerOpen(false);
                 setMigrationSelection(null);
+                setDataDictionaryOpen(false);
+                setGovernanceSelection(null);
                 setExplorerOpen(open => {
                   if (open) setExplorerSelection(null);
                   return !open;
@@ -828,6 +870,8 @@ const ERDViewComponent = ({
                   setImpactSelection(null);
                   setMigrationPlannerOpen(false);
                   setMigrationSelection(null);
+                  setDataDictionaryOpen(false);
+                  setGovernanceSelection(null);
                   setSubjectAreasOpen(open => !open);
                 }}
                 variant={subjectAreasOpen || activeSubjectArea ? 'default' : 'outline'}
@@ -849,6 +893,8 @@ const ERDViewComponent = ({
                 setImpactSelection(null);
                 setMigrationPlannerOpen(false);
                 setMigrationSelection(null);
+                setDataDictionaryOpen(false);
+                setGovernanceSelection(null);
                 setSchemaHealthOpen(open => {
                   if (open) setSchemaHealthSelection(null);
                   return !open;
@@ -872,6 +918,8 @@ const ERDViewComponent = ({
                 setSchemaHealthSelection(null);
                 setMigrationPlannerOpen(false);
                 setMigrationSelection(null);
+                setDataDictionaryOpen(false);
+                setGovernanceSelection(null);
                 setImpactAnalysisOpen(open => {
                   if (open) setImpactSelection(null);
                   return !open;
@@ -895,6 +943,8 @@ const ERDViewComponent = ({
                 setSchemaHealthSelection(null);
                 setImpactAnalysisOpen(false);
                 setImpactSelection(null);
+                setDataDictionaryOpen(false);
+                setGovernanceSelection(null);
                 setMigrationPlannerOpen(open => {
                   if (open) setMigrationSelection(null);
                   return !open;
@@ -908,6 +958,31 @@ const ERDViewComponent = ({
               <GitCompareArrows className="w-3.5 h-3.5 sm:mr-1.5" />
               <span className="hidden sm:inline">Migrate</span>
             </Button>
+            {!isProductionDb && <Button
+              onClick={() => {
+                setExplorerOpen(false);
+                setExplorerSelection(null);
+                setSubjectAreasOpen(false);
+                setActiveSubjectArea(null);
+                setSchemaHealthOpen(false);
+                setSchemaHealthSelection(null);
+                setImpactAnalysisOpen(false);
+                setImpactSelection(null);
+                setMigrationPlannerOpen(false);
+                setMigrationSelection(null);
+                setDataDictionaryOpen(open => {
+                  if (open) setGovernanceSelection(null);
+                  return !open;
+                });
+              }}
+              variant={dataDictionaryOpen ? 'default' : 'outline'}
+              size="sm"
+              className="h-9 px-3 text-xs font-semibold cursor-pointer"
+              title="Manage business definitions, ownership, classification, and documentation coverage"
+            >
+              <BookOpenCheck className={cn('w-3.5 h-3.5 sm:mr-1.5', !dataDictionaryOpen && (governanceReport.score >= 80 ? 'text-emerald-500' : governanceReport.score >= 50 ? 'text-amber-500' : 'text-red-500'))} />
+              <span className="hidden sm:inline">Dictionary {governanceReport.score}</span>
+            </Button>}
 
             {isProductionDb && (
               <Button onClick={handleSync} variant="outline" size="sm" className="h-9 px-3 border-amber-500/50 hover:bg-amber-500/10 bg-amber-500/5 text-amber-600 dark:text-amber-400 text-xs font-semibold cursor-pointer" disabled={isSyncing}>
@@ -1004,6 +1079,20 @@ const ERDViewComponent = ({
           onClose={() => {
             setMigrationPlannerOpen(false);
             setMigrationSelection(null);
+          }}
+        />
+      )}
+      {dataDictionaryOpen && !pendingDiff && !isProductionDb && (
+        <ErdDataDictionaryPanel
+          nodes={nodes}
+          diagramName={String(activeDocument?.name || 'ERD')}
+          readOnly={Boolean(isReadOnly)}
+          selectedNodeIds={allSelectedIds}
+          onUpdate={handleGovernanceUpdate}
+          onSelectionChange={setGovernanceSelection}
+          onClose={() => {
+            setDataDictionaryOpen(false);
+            setGovernanceSelection(null);
           }}
         />
       )}
