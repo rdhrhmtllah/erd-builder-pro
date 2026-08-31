@@ -164,6 +164,20 @@ describe('granular ERD MCP operations', () => {
     expect(mocks.saveDiagram).not.toHaveBeenCalled();
   });
 
+  it('offers focused Data Dictionary proposals through the same safe patch confirmation flow', async () => {
+    const proposal: any = await service.proposeErdDictionaryUpdate('owner', 'diagram-1', [
+      { table_id: 'users', governance: { business_name: 'Accounts', owner: 'IAM', classification: 'internal' } },
+      { table_id: 'orders', column_id: 'orders-user', governance: { description: 'Account reference', classification: 'restricted' } },
+    ]);
+    expect(proposal.operation).toBe('erd_dictionary_update');
+    expect(proposal.updates).toEqual([
+      { table_id: 'users', column_id: null },
+      { table_id: 'orders', column_id: 'orders-user' },
+    ]);
+    expect(proposal.changes).toHaveLength(2);
+    await expect(service.applyErdPatchProposal('owner', proposal.proposal_id, proposal.confirmation)).resolves.toMatchObject({ status: 'applied' });
+  });
+
   it('generates IDs in preview and requires exact confirmation before saving', async () => {
     const proposal: any = await service.proposeErdPatch('owner', 'diagram-1', [{
       op: 'column_add', table_id: 'users', column: { name: 'email', type: 'VARCHAR', is_nullable: false },

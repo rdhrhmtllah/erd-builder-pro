@@ -20,6 +20,7 @@ import {
   analyzeGranularErdImpact,
   ERD_PATCH_OPERATIONS,
   proposeErdPatch,
+  proposeErdDictionaryUpdate,
   readGranularErdDictionary,
   readGranularErd,
 } from "./erd-granular-service.js";
@@ -31,6 +32,12 @@ import {
   previewPerspectiveLayout,
   proposePerspectiveChange,
 } from "../routes/diagrams/perspective-service.js";
+import {
+  applySubjectAreaProposal,
+  getSubjectArea,
+  listSubjectAreas,
+  proposeSubjectAreaChange,
+} from "../routes/diagrams/subject-area-service.js";
 
 const documentType = z.enum(MCP_DOCUMENT_TYPES);
 const readOnly = { readOnlyHint: true, openWorldHint: false } as const;
@@ -71,6 +78,36 @@ export function registerTools(server: McpServer) {
     description: "Read ERD governance coverage and business metadata as normalized JSON or export-ready Markdown/CSV. This is read-only.",
     inputSchema: { uid: z.string().min(1).max(100), format: z.enum(['json', 'markdown', 'csv']).default('json') }, annotations: readOnly,
   }, async ({ uid, format }) => jsonResult(await readGranularErdDictionary(await resolveMcpUserId(), uid, format)));
+
+  server.registerTool("erd_subject_area_list", {
+    description: "List saved Subject Areas for an ERD without modifying it.",
+    inputSchema: { uid: z.string().min(1).max(100) }, annotations: readOnly,
+  }, async ({ uid }) => jsonResult(await listSubjectAreas(uid, await resolveMcpUserId())));
+
+  server.registerTool("erd_subject_area_read", {
+    description: "Read one saved Subject Area including color, tables, and viewport.",
+    inputSchema: { uid: z.string().min(1).max(100), area_id: z.string().uuid() }, annotations: readOnly,
+  }, async ({ uid, area_id }) => jsonResult(await getSubjectArea(uid, area_id, await resolveMcpUserId())));
+
+  server.registerTool("erd_subject_area_propose", {
+    description: "Prepare create, update, or delete for a non-destructive ERD Subject Area. Read schema first, use exact table IDs, then request confirmation before apply.",
+    inputSchema: { uid: z.string().min(1).max(100), operation: z.object({ op: z.enum(['create', 'update', 'delete']), area_id: z.string().uuid().optional(), area: z.object({}).catchall(z.unknown()).optional(), changes: z.object({}).catchall(z.unknown()).optional() }) }, annotations: readOnly,
+  }, async ({ uid, operation }) => jsonResult(await proposeSubjectAreaChange(await resolveMcpUserId(), uid, operation)));
+
+  server.registerTool("erd_subject_area_apply", {
+    description: "Apply a confirmed Subject Area proposal.",
+    inputSchema: { proposal_id: z.string().uuid(), confirmation: z.string().uuid() }, annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+  }, async ({ proposal_id, confirmation }) => jsonResult(await applySubjectAreaProposal(await resolveMcpUserId(), proposal_id, confirmation)));
+
+  server.registerTool("erd_dictionary_propose", {
+    description: "Prepare explicit table/column Data Dictionary governance metadata updates. Does not change schema shape; request confirmation before apply.",
+    inputSchema: { uid: z.string().min(1).max(100), expected_version: z.number().int().min(0).optional(), updates: z.array(z.object({ table_id: z.string().min(1).max(160), column_id: z.string().min(1).max(160).nullable().optional(), governance: z.object({}).catchall(z.unknown()) })).min(1).max(500) }, annotations: readOnly,
+  }, async ({ uid, expected_version, updates }) => jsonResult(await proposeErdDictionaryUpdate(await resolveMcpUserId(), uid, updates as any, expected_version)));
+
+  server.registerTool("erd_dictionary_apply", {
+    description: "Apply one confirmed Data Dictionary proposal.",
+    inputSchema: { proposal_id: z.string().uuid(), confirmation: z.string().uuid() }, annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+  }, async ({ proposal_id, confirmation }) => jsonResult(await applyErdPatchProposal(await resolveMcpUserId(), proposal_id, confirmation)));
 
   server.registerTool("erd_perspective_list", {
     description: "List saved non-destructive ERD perspectives with colored sections and local layouts.",

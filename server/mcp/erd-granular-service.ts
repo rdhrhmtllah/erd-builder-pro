@@ -570,6 +570,32 @@ export async function proposeErdPatch(userId: string, uid: string, operations: E
   return serialize({ proposal_id: id, confirmation: id, expires_at: new Date(Date.now() + PROPOSAL_TTL_MS), ...preview });
 }
 
+/**
+ * Governance is persisted by the same optimistic, history-aware ERD patch
+ * mechanism as schema edits. This focused adapter makes the safe operation
+ * discoverable to MCP clients without requiring them to construct generic
+ * table_update/column_update payloads themselves.
+ */
+export async function proposeErdDictionaryUpdate(
+  userId: string,
+  uid: string,
+  updates: Array<{ table_id: string; column_id?: string | null; governance: unknown }>,
+  expectedVersion?: number,
+) {
+  if (!Array.isArray(updates) || updates.length < 1 || updates.length > 500) throw new Error("updates must contain between 1 and 500 entries");
+  const operations: ErdPatchOperation[] = updates.map((update, index) => {
+    const tableId = requiredText(update?.table_id, `updates[${index}].table_id`, 160);
+    if (!update || typeof update !== 'object' || !('governance' in update)) throw new Error(`updates[${index}].governance is required`);
+    const governance = normalizeErdGovernance(update.governance);
+    if (update.column_id !== undefined && update.column_id !== null) {
+      return { op: 'column_update', table_id: tableId, column_id: requiredText(update.column_id, `updates[${index}].column_id`, 160), changes: { governance } };
+    }
+    return { op: 'table_update', table_id: tableId, changes: { governance } };
+  });
+  const proposal = await proposeErdPatch(userId, uid, operations, expectedVersion);
+  return { ...proposal, operation: 'erd_dictionary_update', updates: operations.map(operation => ({ table_id: operation.table_id, column_id: operation.column_id || null })) };
+}
+
 export async function applyErdPatchProposal(userId: string, proposalId: string, confirmation: string) {
   const proposal = proposals.get(proposalId);
   if (!proposal || proposal.userId !== userId) {

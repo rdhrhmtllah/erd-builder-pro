@@ -24,6 +24,7 @@ import {
   analyzeGranularErdImpact,
   ERD_PATCH_OPERATIONS,
   proposeErdPatch,
+  proposeErdDictionaryUpdate,
   readGranularErdDictionary,
   readGranularErd,
 } from "./erd-granular-service.js";
@@ -35,6 +36,12 @@ import {
   previewPerspectiveLayout,
   proposePerspectiveChange,
 } from "../routes/diagrams/perspective-service.js";
+import {
+  applySubjectAreaProposal,
+  getSubjectArea,
+  listSubjectAreas,
+  proposeSubjectAreaChange,
+} from "../routes/diagrams/subject-area-service.js";
 
 const documentType = z.enum(PUBLIC_MCP_DOCUMENT_TYPES);
 const operation = z.enum(WORKSPACE_WRITE_OPERATIONS);
@@ -122,6 +129,16 @@ export function registerWorkspaceReadTools(server: McpServer, userId: string) {
     inputSchema: { uid: z.string().min(1).max(100), format: z.enum(['json', 'markdown', 'csv']).default('json') }, annotations: readOnly,
   }, async ({ uid, format }) => jsonResult(await readGranularErdDictionary(userId, uid, format)));
 
+  server.registerTool("erd_subject_area_list", {
+    description: "List saved ERD Subject Areas: named module filters with table membership, color, and viewport. Read-only.",
+    inputSchema: { uid: z.string().min(1).max(100) }, annotations: readOnly,
+  }, async ({ uid }) => jsonResult(await listSubjectAreas(uid, userId)));
+
+  server.registerTool("erd_subject_area_read", {
+    description: "Read one ERD Subject Area including its table IDs, color, and viewport. Read-only.",
+    inputSchema: { uid: z.string().min(1).max(100), area_id: z.string().uuid() }, annotations: readOnly,
+  }, async ({ uid, area_id }) => jsonResult(await getSubjectArea(uid, area_id, userId)));
+
   server.registerTool("erd_perspective_list", {
     description: "List saved visual ERD perspectives. Perspectives are non-destructive saved views with colored sections, local table positions, viewport, and edge filtering.",
     inputSchema: { uid: z.string().min(1).max(100) }, annotations: readOnly,
@@ -172,6 +189,26 @@ export function registerWorkspaceReadTools(server: McpServer, userId: string) {
 }
 
 export function registerWorkspaceWriteTools(server: McpServer, userId: string) {
+  server.registerTool("erd_subject_area_propose", {
+    description: "Prepare a Subject Area create/update/delete without writing. An agent should read erd_schema_read first, determine coherent business/module table groups, use only returned table IDs, then show the area preview and request confirmation. create requires area {name,color,node_ids,viewport_x?,viewport_y?,viewport_zoom?}; update requires area_id and changes; delete requires area_id.",
+    inputSchema: { uid: z.string().min(1).max(100), operation: z.object({ op: z.enum(['create', 'update', 'delete']), area_id: z.string().uuid().optional(), area: z.object({}).catchall(z.unknown()).optional(), changes: z.object({}).catchall(z.unknown()).optional() }) }, annotations: write,
+  }, async ({ uid, operation: subjectAreaOperation }) => jsonResult(await proposeSubjectAreaChange(userId, uid, subjectAreaOperation)));
+
+  server.registerTool("erd_subject_area_apply", {
+    description: "Apply exactly one confirmed Subject Area proposal. confirmation must equal proposal_id; stale diagrams and changed areas are rejected.",
+    inputSchema: { proposal_id: z.string().uuid(), confirmation: z.string().uuid() }, annotations: destructiveWrite,
+  }, async ({ proposal_id, confirmation }) => jsonResult(await applySubjectAreaProposal(userId, proposal_id, confirmation)));
+
+  server.registerTool("erd_dictionary_propose", {
+    description: "Prepare explicit Data Dictionary/governance updates for one or more tables or columns. Each update is {table_id,column_id?,governance}. governance supports business_name, description, domain, owner, steward, classification, lifecycle, review_status, retention, glossary_term, tags. This only updates documentation metadata; it never changes schema shape. Read erd_dictionary_read and erd_schema_read first, then show preview and request confirmation.",
+    inputSchema: { uid: z.string().min(1).max(100), expected_version: z.number().int().min(0).optional(), updates: z.array(z.object({ table_id: z.string().min(1).max(160), column_id: z.string().min(1).max(160).nullable().optional(), governance: z.object({}).catchall(z.unknown()) })).min(1).max(500) }, annotations: write,
+  }, async ({ uid, expected_version, updates }) => jsonResult(await proposeErdDictionaryUpdate(userId, uid, updates as any, expected_version)));
+
+  server.registerTool("erd_dictionary_apply", {
+    description: "Apply a confirmed Data Dictionary proposal. confirmation must exactly equal proposal_id; stale diagrams are rejected.",
+    inputSchema: { proposal_id: z.string().uuid(), confirmation: z.string().uuid() }, annotations: destructiveWrite,
+  }, async ({ proposal_id, confirmation }) => jsonResult(await applyErdPatchProposal(userId, proposal_id, confirmation)));
+
   server.registerTool("erd_perspective_propose", {
     description: "Prepare a non-destructive ERD perspective mutation. Operations: create ({perspective}), update ({perspective_id, changes}), auto_layout ({perspective_id, changes?}), delete ({perspective_id}). A perspective only changes saved visual sections and local layout, never schema tables, columns, or relationships. Show preview and obtain explicit confirmation before apply.",
     inputSchema: { uid: z.string().min(1).max(100), operation: z.object({ op: z.enum(['create', 'update', 'auto_layout', 'delete']), perspective_id: z.string().uuid().optional(), perspective: z.object({}).catchall(z.unknown()).optional(), changes: z.object({}).catchall(z.unknown()).optional() }) }, annotations: write,

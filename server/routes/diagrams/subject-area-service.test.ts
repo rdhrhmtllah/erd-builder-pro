@@ -85,4 +85,19 @@ describe('diagram subject areas', () => {
     }) });
     expect(result).toMatchObject({ id: 'area-1', name: 'Core', node_ids: ['users', 'orders'], viewport_zoom: 0.8 });
   });
+
+  it('previews and applies an owned Subject Area only with an exact confirmation', async () => {
+    const now = new Date('2026-01-01T00:00:00.000Z');
+    mocks.diagramFindFirst.mockResolvedValue({ id: 7, uid: 'diagram', name: 'Commerce', updatedAt: now });
+    mocks.entityCount.mockResolvedValue(2);
+    mocks.areaCreate.mockImplementation(async ({ data }) => ({ id: 'area-1', ...data, createdAt: now, updatedAt: now }));
+
+    const proposal: any = await service.proposeSubjectAreaChange('owner', 'diagram', {
+      op: 'create', area: { name: 'Orders', color: '#10b981', node_ids: ['users', 'orders'] },
+    });
+    expect(proposal).toMatchObject({ action: 'create', table_count: 2, requires_explicit_confirmation: true });
+    await expect(service.applySubjectAreaProposal('owner', proposal.proposal_id, 'wrong')).rejects.toThrow(/exactly match/);
+    const applied: any = await service.applySubjectAreaProposal('owner', proposal.proposal_id, proposal.confirmation);
+    expect(applied.result).toMatchObject({ name: 'Orders', node_ids: ['users', 'orders'] });
+  });
 });
