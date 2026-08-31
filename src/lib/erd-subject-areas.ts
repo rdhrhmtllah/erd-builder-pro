@@ -19,6 +19,55 @@ export function normalizeSubjectAreaNodeIds(nodeIds: string[]): string[] {
   return [...new Set(nodeIds.map(id => id.trim()).filter(Boolean))];
 }
 
+/**
+ * Produce a stable depth-first tree for display. The API returns a flat list;
+ * sorting only by depth would separate children from their actual parent.
+ * Orphans and malformed cycles are retained as roots so they remain editable.
+ */
+export function flattenSubjectAreaTree(areas: ErdSubjectArea[]): ErdSubjectArea[] {
+  const byId = new Map(areas.map(area => [area.id, area]));
+  const children = new Map<string, ErdSubjectArea[]>();
+  const roots: ErdSubjectArea[] = [];
+  const byName = (a: ErdSubjectArea, b: ErdSubjectArea) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+
+  for (const area of areas) {
+    if (area.parent_id && area.parent_id !== area.id && byId.has(area.parent_id)) {
+      children.set(area.parent_id, [...(children.get(area.parent_id) || []), area]);
+    } else {
+      roots.push(area);
+    }
+  }
+
+  const result: ErdSubjectArea[] = [];
+  const visited = new Set<string>();
+  const visit = (area: ErdSubjectArea, depth: number) => {
+    if (visited.has(area.id)) return;
+    visited.add(area.id);
+    result.push({ ...area, depth });
+    for (const child of [...(children.get(area.id) || [])].sort(byName)) visit(child, depth + 1);
+  };
+  for (const root of [...roots].sort(byName)) visit(root, 0);
+  for (const area of [...areas].sort(byName)) if (!visited.has(area.id)) visit(area, 0);
+  return result;
+}
+
+export function getSubjectAreaDescendantIds(areas: ErdSubjectArea[], areaId: string): Set<string> {
+  const children = new Map<string, string[]>();
+  for (const area of areas) {
+    if (area.parent_id) children.set(area.parent_id, [...(children.get(area.parent_id) || []), area.id]);
+  }
+  const result = new Set<string>();
+  const visit = (id: string) => {
+    for (const child of children.get(id) || []) {
+      if (result.has(child)) continue;
+      result.add(child);
+      visit(child);
+    }
+  };
+  visit(areaId);
+  return result;
+}
+
 export function getSubjectAreaVisibility(nodes: Node[], edges: Edge[], nodeIds: string[]) {
   const existing = new Set(nodes.map(node => node.id));
   const visibleNodeIds = new Set(normalizeSubjectAreaNodeIds(nodeIds).filter(id => existing.has(id)));

@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { getSubjectAreaBoundary, type ErdSubjectArea } from '@/lib/erd-subject-areas';
+import { flattenSubjectAreaTree, getSubjectAreaBoundary, getSubjectAreaDescendantIds, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 
 type Props = {
   diagramUid: string;
@@ -46,21 +46,26 @@ export function ErdSubjectAreaPanel({
   const [renamingId, setRenamingId] = React.useState<string | null>(null);
   const [renameValue, setRenameValue] = React.useState('');
 
-  const load = React.useCallback(async () => {
-    setLoading(true);
+  const load = React.useCallback(async (silent = false): Promise<ErdSubjectArea[]> => {
+    if (!silent) setLoading(true);
     try {
       const response = await apiFetch(`/api/diagrams/${encodeURIComponent(diagramUid)}/subject-areas`);
       if (!response.ok) throw new Error(await responseError(response, 'Could not load subject areas'));
       const payload = await response.json();
-      setAreas(payload.data || []);
+      const nextAreas = payload.data || [];
+      setAreas(nextAreas);
+      return nextAreas;
     } catch (error: any) {
       toast.error('Subject areas unavailable', { description: error.message });
+      return [];
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [diagramUid]);
 
   React.useEffect(() => { void load(); }, [load]);
+
+  const orderedAreas = React.useMemo(() => flattenSubjectAreaTree(areas), [areas]);
 
   const activeBoundary = React.useMemo(() => activeArea
     ? getSubjectAreaBoundary(nodes, edges, activeArea.effective_node_ids || activeArea.node_ids)
@@ -95,10 +100,10 @@ export function ErdSubjectAreaPanel({
       });
       if (!response.ok) throw new Error(await responseError(response, 'Could not create subject area'));
       const created: ErdSubjectArea = await response.json();
-      setAreas(current => [created, ...current]);
+      const refreshed = await load(true);
       setName('');
       setParentId('');
-      applyArea(created);
+      applyArea(refreshed.find(item => item.id === created.id) || created);
       toast.success(`Subject area “${created.name}” saved`);
     } catch (error: any) {
       toast.error('Failed to save subject area', { description: error.message });
@@ -115,9 +120,10 @@ export function ErdSubjectAreaPanel({
       });
       if (!response.ok) throw new Error(await responseError(response, 'Could not update subject area'));
       const updated: ErdSubjectArea = await response.json();
-      setAreas(current => current.map(item => item.id === updated.id ? updated : item));
-      if (activeArea?.id === updated.id) onActiveAreaChange(updated);
-      return updated;
+      const refreshed = await load(true);
+      const currentArea = refreshed.find(item => item.id === updated.id) || updated;
+      if (activeArea?.id === updated.id) onActiveAreaChange(currentArea);
+      return currentArea;
     } catch (error: any) {
       toast.error('Failed to update subject area', { description: error.message });
       return null;
@@ -152,7 +158,7 @@ export function ErdSubjectAreaPanel({
     try {
       const response = await apiFetch(`/api/diagrams/${encodeURIComponent(diagramUid)}/subject-areas/${encodeURIComponent(area.id)}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(await responseError(response, 'Could not delete subject area'));
-      setAreas(current => current.filter(item => item.id !== area.id));
+      await load(true);
       if (activeArea?.id === area.id) onActiveAreaChange(null);
       toast.success('Subject area deleted');
     } catch (error: any) {
@@ -163,8 +169,8 @@ export function ErdSubjectAreaPanel({
   };
 
   return (
-    <aside className="absolute right-4 top-20 z-30 w-[min(380px,calc(100vw-2rem))] max-h-[calc(100%-6rem)] overflow-hidden rounded-2xl border border-border/70 bg-background/95 shadow-2xl backdrop-blur-xl pointer-events-auto">
-      <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+    <aside className="absolute bottom-4 right-4 top-20 z-30 flex w-[min(380px,calc(100vw-2rem))] min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-background/95 shadow-2xl backdrop-blur-xl pointer-events-auto">
+      <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-bold"><FolderKanban className="h-4 w-4 text-primary" /> Subject Areas</div>
           <p className="mt-0.5 text-[11px] text-muted-foreground">Saved module views without duplicating the schema.</p>
@@ -172,7 +178,7 @@ export function ErdSubjectAreaPanel({
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} title="Close subject areas"><X className="h-4 w-4" /></Button>
       </div>
 
-      <div className="max-h-[calc(100vh-10rem)] space-y-4 overflow-y-auto p-4 custom-scrollbar">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 pb-8 custom-scrollbar">
         <Button variant={activeArea ? 'outline' : 'secondary'} className="h-9 w-full justify-start text-xs" onClick={() => applyArea(null)}>
           {!activeArea && <Check className="mr-2 h-3.5 w-3.5" />} All tables
         </Button>
@@ -194,7 +200,7 @@ export function ErdSubjectAreaPanel({
             <input value={name} maxLength={80} onChange={event => setName(event.target.value)} placeholder="Area name, e.g. Payroll" className="h-9 w-full rounded-md border border-border bg-background px-3 text-xs outline-none focus:border-primary" />
             <select value={parentId} onChange={event => setParentId(event.target.value)} className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs">
               <option value="">Top-level area</option>
-              {areas.map(area => <option key={area.id} value={area.id}>{'  '.repeat(area.depth || 0)}{area.name}</option>)}
+              {orderedAreas.map(area => <option key={area.id} value={area.id}>{'— '.repeat(area.depth || 0)}{area.name}</option>)}
             </select>
             <div className="flex items-center gap-1.5">
               {colors.map(item => <button key={item} type="button" aria-label={`Use color ${item}`} onClick={() => setColor(item)} className={cn('h-6 w-6 rounded-full border-2 transition-transform', color === item ? 'scale-110 border-foreground' : 'border-transparent')} style={{ backgroundColor: item }} />)}
@@ -211,7 +217,7 @@ export function ErdSubjectAreaPanel({
           <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><span>Saved areas</span><span>{areas.length}</span></div>
           {loading ? <div className="flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div> : areas.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground">No saved subject areas yet.</p>
-          ) : [...areas].sort((a, b) => (a.depth || 0) - (b.depth || 0) || a.name.localeCompare(b.name)).map(area => (
+          ) : orderedAreas.map(area => (
             <div key={area.id} style={{ marginLeft: `${Math.min(area.depth || 0, 4) * 14}px` }} className={cn('rounded-xl border p-2.5', activeArea?.id === area.id ? 'border-primary/50 bg-primary/5' : 'border-border/60')}>
               <div className="flex items-center gap-2">
                 {(area.depth || 0) > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
@@ -224,6 +230,14 @@ export function ErdSubjectAreaPanel({
                 ) : <button className="min-w-0 flex-1 truncate text-left text-xs font-semibold" onClick={() => applyArea(area)}>{area.name}</button>}
                 <span className="text-[10px] text-muted-foreground">{(area.effective_node_ids || area.node_ids).filter(id => nodeNames.has(id)).length} tables</span>
               </div>
+              {(area.depth || 0) > 0 && <div className="mt-1 truncate pl-5 text-[9px] text-muted-foreground">inside {areas.find(item => item.id === area.parent_id)?.name || 'parent area'}</div>}
+              {!readOnly && (() => {
+                const blocked = getSubjectAreaDescendantIds(areas, area.id);
+                return <select aria-label={`Parent area for ${area.name}`} value={area.parent_id || ''} disabled={saving} onChange={event => void updateArea(area, { parent_id: event.target.value || null })} className="mt-2 h-7 w-full rounded-md border border-border/60 bg-background px-2 text-[10px]">
+                  <option value="">Top-level area</option>
+                  {orderedAreas.filter(candidate => candidate.id !== area.id && !blocked.has(candidate.id)).map(candidate => <option key={candidate.id} value={candidate.id}>{'— '.repeat(candidate.depth || 0)}{candidate.name}</option>)}
+                </select>;
+              })()}
               <div className="mt-2 flex flex-wrap gap-1">
                 <Button size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={() => applyArea(area)}>Open</Button>
                 {!readOnly && <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px]" disabled={saving} onClick={() => void saveCurrentView(area)}><Save className="mr-1 h-3 w-3" /> Viewport</Button>}

@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { getSubjectAreaBoundary, getSubjectAreaVisibility, normalizeSubjectAreaNodeIds } from '../erd-subject-areas';
+import { flattenSubjectAreaTree, getSubjectAreaBoundary, getSubjectAreaDescendantIds, getSubjectAreaVisibility, normalizeSubjectAreaNodeIds } from '../erd-subject-areas';
 
 describe('ERD subject areas', () => {
   it('normalizes duplicate and blank table ids without changing their order', () => {
     expect(normalizeSubjectAreaNodeIds([' users ', '', 'orders', 'users', 'orders']))
       .toEqual(['users', 'orders']);
+  });
+
+  it('renders every child directly below its parent and tracks descendants', () => {
+    const area = (id: string, name: string, parent_id: string | null = null): any => ({ id, name, parent_id, color: '#6366f1', node_ids: [], viewport_x: 0, viewport_y: 0, viewport_zoom: 1 });
+    const areas = [area('child-b', 'B child', 'root-b'), area('root-a', 'A root'), area('child-a', 'A child', 'root-a'), area('root-b', 'B root'), area('grandchild', 'Grandchild', 'child-a')];
+    expect(flattenSubjectAreaTree(areas).map(item => [item.id, item.depth])).toEqual([
+      ['root-a', 0], ['child-a', 1], ['grandchild', 2], ['root-b', 0], ['child-b', 1],
+    ]);
+    expect([...getSubjectAreaDescendantIds(areas, 'root-a')]).toEqual(['child-a', 'grandchild']);
   });
 
   it('summarizes internal and cross-Area relations as drill-down portals', () => {
