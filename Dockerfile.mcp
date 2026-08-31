@@ -1,11 +1,12 @@
-# Reuse the upstream runtime/dependency image, but rebuild the frontend from
-# this checkout so UI fixes (including auto-layout) are included in the image.
+# Reuse the upstream runtime/dependency image.  The frontend bundle already
+# exists in that image; MCP changes are served by tsx from the copied server
+# source at runtime.
 FROM bekenweb/erd-builder-pro:latest
 
 WORKDIR /app
 
 COPY . .
 
-# The base image already contains node_modules and the package versions used by
-# the application, so this only rebuilds the Vite bundle from the local source.
-RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build
+# Do not rebuild Vite here.  On this host BuildKit applies a memory cgroup that
+# is too small for the production bundle, while the MCP/server source does not
+# require a new client bundle.
