@@ -21,10 +21,12 @@ import {
 } from "./service.js";
 import {
   applyErdPatchProposal,
+  analyzeGranularErdImpact,
   ERD_PATCH_OPERATIONS,
   proposeErdPatch,
   readGranularErd,
 } from "./erd-granular-service.js";
+import { ERD_IMPACT_OPERATIONS } from "../../shared/erd-impact.js";
 
 const documentType = z.enum(PUBLIC_MCP_DOCUMENT_TYPES);
 const operation = z.enum(WORKSPACE_WRITE_OPERATIONS);
@@ -106,6 +108,19 @@ export function registerWorkspaceReadTools(server: McpServer, userId: string) {
     description: "Read one regular ERD as a normalized, agent-friendly schema. Optionally return one table and only its connected relationships.",
     inputSchema: { uid: z.string().min(1).max(100), table_id: z.string().min(1).max(160).optional() }, annotations: readOnly,
   }, async ({ uid, table_id }) => jsonResult(await readGranularErd(userId, uid, table_id)));
+
+  server.registerTool("erd_impact_analyze", {
+    description: "Simulate the dependency blast radius and migration risk of deleting, renaming, or changing a table/column. Read-only; use before proposing risky ERD patches.",
+    inputSchema: {
+      uid: z.string().min(1).max(100),
+      operation: z.enum(ERD_IMPACT_OPERATIONS),
+      table_id: z.string().min(1).max(160),
+      column_id: z.string().min(1).max(160).optional(),
+    },
+    annotations: readOnly,
+  }, async ({ uid, operation: selectedOperation, table_id, column_id }) => jsonResult(
+    await analyzeGranularErdImpact(userId, uid, selectedOperation, table_id, column_id),
+  ));
 
   server.registerTool("backup_list", {
     description: "List this user's backup metadata and statuses. Backup file contents are never returned through MCP.",

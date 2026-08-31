@@ -19,7 +19,7 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck } from 'lucide-react';
+import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck, Radar } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,6 +43,7 @@ import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject
 import { analyzeErdSchemaHealth } from '@/lib/erd-schema-health';
 import { ErdSchemaHealthPanel, healthScoreTone, type SchemaHealthSelection } from '@/components/diagram/ErdSchemaHealthPanel';
 import { inferRelationshipSemantics } from '@/lib/relationship-semantics';
+import { ErdImpactAnalysisPanel, type ErdImpactSelection } from '@/components/diagram/ErdImpactAnalysisPanel';
 
 const nodeTypes = {
   entity: EntityNode,
@@ -261,6 +262,8 @@ const ERDViewComponent = ({
   const [activeSubjectArea, setActiveSubjectArea] = useState<ErdSubjectArea | null>(null);
   const [schemaHealthOpen, setSchemaHealthOpen] = useState(false);
   const [schemaHealthSelection, setSchemaHealthSelection] = useState<SchemaHealthSelection | null>(null);
+  const [impactAnalysisOpen, setImpactAnalysisOpen] = useState(false);
+  const [impactSelection, setImpactSelection] = useState<ErdImpactSelection | null>(null);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   const lowDetailRef = React.useRef(false);
 
@@ -339,6 +342,8 @@ const ERDViewComponent = ({
     setActiveSubjectArea(null);
     setSchemaHealthOpen(false);
     setSchemaHealthSelection(null);
+    setImpactAnalysisOpen(false);
+    setImpactSelection(null);
   }, [activeFileUid]);
 
   const subjectAreaVisibility = React.useMemo(() => activeSubjectArea
@@ -360,14 +365,19 @@ const ERDViewComponent = ({
       const healthClass = schemaHealthSelection
         ? schemaHealthSelection.nodeIds.has(node.id) ? `erd-health-${schemaHealthSelection.severity}` : 'erd-health-dimmed'
         : '';
-      const className = [node.className, explorerClass, healthClass].filter(Boolean).join(' ');
+      const impactClass = impactSelection
+        ? node.id === impactSelection.rootNodeId
+          ? 'erd-impact-root'
+          : impactSelection.nodeIds.has(node.id) ? `erd-impact-${impactSelection.risk}` : 'erd-impact-dimmed'
+        : '';
+      const className = [node.className, explorerClass, healthClass, impactClass].filter(Boolean).join(' ');
       const hidden = subjectAreaVisibility ? !subjectAreaVisibility.visibleNodeIds.has(node.id) : !!node.hidden;
       // Use !! to normalize undefined/null to boolean — avoids creating wrappers
       // for all nodes on the first drag after setNodes() (which may lack `selected`)
       if (!!node.selected === selected && node.className === className && !!node.hidden === hidden) return node;
       return { ...node, selected, className, hidden };
     });
-  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, subjectAreaVisibility]);
+  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, subjectAreaVisibility]);
 
   const diffNodesWithMode = React.useMemo(() => {
     if (!pendingDiff) return [];
@@ -437,12 +447,17 @@ const ERDViewComponent = ({
           ? `edge-health-${schemaHealthSelection.severity}`
           : 'edge-health-dimmed');
       }
+      if (impactSelection) {
+        classes.push(impactSelection.edgeIds.has(edge.id)
+          ? `edge-impact-${impactSelection.risk}`
+          : 'edge-impact-dimmed');
+      }
 
       const newClassName = classes.join(' ');
       if (baseEdge.className === newClassName) return baseEdge;
       return { ...baseEdge, className: newClassName };
     });
-  }, [nodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, subjectAreaVisibility]);
+  }, [nodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, subjectAreaVisibility]);
 
   // Filter out selection-only changes to avoid unnecessary re-renders from React Flow
   const handleNodesChangeLocal = useCallback(
@@ -772,6 +787,8 @@ const ERDViewComponent = ({
                 setSubjectAreasOpen(false);
                 setSchemaHealthOpen(false);
                 setSchemaHealthSelection(null);
+                setImpactAnalysisOpen(false);
+                setImpactSelection(null);
                 setExplorerOpen(open => {
                   if (open) setExplorerSelection(null);
                   return !open;
@@ -792,6 +809,8 @@ const ERDViewComponent = ({
                   setExplorerSelection(null);
                   setSchemaHealthOpen(false);
                   setSchemaHealthSelection(null);
+                  setImpactAnalysisOpen(false);
+                  setImpactSelection(null);
                   setSubjectAreasOpen(open => !open);
                 }}
                 variant={subjectAreasOpen || activeSubjectArea ? 'default' : 'outline'}
@@ -809,6 +828,8 @@ const ERDViewComponent = ({
                 setExplorerSelection(null);
                 setSubjectAreasOpen(false);
                 setActiveSubjectArea(null);
+                setImpactAnalysisOpen(false);
+                setImpactSelection(null);
                 setSchemaHealthOpen(open => {
                   if (open) setSchemaHealthSelection(null);
                   return !open;
@@ -821,6 +842,27 @@ const ERDViewComponent = ({
             >
               <ShieldCheck className={cn('w-3.5 h-3.5 sm:mr-1.5', !schemaHealthOpen && healthScoreTone(schemaHealthReport.score))} />
               <span className="hidden sm:inline">Health {schemaHealthReport.score}</span>
+            </Button>
+            <Button
+              onClick={() => {
+                setExplorerOpen(false);
+                setExplorerSelection(null);
+                setSubjectAreasOpen(false);
+                setActiveSubjectArea(null);
+                setSchemaHealthOpen(false);
+                setSchemaHealthSelection(null);
+                setImpactAnalysisOpen(open => {
+                  if (open) setImpactSelection(null);
+                  return !open;
+                });
+              }}
+              variant={impactAnalysisOpen ? 'default' : 'outline'}
+              size="sm"
+              className="h-9 px-3 text-xs font-semibold cursor-pointer"
+              title="Simulate the dependency blast radius of a table or column change"
+            >
+              <Radar className="w-3.5 h-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Impact</span>
             </Button>
 
             {isProductionDb && (
@@ -894,6 +936,18 @@ const ERDViewComponent = ({
           onClose={() => {
             setSchemaHealthOpen(false);
             setSchemaHealthSelection(null);
+          }}
+        />
+      )}
+      {impactAnalysisOpen && !pendingDiff && (
+        <ErdImpactAnalysisPanel
+          nodes={nodes}
+          edges={edges}
+          selectedNodeIds={allSelectedIds}
+          onSelectionChange={setImpactSelection}
+          onClose={() => {
+            setImpactAnalysisOpen(false);
+            setImpactSelection(null);
           }}
         />
       )}

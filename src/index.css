@@ -364,6 +364,34 @@
 .edge-health-warning .react-flow__edge-path { stroke: #f59e0b !important; }
 .edge-health-info .react-flow__edge-path { stroke: #0ea5e9 !important; }
 
+/* Impact Analysis shows the simulated blast radius without changing layout. */
+.erd-impact-dimmed {
+  opacity: 0.12 !important;
+  filter: saturate(0.2);
+}
+
+.erd-impact-root .erd-node-container {
+  box-shadow: 0 0 0 4px rgb(139 92 246 / 75%), 0 8px 30px rgb(15 23 42 / 22%);
+}
+
+.erd-impact-low .erd-node-container { box-shadow: 0 0 0 3px rgb(16 185 129 / 65%); }
+.erd-impact-medium .erd-node-container { box-shadow: 0 0 0 3px rgb(14 165 233 / 65%); }
+.erd-impact-high .erd-node-container { box-shadow: 0 0 0 3px rgb(245 158 11 / 72%); }
+.erd-impact-critical .erd-node-container { box-shadow: 0 0 0 3px rgb(239 68 68 / 75%); }
+
+.edge-impact-dimmed .react-flow__edge-path { opacity: 0.06 !important; }
+.edge-impact-low .react-flow__edge-path,
+.edge-impact-medium .react-flow__edge-path,
+.edge-impact-high .react-flow__edge-path,
+.edge-impact-critical .react-flow__edge-path {
+  opacity: 1 !important;
+  stroke-width: 3 !important;
+}
+.edge-impact-low .react-flow__edge-path { stroke: #10b981 !important; }
+.edge-impact-medium .react-flow__edge-path { stroke: #0ea5e9 !important; }
+.edge-impact-high .react-flow__edge-path { stroke: #f59e0b !important; }
+.edge-impact-critical .react-flow__edge-path { stroke: #ef4444 !important; }
+
 .react-flow__controls {
   @apply bg-card! border-border! shadow-none! rounded-lg! overflow-hidden;
 }

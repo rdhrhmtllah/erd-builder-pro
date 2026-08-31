@@ -113,6 +113,16 @@ describe('granular ERD MCP operations', () => {
     });
   });
 
+  it('analyzes an owned diagram impact without writing data', async () => {
+    const report: any = await service.analyzeGranularErdImpact('owner', 'diagram-1', 'table-delete', 'users');
+    expect(report).toMatchObject({
+      root: { table_id: 'users', table_name: 'users' },
+      risk: 'critical',
+      direct_tables: [expect.objectContaining({ id: 'orders', direction: 'dependent' })],
+    });
+    expect(mocks.saveDiagram).not.toHaveBeenCalled();
+  });
+
   it('generates IDs in preview and requires exact confirmation before saving', async () => {
     const proposal: any = await service.proposeErdPatch('owner', 'diagram-1', [{
       op: 'column_add', table_id: 'users', column: { name: 'email', type: 'VARCHAR', is_nullable: false },

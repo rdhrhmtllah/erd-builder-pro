@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getDiagramWithData, saveDiagram } from "../routes/diagrams/save-service.js";
+import { analyzeErdImpact, type ErdImpactOperation } from "../../shared/erd-impact.js";
 
 const MAX_OPERATIONS = 100;
 const MAX_TABLES = 2_000;
@@ -493,6 +494,21 @@ export async function readGranularErd(userId: string, uid: string, tableId?: str
   const entity = snapshot.entities.find(item => item.id === tableId);
   if (!entity) throw new Error("Table not found");
   return serialize({ ...snapshot, entities: [entity], relationships: snapshot.relationships.filter(item => item.source_entity_id === tableId || item.target_entity_id === tableId) });
+}
+
+export async function analyzeGranularErdImpact(
+  userId: string,
+  uid: string,
+  operation: ErdImpactOperation,
+  tableId: string,
+  columnId?: string,
+) {
+  const snapshot = await ownedSnapshot(userId, uid);
+  return serialize(analyzeErdImpact(snapshot.entities, snapshot.relationships, {
+    operation,
+    table_id: requiredText(tableId, "table_id", 160),
+    ...(columnId ? { column_id: requiredText(columnId, "column_id", 160) } : {}),
+  }));
 }
 
 export async function proposeErdPatch(userId: string, uid: string, operations: ErdPatchOperation[], expectedVersion?: number) {
