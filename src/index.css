@@ -392,6 +392,22 @@
 .edge-impact-high .react-flow__edge-path { stroke: #f59e0b !important; }
 .edge-impact-critical .react-flow__edge-path { stroke: #ef4444 !important; }
 
+/* Migration Planner focuses each ordered DDL step on the canvas. */
+.erd-migration-dimmed {
+  opacity: 0.14 !important;
+  filter: saturate(0.25);
+}
+.erd-migration-safe .erd-node-container { box-shadow: 0 0 0 3px rgb(16 185 129 / 68%); }
+.erd-migration-caution .erd-node-container { box-shadow: 0 0 0 3px rgb(245 158 11 / 72%); }
+.erd-migration-breaking .erd-node-container { box-shadow: 0 0 0 3px rgb(239 68 68 / 76%); }
+.edge-migration-dimmed .react-flow__edge-path { opacity: 0.06 !important; }
+.edge-migration-safe .react-flow__edge-path,
+.edge-migration-caution .react-flow__edge-path,
+.edge-migration-breaking .react-flow__edge-path { opacity: 1 !important; stroke-width: 3px !important; }
+.edge-migration-safe .react-flow__edge-path { stroke: #10b981 !important; }
+.edge-migration-caution .react-flow__edge-path { stroke: #f59e0b !important; }
+.edge-migration-breaking .react-flow__edge-path { stroke: #ef4444 !important; }
+
 .react-flow__controls {
   @apply bg-card! border-border! shadow-none! rounded-lg! overflow-hidden;
 }

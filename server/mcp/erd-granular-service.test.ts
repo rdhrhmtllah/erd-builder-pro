@@ -79,6 +79,10 @@ describe('granular ERD MCP operations', () => {
       expect.objectContaining({ op: 'index_add', index_id: expect.stringMatching(/^[0-9a-f-]{36}$/) }),
       expect.objectContaining({ op: 'constraint_add', constraint_id: expect.stringMatching(/^[0-9a-f-]{36}$/) }),
     ]));
+    expect(proposal.migration_plan).toMatchObject({
+      summary: expect.objectContaining({ total: 2 }),
+      sql: { postgresql: expect.objectContaining({ forward: expect.stringContaining('CREATE') }), mysql: expect.any(Object) },
+    });
   });
 
   it('rejects duplicate names and relationships to missing columns', () => {

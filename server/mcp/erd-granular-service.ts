@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getDiagramWithData, saveDiagram } from "../routes/diagrams/save-service.js";
 import { analyzeErdImpact, type ErdImpactOperation } from "../../shared/erd-impact.js";
+import { planErdMigration } from "../../shared/erd-migration-planner.js";
 
 const MAX_OPERATIONS = 100;
 const MAX_TABLES = 2_000;
@@ -261,7 +262,12 @@ function normalizeConstraint(value: any, tableId: string) {
 }
 
 export function applyErdPatch(snapshot: ErdSnapshot, operations: ErdPatchOperation[]) {
-  const entities = snapshot.entities.map(entity => ({ ...entity, columns: entity.columns.map((column: any) => ({ ...column })) }));
+  const entities = snapshot.entities.map(entity => ({
+    ...entity,
+    columns: entity.columns.map((column: any) => ({ ...column })),
+    indexes: entity.indexes.map((index: any) => ({ ...index, column_ids: [...index.column_ids] })),
+    constraints: entity.constraints.map((constraint: any) => ({ ...constraint, column_ids: [...constraint.column_ids] })),
+  }));
   let relationships = snapshot.relationships.map(relationship => ({ ...relationship }));
   const changes: Record<string, unknown>[] = [];
   let destructive = false;
@@ -516,6 +522,10 @@ export async function proposeErdPatch(userId: string, uid: string, operations: E
   if (expectedVersion !== undefined && expectedVersion !== snapshot.version) throw new Error(`Conflict: expected version ${expectedVersion}, current version is ${snapshot.version}`);
   const prepared = prepareOperations(operations);
   const result = applyErdPatch(snapshot, prepared);
+  const migrationPlan = planErdMigration(
+    { tables: snapshot.entities, relationships: snapshot.relationships },
+    { tables: result.entities, relationships: result.relationships },
+  );
   const id = randomUUID();
   const preview = {
     operation: "erd_patch",
@@ -526,6 +536,7 @@ export async function proposeErdPatch(userId: string, uid: string, operations: E
     before: { tables: snapshot.entities.length, relationships: snapshot.relationships.length },
     after: { tables: result.entities.length, relationships: result.relationships.length },
     changes: result.changes,
+    migration_plan: migrationPlan,
     destructive: result.destructive,
     requires_explicit_confirmation: true,
   };

@@ -110,6 +110,8 @@ async function diagramSnapshot(diagram: any) {
       on_delete: relation.onDelete,
       on_update: relation.onUpdate,
       constraint_name: relation.constraintName,
+      source_cardinality: relation.sourceCardinality,
+      target_cardinality: relation.targetCardinality,
     })),
     viewport: { x: diagram.viewportX ?? 0, y: diagram.viewportY ?? 0, zoom: diagram.viewportZoom ?? 1 },
     dbml_source: diagram.dbmlSource ?? "",

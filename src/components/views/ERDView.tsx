@@ -19,7 +19,7 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck, Radar } from 'lucide-react';
+import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck, Radar, GitCompareArrows } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,6 +44,7 @@ import { analyzeErdSchemaHealth } from '@/lib/erd-schema-health';
 import { ErdSchemaHealthPanel, healthScoreTone, type SchemaHealthSelection } from '@/components/diagram/ErdSchemaHealthPanel';
 import { inferRelationshipSemantics } from '@/lib/relationship-semantics';
 import { ErdImpactAnalysisPanel, type ErdImpactSelection } from '@/components/diagram/ErdImpactAnalysisPanel';
+import { ErdMigrationPlannerPanel, type ErdMigrationSelection } from '@/components/diagram/ErdMigrationPlannerPanel';
 
 const nodeTypes = {
   entity: EntityNode,
@@ -264,6 +265,8 @@ const ERDViewComponent = ({
   const [schemaHealthSelection, setSchemaHealthSelection] = useState<SchemaHealthSelection | null>(null);
   const [impactAnalysisOpen, setImpactAnalysisOpen] = useState(false);
   const [impactSelection, setImpactSelection] = useState<ErdImpactSelection | null>(null);
+  const [migrationPlannerOpen, setMigrationPlannerOpen] = useState(false);
+  const [migrationSelection, setMigrationSelection] = useState<ErdMigrationSelection | null>(null);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   const lowDetailRef = React.useRef(false);
 
@@ -344,6 +347,8 @@ const ERDViewComponent = ({
     setSchemaHealthSelection(null);
     setImpactAnalysisOpen(false);
     setImpactSelection(null);
+    setMigrationPlannerOpen(false);
+    setMigrationSelection(null);
   }, [activeFileUid]);
 
   const subjectAreaVisibility = React.useMemo(() => activeSubjectArea
@@ -370,14 +375,17 @@ const ERDViewComponent = ({
           ? 'erd-impact-root'
           : impactSelection.nodeIds.has(node.id) ? `erd-impact-${impactSelection.risk}` : 'erd-impact-dimmed'
         : '';
-      const className = [node.className, explorerClass, healthClass, impactClass].filter(Boolean).join(' ');
+      const migrationClass = migrationSelection
+        ? migrationSelection.nodeIds.has(node.id) ? `erd-migration-${migrationSelection.risk}` : 'erd-migration-dimmed'
+        : '';
+      const className = [node.className, explorerClass, healthClass, impactClass, migrationClass].filter(Boolean).join(' ');
       const hidden = subjectAreaVisibility ? !subjectAreaVisibility.visibleNodeIds.has(node.id) : !!node.hidden;
       // Use !! to normalize undefined/null to boolean — avoids creating wrappers
       // for all nodes on the first drag after setNodes() (which may lack `selected`)
       if (!!node.selected === selected && node.className === className && !!node.hidden === hidden) return node;
       return { ...node, selected, className, hidden };
     });
-  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, subjectAreaVisibility]);
+  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, subjectAreaVisibility]);
 
   const diffNodesWithMode = React.useMemo(() => {
     if (!pendingDiff) return [];
@@ -452,12 +460,17 @@ const ERDViewComponent = ({
           ? `edge-impact-${impactSelection.risk}`
           : 'edge-impact-dimmed');
       }
+      if (migrationSelection) {
+        classes.push(migrationSelection.edgeIds.has(edge.id)
+          ? `edge-migration-${migrationSelection.risk}`
+          : 'edge-migration-dimmed');
+      }
 
       const newClassName = classes.join(' ');
       if (baseEdge.className === newClassName) return baseEdge;
       return { ...baseEdge, className: newClassName };
     });
-  }, [nodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, subjectAreaVisibility]);
+  }, [nodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, subjectAreaVisibility]);
 
   // Filter out selection-only changes to avoid unnecessary re-renders from React Flow
   const handleNodesChangeLocal = useCallback(
@@ -789,6 +802,8 @@ const ERDViewComponent = ({
                 setSchemaHealthSelection(null);
                 setImpactAnalysisOpen(false);
                 setImpactSelection(null);
+                setMigrationPlannerOpen(false);
+                setMigrationSelection(null);
                 setExplorerOpen(open => {
                   if (open) setExplorerSelection(null);
                   return !open;
@@ -811,6 +826,8 @@ const ERDViewComponent = ({
                   setSchemaHealthSelection(null);
                   setImpactAnalysisOpen(false);
                   setImpactSelection(null);
+                  setMigrationPlannerOpen(false);
+                  setMigrationSelection(null);
                   setSubjectAreasOpen(open => !open);
                 }}
                 variant={subjectAreasOpen || activeSubjectArea ? 'default' : 'outline'}
@@ -830,6 +847,8 @@ const ERDViewComponent = ({
                 setActiveSubjectArea(null);
                 setImpactAnalysisOpen(false);
                 setImpactSelection(null);
+                setMigrationPlannerOpen(false);
+                setMigrationSelection(null);
                 setSchemaHealthOpen(open => {
                   if (open) setSchemaHealthSelection(null);
                   return !open;
@@ -851,6 +870,8 @@ const ERDViewComponent = ({
                 setActiveSubjectArea(null);
                 setSchemaHealthOpen(false);
                 setSchemaHealthSelection(null);
+                setMigrationPlannerOpen(false);
+                setMigrationSelection(null);
                 setImpactAnalysisOpen(open => {
                   if (open) setImpactSelection(null);
                   return !open;
@@ -863,6 +884,29 @@ const ERDViewComponent = ({
             >
               <Radar className="w-3.5 h-3.5 sm:mr-1.5" />
               <span className="hidden sm:inline">Impact</span>
+            </Button>
+            <Button
+              onClick={() => {
+                setExplorerOpen(false);
+                setExplorerSelection(null);
+                setSubjectAreasOpen(false);
+                setActiveSubjectArea(null);
+                setSchemaHealthOpen(false);
+                setSchemaHealthSelection(null);
+                setImpactAnalysisOpen(false);
+                setImpactSelection(null);
+                setMigrationPlannerOpen(open => {
+                  if (open) setMigrationSelection(null);
+                  return !open;
+                });
+              }}
+              variant={migrationPlannerOpen ? 'default' : 'outline'}
+              size="sm"
+              className="h-9 px-3 text-xs font-semibold cursor-pointer"
+              title="Compare schema versions and generate ordered forward/rollback SQL"
+            >
+              <GitCompareArrows className="w-3.5 h-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Migrate</span>
             </Button>
 
             {isProductionDb && (
@@ -948,6 +992,18 @@ const ERDViewComponent = ({
           onClose={() => {
             setImpactAnalysisOpen(false);
             setImpactSelection(null);
+          }}
+        />
+      )}
+      {migrationPlannerOpen && !pendingDiff && (
+        <ErdMigrationPlannerPanel
+          nodes={nodes}
+          edges={edges}
+          diagramUid={!isPublicView && !isProductionDb ? activeFileUid : null}
+          onSelectionChange={setMigrationSelection}
+          onClose={() => {
+            setMigrationPlannerOpen(false);
+            setMigrationSelection(null);
           }}
         />
       )}
