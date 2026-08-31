@@ -8,7 +8,7 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   const webBuild = process.env.ERD_WEB_BUILD === '1';
   const allowedHosts = new Set<string>();
-  for (const value of [env.MCP_PUBLIC_URL, ...(env.CORS_ORIGINS || '').split(',')]) {
+  for (const value of [env.MCP_PUBLIC_URL, env.ERD_DEV_PUBLIC_URL, ...(env.CORS_ORIGINS || '').split(',')]) {
     if (!value) continue;
     try { allowedHosts.add(new URL(value).hostname); } catch { /* ignore invalid optional URLs */ }
   }
@@ -42,7 +42,9 @@ export default defineConfig(({mode}) => {
       allowedHosts: [...allowedHosts],
       proxy: {
         '/api': {
-          target: process.env.VITE_API_URL || 'http://localhost:3000',
+          // Keep the browser API URL same-origin in remote HMR sessions. Unlike
+          // VITE_API_URL, this server-only value is never embedded in the bundle.
+          target: env.ERD_DEV_PROXY_TARGET || env.VITE_API_URL || 'http://localhost:3000',
           changeOrigin: true,
         },
       },
