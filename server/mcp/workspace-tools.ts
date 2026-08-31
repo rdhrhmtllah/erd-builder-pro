@@ -130,12 +130,12 @@ export function registerWorkspaceReadTools(server: McpServer, userId: string) {
   }, async ({ uid, format }) => jsonResult(await readGranularErdDictionary(userId, uid, format)));
 
   server.registerTool("erd_subject_area_list", {
-    description: "List saved ERD Subject Areas: named module filters with table membership, color, and viewport. Read-only.",
+    description: "List the nested ERD Subject Area tree. Each item includes parent_id, depth, direct node_ids, and effective_node_ids (the Area plus descendants). Read-only.",
     inputSchema: { uid: z.string().min(1).max(100) }, annotations: readOnly,
   }, async ({ uid }) => jsonResult(await listSubjectAreas(uid, userId)));
 
   server.registerTool("erd_subject_area_read", {
-    description: "Read one ERD Subject Area including its table IDs, color, and viewport. Read-only.",
+    description: "Read one nested ERD Subject Area including parent_id, depth, direct and effective descendant table IDs, color, and viewport. Read-only.",
     inputSchema: { uid: z.string().min(1).max(100), area_id: z.string().uuid() }, annotations: readOnly,
   }, async ({ uid, area_id }) => jsonResult(await getSubjectArea(uid, area_id, userId)));
 
@@ -190,7 +190,7 @@ export function registerWorkspaceReadTools(server: McpServer, userId: string) {
 
 export function registerWorkspaceWriteTools(server: McpServer, userId: string) {
   server.registerTool("erd_subject_area_propose", {
-    description: "Prepare a Subject Area create/update/delete without writing. An agent should read erd_schema_read first, determine coherent business/module table groups, use only returned table IDs, then show the area preview and request confirmation. create requires area {name,color,node_ids,viewport_x?,viewport_y?,viewport_zoom?}; update requires area_id and changes; delete requires area_id.",
+    description: "Prepare a hierarchical Subject Area create/update/delete without writing. Read erd_schema_read and erd_subject_area_list first; group tables by coherent business responsibility and relationship flow. create requires area {name,color,node_ids,viewport_x?,viewport_y?,viewport_zoom?,parent_id?}; update requires area_id and changes (including parent_id to move it). parent_id must reference another Area in the same diagram and cannot create a cycle. Show the tree, table membership, and preview, then request confirmation.",
     inputSchema: { uid: z.string().min(1).max(100), operation: z.object({ op: z.enum(['create', 'update', 'delete']), area_id: z.string().uuid().optional(), area: z.object({}).catchall(z.unknown()).optional(), changes: z.object({}).catchall(z.unknown()).optional() }) }, annotations: write,
   }, async ({ uid, operation: subjectAreaOperation }) => jsonResult(await proposeSubjectAreaChange(userId, uid, subjectAreaOperation)));
 

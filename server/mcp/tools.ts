@@ -80,17 +80,17 @@ export function registerTools(server: McpServer) {
   }, async ({ uid, format }) => jsonResult(await readGranularErdDictionary(await resolveMcpUserId(), uid, format)));
 
   server.registerTool("erd_subject_area_list", {
-    description: "List saved Subject Areas for an ERD without modifying it.",
+    description: "List the nested Subject Area tree for an ERD. Each item includes parent_id, depth, direct node_ids, and effective_node_ids (the Area plus descendants). Read-only.",
     inputSchema: { uid: z.string().min(1).max(100) }, annotations: readOnly,
   }, async ({ uid }) => jsonResult(await listSubjectAreas(uid, await resolveMcpUserId())));
 
   server.registerTool("erd_subject_area_read", {
-    description: "Read one saved Subject Area including color, tables, and viewport.",
+    description: "Read one saved Subject Area including its parent_id, depth, direct and effective descendant table IDs, color, and viewport.",
     inputSchema: { uid: z.string().min(1).max(100), area_id: z.string().uuid() }, annotations: readOnly,
   }, async ({ uid, area_id }) => jsonResult(await getSubjectArea(uid, area_id, await resolveMcpUserId())));
 
   server.registerTool("erd_subject_area_propose", {
-    description: "Prepare create, update, or delete for a non-destructive ERD Subject Area. Read schema first, use exact table IDs, then request confirmation before apply.",
+    description: "Prepare a hierarchical Subject Area create, update, or delete. Read schema and the existing Area tree first, group tables by business responsibility and relation flow, then request confirmation before apply. create uses area {name,color,node_ids,viewport_x?,viewport_y?,viewport_zoom?,parent_id?}; update can set changes.parent_id to move an Area. Parent cycles and cross-diagram parents are rejected.",
     inputSchema: { uid: z.string().min(1).max(100), operation: z.object({ op: z.enum(['create', 'update', 'delete']), area_id: z.string().uuid().optional(), area: z.object({}).catchall(z.unknown()).optional(), changes: z.object({}).catchall(z.unknown()).optional() }) }, annotations: readOnly,
   }, async ({ uid, operation }) => jsonResult(await proposeSubjectAreaChange(await resolveMcpUserId(), uid, operation)));
 
