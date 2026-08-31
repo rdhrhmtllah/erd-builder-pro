@@ -1,16 +1,18 @@
 import React from 'react';
-import { useReactFlow } from '@xyflow/react';
+import { useReactFlow, type Edge, type Node } from '@xyflow/react';
 import { Check, ChevronRight, FolderKanban, Loader2, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { ErdSubjectArea } from '@/lib/erd-subject-areas';
+import { getSubjectAreaBoundary, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 
 type Props = {
   diagramUid: string;
   selectedNodeIds: string[];
   nodeNames: Map<string, string>;
+  nodes: Node[];
+  edges: Edge[];
   activeArea: ErdSubjectArea | null;
   readOnly?: boolean;
   onActiveAreaChange: (area: ErdSubjectArea | null) => void;
@@ -27,6 +29,8 @@ export function ErdSubjectAreaPanel({
   diagramUid,
   selectedNodeIds,
   nodeNames,
+  nodes,
+  edges,
   activeArea,
   readOnly = false,
   onActiveAreaChange,
@@ -58,6 +62,10 @@ export function ErdSubjectAreaPanel({
 
   React.useEffect(() => { void load(); }, [load]);
 
+  const activeBoundary = React.useMemo(() => activeArea
+    ? getSubjectAreaBoundary(nodes, edges, activeArea.effective_node_ids || activeArea.node_ids)
+    : null, [activeArea, nodes, edges]);
+
   const applyArea = React.useCallback((area: ErdSubjectArea | null) => {
     onActiveAreaChange(area);
     if (area) {
@@ -65,6 +73,12 @@ export function ErdSubjectAreaPanel({
       requestAnimationFrame(() => void fitView({ nodes: ids.map(id => ({ id })), padding: 0.24, duration: 360, minZoom: 0.18, maxZoom: 1.15 }));
     }
   }, [onActiveAreaChange, fitView]);
+
+  const openBoundaryNeighbour = React.useCallback((nodeId: string) => {
+    const ids = activeArea ? [...(activeArea.effective_node_ids || activeArea.node_ids), nodeId] : [nodeId];
+    onActiveAreaChange(null);
+    requestAnimationFrame(() => void fitView({ nodes: ids.map(id => ({ id })), padding: 0.24, duration: 320, minZoom: 0.18, maxZoom: 1.15 }));
+  }, [activeArea, onActiveAreaChange, fitView]);
 
   const createArea = async () => {
     if (!name.trim() || !selectedNodeIds.length) return;
@@ -162,6 +176,17 @@ export function ErdSubjectAreaPanel({
         <Button variant={activeArea ? 'outline' : 'secondary'} className="h-9 w-full justify-start text-xs" onClick={() => applyArea(null)}>
           {!activeArea && <Check className="mr-2 h-3.5 w-3.5" />} All tables
         </Button>
+
+        {activeArea && activeBoundary && (
+          <section className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><span>Area relations</span><span>{activeBoundary.internal_relations} internal · {activeBoundary.external_relations} cross-area</span></div>
+            {activeBoundary.neighbours.length ? <div className="space-y-1">
+              {activeBoundary.neighbours.slice(0, 6).map(item => <button key={item.node_id} onClick={() => openBoundaryNeighbour(item.node_id)} className="flex w-full items-center justify-between rounded-md border border-border/50 px-2 py-1.5 text-left text-[11px] hover:bg-background" title="Open this external table with the current Area">
+                <span className="truncate">↗ {nodeNames.get(item.node_id) || item.node_id}</span><span className="ml-2 shrink-0 text-muted-foreground">{item.relation_count} · {item.direction}</span>
+              </button>)}
+            </div> : <p className="text-[11px] text-muted-foreground">No relationships leave this Area.</p>}
+          </section>
+        )}
 
         {!readOnly && (
           <section className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">

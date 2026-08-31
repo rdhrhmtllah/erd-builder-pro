@@ -1,10 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { getSubjectAreaVisibility, normalizeSubjectAreaNodeIds } from '../erd-subject-areas';
+import { getSubjectAreaBoundary, getSubjectAreaVisibility, normalizeSubjectAreaNodeIds } from '../erd-subject-areas';
 
 describe('ERD subject areas', () => {
   it('normalizes duplicate and blank table ids without changing their order', () => {
     expect(normalizeSubjectAreaNodeIds([' users ', '', 'orders', 'users', 'orders']))
       .toEqual(['users', 'orders']);
+  });
+
+  it('summarizes internal and cross-Area relations as drill-down portals', () => {
+    const nodes: any[] = [{ id: 'users' }, { id: 'orders' }, { id: 'payments' }];
+    const edges: any[] = [
+      { id: 'users-orders', source: 'users', target: 'orders' },
+      { id: 'orders-payments', source: 'orders', target: 'payments' },
+      { id: 'payments-orders', source: 'payments', target: 'orders' },
+    ];
+    expect(getSubjectAreaBoundary(nodes, edges, ['users', 'orders'])).toEqual({
+      internal_relations: 1, external_relations: 2,
+      neighbours: [{ node_id: 'payments', relation_count: 2, direction: 'both' }],
+    });
   });
 
   it('keeps only existing area tables and relationships fully inside the area', () => {
