@@ -5,6 +5,9 @@ export type ErdSubjectArea = {
   name: string;
   color: string;
   node_ids: string[];
+  parent_id?: string | null;
+  effective_node_ids?: string[];
+  depth?: number;
   viewport_x: number;
   viewport_y: number;
   viewport_zoom: number;

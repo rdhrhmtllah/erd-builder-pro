@@ -248,6 +248,7 @@ async function createDiagramSubjectAreasTableIfMissing(): Promise<void> {
       CREATE TABLE IF NOT EXISTS "diagram_subject_areas" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "diagram_id" INTEGER NOT NULL,
+        "parent_id" TEXT,
         "name" TEXT NOT NULL,
         "color" TEXT NOT NULL DEFAULT '#6366f1',
         "node_ids" TEXT NOT NULL,
@@ -259,6 +260,8 @@ async function createDiagramSubjectAreasTableIfMissing(): Promise<void> {
         CONSTRAINT "diagram_subject_areas_diagram_id_fkey" FOREIGN KEY ("diagram_id") REFERENCES "diagrams" ("id") ON DELETE CASCADE ON UPDATE NO ACTION
       )`);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "idx_diagram_subject_areas_diagram" ON "diagram_subject_areas"("diagram_id")`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "diagram_subject_areas" ADD COLUMN IF NOT EXISTS "parent_id" TEXT`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "idx_diagram_subject_areas_parent" ON "diagram_subject_areas"("diagram_id", "parent_id")`);
   } catch (err: any) {
     logger.warn({ err: err?.message }, "Failed to create diagram subject areas table (non-fatal)");
   }

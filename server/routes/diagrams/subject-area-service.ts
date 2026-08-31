@@ -6,6 +6,7 @@ export type SubjectAreaInput = {
   name: string;
   color: string;
   node_ids: string[];
+  parent_id?: string | null;
   viewport_x: number;
   viewport_y: number;
   viewport_zoom: number;
@@ -36,12 +37,34 @@ function toResponse(area: any) {
     name: area.name,
     color: area.color,
     node_ids: nodeIds,
+    parent_id: area.parentId || null,
     viewport_x: area.viewportX,
     viewport_y: area.viewportY,
     viewport_zoom: area.viewportZoom,
     created_at: area.createdAt,
     updated_at: area.updatedAt,
   };
+}
+
+function hierarchyResponse(areas: any[]) {
+  const byId = new Map(areas.map(area => [area.id, area]));
+  const children = new Map<string, any[]>();
+  for (const area of areas) {
+    if (!area.parentId || !byId.has(area.parentId)) continue;
+    children.set(area.parentId, [...(children.get(area.parentId) || []), area]);
+  }
+  const descendants = (area: any, seen = new Set<string>()): string[] => {
+    if (seen.has(area.id)) return [];
+    seen.add(area.id);
+    const own = toResponse(area).node_ids;
+    return normalizeSubjectAreaNodeIds([...own, ...(children.get(area.id) || []).flatMap(child => descendants(child, new Set(seen)))]);
+  };
+  const depth = (area: any): number => {
+    const visited = new Set<string>(); let current = area; let value = 0;
+    while (current.parentId && byId.has(current.parentId) && !visited.has(current.parentId)) { visited.add(current.parentId); current = byId.get(current.parentId); value += 1; }
+    return value;
+  };
+  return areas.map(area => ({ ...toResponse(area), effective_node_ids: descendants(area), depth: depth(area) }));
 }
 
 async function ownedDiagram(uid: string, userId: string) {
@@ -70,14 +93,31 @@ export async function listSubjectAreas(uid: string, userId: string) {
     where: { diagramId: diagram.id },
     orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
   });
-  return areas.map(toResponse);
+  return hierarchyResponse(areas);
 }
 
 export async function getSubjectArea(uid: string, areaId: string, userId: string) {
   const diagram = await ownedDiagram(uid, userId);
   if (!diagram) return null;
   const area = await (prisma as any).diagramSubjectArea.findFirst({ where: { id: areaId, diagramId: diagram.id } });
-  return area ? toResponse(area) : null;
+  if (!area) return null;
+  const areas = await (prisma as any).diagramSubjectArea.findMany({ where: { diagramId: diagram.id } });
+  return hierarchyResponse(areas).find(item => item.id === area.id) || null;
+}
+
+async function assertValidParent(diagramId: any, parentId: string | null | undefined, areaId?: string) {
+  if (!parentId) return;
+  if (parentId === areaId) throw new Error("A Subject Area cannot be its own parent");
+  const parent = await (prisma as any).diagramSubjectArea.findFirst({ where: { id: parentId, diagramId } });
+  if (!parent) throw new Error("Parent Subject Area was not found in this diagram");
+  if (!areaId) return;
+  let cursor: any = parent;
+  const seen = new Set<string>();
+  while (cursor?.parentId && !seen.has(cursor.id)) {
+    if (cursor.parentId === areaId) throw new Error("A Subject Area cannot be moved into its descendant");
+    seen.add(cursor.id);
+    cursor = await (prisma as any).diagramSubjectArea.findFirst({ where: { id: cursor.parentId, diagramId } });
+  }
 }
 
 export async function createSubjectArea(uid: string, userId: string, input: SubjectAreaInput) {
@@ -85,9 +125,11 @@ export async function createSubjectArea(uid: string, userId: string, input: Subj
   if (!diagram) return null;
   const nodeIds = normalizeSubjectAreaNodeIds(input.node_ids);
   await assertNodesBelongToDiagram(diagram.id, nodeIds);
+  await assertValidParent(diagram.id, input.parent_id);
   const area = await (prisma as any).diagramSubjectArea.create({
     data: {
       diagramId: diagram.id,
+      parentId: input.parent_id || null,
       name: input.name.trim(),
       color: input.color.toLowerCase(),
       nodeIds: JSON.stringify(nodeIds),
@@ -112,6 +154,10 @@ export async function updateSubjectArea(uid: string, areaId: string, userId: str
     const nodeIds = normalizeSubjectAreaNodeIds(patch.node_ids);
     await assertNodesBelongToDiagram(diagram.id, nodeIds);
     data.nodeIds = JSON.stringify(nodeIds);
+  }
+  if (patch.parent_id !== undefined) {
+    await assertValidParent(diagram.id, patch.parent_id, existing.id);
+    data.parentId = patch.parent_id || null;
   }
   if (patch.viewport_x !== undefined) data.viewportX = patch.viewport_x;
   if (patch.viewport_y !== undefined) data.viewportY = patch.viewport_y;
@@ -153,12 +199,14 @@ async function normalizeAreaInput(diagramId: any, input: any, current?: any): Pr
     name: input.name === undefined && current ? current.name : requiredName(input.name),
     color: input.color === undefined && current ? current.color : validColor(input.color),
     node_ids: normalizeSubjectAreaNodeIds(nodeIds),
+    parent_id: input.parent_id === undefined ? (current?.parentId || null) : input.parent_id,
     viewport_x: coordinate(input.viewport_x, "viewport_x", current?.viewportX ?? 0),
     viewport_y: coordinate(input.viewport_y, "viewport_y", current?.viewportY ?? 0),
     viewport_zoom: coordinate(input.viewport_zoom, "viewport_zoom", current?.viewportZoom ?? 1),
   };
   if (normalized.viewport_zoom < 0.05 || normalized.viewport_zoom > 4) throw new Error("viewport_zoom must be between 0.05 and 4");
   await assertNodesBelongToDiagram(diagramId, normalized.node_ids);
+  await assertValidParent(diagramId, normalized.parent_id, current?.id);
   return normalized;
 }
 

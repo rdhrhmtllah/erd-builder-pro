@@ -36,7 +36,7 @@ import { apiFetch } from '@/lib/api';
 import { EyeOff, Monitor } from 'lucide-react';
 import { buildErdIndexes, erdColumnKey, erdSourceColumnKey } from '@/lib/erd-indexes';
 import { databaseColumnToERD } from '@/lib/column-metadata';
-import { syncERDEdgeHandles } from '@/lib/autoLayoutERD';
+import { autoLayoutERD, syncERDEdgeHandles } from '@/lib/autoLayoutERD';
 import { ErdRelationExplorer, type ErdExplorerSelection } from '@/components/diagram/ErdRelationExplorer';
 import { ErdSubjectAreaPanel } from '@/components/diagram/ErdSubjectAreaPanel';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
@@ -377,8 +377,19 @@ const ERDViewComponent = ({
   }, [activeFileUid]);
 
   const subjectAreaVisibility = React.useMemo(() => activeSubjectArea
-    ? getSubjectAreaVisibility(nodes, edges, activeSubjectArea.node_ids)
+    ? getSubjectAreaVisibility(nodes, edges, activeSubjectArea.effective_node_ids || activeSubjectArea.node_ids)
     : null, [activeSubjectArea, nodes, edges]);
+
+  // Subject Areas are focused, non-destructive views: their compact layout is
+  // calculated only for the tables in the selected area and never overwrites
+  // the canonical ERD positions.
+  const subjectAreaLayout = React.useMemo(() => {
+    if (!subjectAreaVisibility) return null;
+    const selectedNodes = nodes.filter(node => subjectAreaVisibility.visibleNodeIds.has(node.id));
+    const selectedEdges = edges.filter(edge => subjectAreaVisibility.visibleEdgeIds.has(edge.id));
+    const laidOutNodes = autoLayoutERD(selectedNodes, selectedEdges);
+    return { positions: new Map(laidOutNodes.map(node => [node.id, node.position])), edges: syncERDEdgeHandles(laidOutNodes, selectedEdges) };
+  }, [subjectAreaVisibility, nodes, edges]);
 
   const perspectiveLayout = React.useMemo(() => {
     if (!activePerspective) return null;
@@ -424,12 +435,14 @@ const ERDViewComponent = ({
       const className = [node.className, explorerClass, healthClass, impactClass, migrationClass, governanceClass].filter(Boolean).join(' ');
       const hidden = subjectAreaVisibility ? !subjectAreaVisibility.visibleNodeIds.has(node.id) : !!node.hidden;
       const perspectivePosition = perspectiveLayout?.node_positions[node.id];
+      const subjectAreaPosition = subjectAreaLayout?.positions.get(node.id);
       // Use !! to normalize undefined/null to boolean — avoids creating wrappers
       // for all nodes on the first drag after setNodes() (which may lack `selected`)
-      if (!!node.selected === selected && node.className === className && !!node.hidden === hidden && (!perspectivePosition || (node.position.x === perspectivePosition.x && node.position.y === perspectivePosition.y))) return node;
-      return { ...node, selected, className, hidden, ...(perspectivePosition ? { position: perspectivePosition } : {}) };
+      const displayPosition = perspectivePosition || subjectAreaPosition;
+      if (!!node.selected === selected && node.className === className && !!node.hidden === hidden && (!displayPosition || (node.position.x === displayPosition.x && node.position.y === displayPosition.y))) return node;
+      return { ...node, selected, className, hidden, ...(displayPosition ? { position: displayPosition } : {}) };
     });
-  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, governanceSelection, subjectAreaVisibility, perspectiveLayout]);
+  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, governanceSelection, subjectAreaVisibility, perspectiveLayout, subjectAreaLayout]);
 
   const diffNodesWithMode = React.useMemo(() => {
     if (!pendingDiff) return [];
@@ -449,7 +462,8 @@ const ERDViewComponent = ({
 
   const styledEdges = React.useMemo(() => {
     const hasSelection = allSelectedIds.length > 0;
-    const readableEdges = syncERDEdgeHandles(nodes, edges);
+    const areaEdgesById = new Map(subjectAreaLayout?.edges.map(edge => [edge.id, edge]) || []);
+    const readableEdges = syncERDEdgeHandles(nodes, edges).map(edge => areaEdgesById.get(edge.id) || edge);
 
     return readableEdges.map(edge => {
       const isConnectedToSelected = hasSelection && allSelectedIds.some(
@@ -526,7 +540,7 @@ const ERDViewComponent = ({
       if (baseEdge.className === newClassName) return baseEdge;
       return { ...baseEdge, className: newClassName };
     });
-  }, [nodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, subjectAreaVisibility, activePerspective, perspectiveLayout]);
+  }, [nodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, subjectAreaVisibility, activePerspective, perspectiveLayout, subjectAreaLayout]);
 
   const perspectiveSectionNodes = React.useMemo(() => perspectiveLayout?.sections.map(section => ({
     id: `perspective-section:${section.id}`,

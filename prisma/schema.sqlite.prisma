@@ -122,6 +122,7 @@ model Diagram {
 model DiagramSubjectArea {
   id           String   @id @default(uuid())
   diagramId    Int      @map("diagram_id")
+  parentId     String?  @map("parent_id")
   name         String
   color        String   @default("#6366f1")
   nodeIds      String   @map("node_ids")
@@ -131,8 +132,11 @@ model DiagramSubjectArea {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
   diagram      Diagram  @relation(fields: [diagramId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  parent       DiagramSubjectArea? @relation("SubjectAreaHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children     DiagramSubjectArea[] @relation("SubjectAreaHierarchy")
 
   @@index([diagramId], map: "idx_diagram_subject_areas_diagram")
+  @@index([diagramId, parentId], map: "idx_diagram_subject_areas_parent")
   @@map("diagram_subject_areas")
 }
 

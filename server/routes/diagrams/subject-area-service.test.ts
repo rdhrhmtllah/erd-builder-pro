@@ -86,6 +86,18 @@ describe('diagram subject areas', () => {
     expect(result).toMatchObject({ id: 'area-1', name: 'Core', node_ids: ['users', 'orders'], viewport_zoom: 0.8 });
   });
 
+  it('returns a parent Area with its descendants in the effective table set', async () => {
+    mocks.diagramFindFirst.mockResolvedValue({ id: 7 });
+    mocks.areaFindMany.mockResolvedValue([
+      { id: 'root', name: 'HCIS', color: '#6366f1', nodeIds: '["employees"]', parentId: null, viewportX: 0, viewportY: 0, viewportZoom: 1 },
+      { id: 'child', name: 'Payroll', color: '#10b981', nodeIds: '["payslips"]', parentId: 'root', viewportX: 0, viewportY: 0, viewportZoom: 1 },
+    ]);
+
+    const areas: any[] = await service.listSubjectAreas('diagram', 'owner') as any[];
+    expect(areas.find(area => area.id === 'root')).toMatchObject({ depth: 0, effective_node_ids: ['employees', 'payslips'] });
+    expect(areas.find(area => area.id === 'child')).toMatchObject({ depth: 1, effective_node_ids: ['payslips'] });
+  });
+
   it('previews and applies an owned Subject Area only with an exact confirmation', async () => {
     const now = new Date('2026-01-01T00:00:00.000Z');
     mocks.diagramFindFirst.mockResolvedValue({ id: 7, uid: 'diagram', name: 'Commerce', updatedAt: now });

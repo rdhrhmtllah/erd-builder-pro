@@ -1,6 +1,6 @@
 import React from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { Check, FolderKanban, Loader2, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { Check, ChevronRight, FolderKanban, Loader2, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api';
@@ -32,10 +32,11 @@ export function ErdSubjectAreaPanel({
   onActiveAreaChange,
   onClose,
 }: Props) {
-  const { getViewport, setViewport } = useReactFlow();
+  const { getViewport, fitView } = useReactFlow();
   const [areas, setAreas] = React.useState<ErdSubjectArea[]>([]);
   const [name, setName] = React.useState('');
   const [color, setColor] = React.useState(colors[0]);
+  const [parentId, setParentId] = React.useState<string>('');
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [renamingId, setRenamingId] = React.useState<string | null>(null);
@@ -60,13 +61,10 @@ export function ErdSubjectAreaPanel({
   const applyArea = React.useCallback((area: ErdSubjectArea | null) => {
     onActiveAreaChange(area);
     if (area) {
-      requestAnimationFrame(() => void setViewport({
-        x: area.viewport_x,
-        y: area.viewport_y,
-        zoom: area.viewport_zoom,
-      }, { duration: 300 }));
+      const ids = area.effective_node_ids || area.node_ids;
+      requestAnimationFrame(() => void fitView({ nodes: ids.map(id => ({ id })), padding: 0.24, duration: 360, minZoom: 0.18, maxZoom: 1.15 }));
     }
-  }, [onActiveAreaChange, setViewport]);
+  }, [onActiveAreaChange, fitView]);
 
   const createArea = async () => {
     if (!name.trim() || !selectedNodeIds.length) return;
@@ -77,7 +75,7 @@ export function ErdSubjectAreaPanel({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: name.trim(), color, node_ids: selectedNodeIds,
+          name: name.trim(), color, node_ids: selectedNodeIds, parent_id: parentId || null,
           viewport_x: viewport.x, viewport_y: viewport.y, viewport_zoom: viewport.zoom,
         }),
       });
@@ -85,6 +83,7 @@ export function ErdSubjectAreaPanel({
       const created: ErdSubjectArea = await response.json();
       setAreas(current => [created, ...current]);
       setName('');
+      setParentId('');
       applyArea(created);
       toast.success(`Subject area “${created.name}” saved`);
     } catch (error: any) {
@@ -168,6 +167,10 @@ export function ErdSubjectAreaPanel({
           <section className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Create from selection</div>
             <input value={name} maxLength={80} onChange={event => setName(event.target.value)} placeholder="Area name, e.g. Payroll" className="h-9 w-full rounded-md border border-border bg-background px-3 text-xs outline-none focus:border-primary" />
+            <select value={parentId} onChange={event => setParentId(event.target.value)} className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs">
+              <option value="">Top-level area</option>
+              {areas.map(area => <option key={area.id} value={area.id}>{'  '.repeat(area.depth || 0)}{area.name}</option>)}
+            </select>
             <div className="flex items-center gap-1.5">
               {colors.map(item => <button key={item} type="button" aria-label={`Use color ${item}`} onClick={() => setColor(item)} className={cn('h-6 w-6 rounded-full border-2 transition-transform', color === item ? 'scale-110 border-foreground' : 'border-transparent')} style={{ backgroundColor: item }} />)}
               <span className="ml-auto text-[11px] text-muted-foreground">{selectedNodeIds.length} selected</span>
@@ -183,9 +186,10 @@ export function ErdSubjectAreaPanel({
           <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><span>Saved areas</span><span>{areas.length}</span></div>
           {loading ? <div className="flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div> : areas.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground">No saved subject areas yet.</p>
-          ) : areas.map(area => (
-            <div key={area.id} className={cn('rounded-xl border p-2.5', activeArea?.id === area.id ? 'border-primary/50 bg-primary/5' : 'border-border/60')}>
+          ) : [...areas].sort((a, b) => (a.depth || 0) - (b.depth || 0) || a.name.localeCompare(b.name)).map(area => (
+            <div key={area.id} style={{ marginLeft: `${Math.min(area.depth || 0, 4) * 14}px` }} className={cn('rounded-xl border p-2.5', activeArea?.id === area.id ? 'border-primary/50 bg-primary/5' : 'border-border/60')}>
               <div className="flex items-center gap-2">
+                {(area.depth || 0) > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
                 <button className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: area.color }} onClick={() => applyArea(area)} aria-label={`Open ${area.name}`} />
                 {renamingId === area.id ? (
                   <form className="flex min-w-0 flex-1 gap-1" onSubmit={event => { event.preventDefault(); void renameArea(area); }}>
@@ -193,7 +197,7 @@ export function ErdSubjectAreaPanel({
                     <Button type="submit" size="icon" className="h-7 w-7"><Check className="h-3.5 w-3.5" /></Button>
                   </form>
                 ) : <button className="min-w-0 flex-1 truncate text-left text-xs font-semibold" onClick={() => applyArea(area)}>{area.name}</button>}
-                <span className="text-[10px] text-muted-foreground">{area.node_ids.filter(id => nodeNames.has(id)).length}/{area.node_ids.length}</span>
+                <span className="text-[10px] text-muted-foreground">{(area.effective_node_ids || area.node_ids).filter(id => nodeNames.has(id)).length} tables</span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
                 <Button size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={() => applyArea(area)}>Open</Button>
