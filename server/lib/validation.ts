@@ -65,6 +65,43 @@ export const updateSubjectAreaSchema = z.object({
   message: "At least one subject area field must be provided",
 });
 
+const perspectivePosition = z.object({
+  x: z.number().finite().min(-1_000_000).max(1_000_000),
+  y: z.number().finite().min(-1_000_000).max(1_000_000),
+});
+const perspectiveSection = z.object({
+  id: z.string().min(1).max(160).optional(),
+  name: z.string().trim().min(1).max(100),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  description: z.string().max(500).optional(),
+  node_ids: z.array(z.string().min(1).max(160)).max(1000).default([]),
+  order: z.number().int().min(0).max(999).optional(),
+  collapsed: z.boolean().optional(),
+}).strict();
+const perspectiveFields = {
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(500).nullable().optional(),
+  direction: z.enum(['left-to-right', 'top-to-bottom']).optional(),
+  edge_mode: z.enum(['all', 'internal', 'cross-section']).optional(),
+  sections: z.array(perspectiveSection).min(1).max(40).optional(),
+  node_positions: z.record(z.string().min(1).max(160), perspectivePosition).refine(value => Object.keys(value).length <= 2000, { message: 'At most 2000 table positions are allowed' }).optional(),
+  viewport: z.object({
+    x: z.number().finite().min(-1_000_000).max(1_000_000),
+    y: z.number().finite().min(-1_000_000).max(1_000_000),
+    zoom: z.number().finite().min(0.05).max(4),
+  }).optional(),
+};
+export const createPerspectiveSchema = z.object(perspectiveFields).strict();
+export const updatePerspectiveSchema = z.object({
+  name: perspectiveFields.name.optional(),
+  description: perspectiveFields.description,
+  direction: perspectiveFields.direction,
+  edge_mode: perspectiveFields.edge_mode,
+  sections: perspectiveFields.sections,
+  node_positions: perspectiveFields.node_positions,
+  viewport: perspectiveFields.viewport,
+}).strict().refine(value => Object.keys(value).length > 0, { message: 'At least one perspective field must be provided' });
+
 export const createNoteSchema = z.object({
   title: z.string().min(1).max(255),
   content: z.string().max(10_000_000).optional(),

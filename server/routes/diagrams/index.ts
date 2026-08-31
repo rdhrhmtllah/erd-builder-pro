@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../../lib/middleware.js";
-import { validate, createDiagramSchema, createSubjectAreaSchema, updateSubjectAreaSchema } from "../../lib/validation.js";
+import { validate, createDiagramSchema, createSubjectAreaSchema, updateSubjectAreaSchema, createPerspectiveSchema, updatePerspectiveSchema } from "../../lib/validation.js";
 import * as ctrl from "./controller.js";
 
 const router = Router();
@@ -14,6 +14,12 @@ router.get("/:uid/subject-areas", authenticate, ctrl.listSubjectAreas);
 router.post("/:uid/subject-areas", authenticate, validate(createSubjectAreaSchema), ctrl.createSubjectArea);
 router.put("/:uid/subject-areas/:areaId", authenticate, validate(updateSubjectAreaSchema), ctrl.updateSubjectArea);
 router.delete("/:uid/subject-areas/:areaId", authenticate, ctrl.deleteSubjectArea);
+router.get("/:uid/perspectives", authenticate, ctrl.listPerspectives);
+router.get("/:uid/perspectives/:perspectiveId", authenticate, ctrl.getPerspective);
+router.post("/:uid/perspectives", authenticate, validate(createPerspectiveSchema), ctrl.createPerspective);
+router.put("/:uid/perspectives/:perspectiveId", authenticate, validate(updatePerspectiveSchema), ctrl.updatePerspective);
+router.post("/:uid/perspectives/:perspectiveId/auto-layout", authenticate, ctrl.autoLayoutPerspective);
+router.delete("/:uid/perspectives/:perspectiveId", authenticate, ctrl.deletePerspective);
 router.get("/:uid", authenticate, ctrl.get);
 router.put("/:uid", authenticate, ctrl.update);
 router.delete("/:uid", authenticate, ctrl.remove);

@@ -19,7 +19,7 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck, Radar, GitCompareArrows, BookOpenCheck } from 'lucide-react';
+import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck, Radar, GitCompareArrows, BookOpenCheck, Layers3 } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,6 +40,9 @@ import { syncERDEdgeHandles } from '@/lib/autoLayoutERD';
 import { ErdRelationExplorer, type ErdExplorerSelection } from '@/components/diagram/ErdRelationExplorer';
 import { ErdSubjectAreaPanel } from '@/components/diagram/ErdSubjectAreaPanel';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
+import { ErdPerspectivePanel, type ErdPerspective } from '@/components/diagram/ErdPerspectivePanel';
+import { PerspectiveSectionNode } from '@/components/diagram/PerspectiveSectionNode';
+import { layoutErdPerspective } from '../../../shared/erd-perspectives';
 import { analyzeErdSchemaHealth } from '@/lib/erd-schema-health';
 import { ErdSchemaHealthPanel, healthScoreTone, type SchemaHealthSelection } from '@/components/diagram/ErdSchemaHealthPanel';
 import { inferRelationshipSemantics } from '@/lib/relationship-semantics';
@@ -52,6 +55,7 @@ import { governanceFrom } from '../../../shared/erd-governance';
 
 const nodeTypes = {
   entity: EntityNode,
+  perspectiveSection: PerspectiveSectionNode,
 };
 
 /**
@@ -254,7 +258,7 @@ const ERDViewComponent = ({
 }: ERDViewProps) => {
 
   const { registerContentHandler, setSelectionText, setActionContextData, setRightPanelMode } = useAIAction();
-  const { getViewport } = useReactFlow();
+  const { getViewport, setViewport } = useReactFlow();
   const { resolvedTheme, activeFileUid, isPublicView, activeDocument } = useWorkspace();
   const bgColor = resolvedTheme === 'dark' ? '#222' : '#ccc';
   const isProductionDb = isDbClient;
@@ -265,6 +269,8 @@ const ERDViewComponent = ({
   const [explorerSelection, setExplorerSelection] = useState<ErdExplorerSelection | null>(null);
   const [subjectAreasOpen, setSubjectAreasOpen] = useState(false);
   const [activeSubjectArea, setActiveSubjectArea] = useState<ErdSubjectArea | null>(null);
+  const [perspectivesOpen, setPerspectivesOpen] = useState(false);
+  const [activePerspective, setActivePerspective] = useState<ErdPerspective | null>(null);
   const [schemaHealthOpen, setSchemaHealthOpen] = useState(false);
   const [schemaHealthSelection, setSchemaHealthSelection] = useState<SchemaHealthSelection | null>(null);
   const [impactAnalysisOpen, setImpactAnalysisOpen] = useState(false);
@@ -276,14 +282,23 @@ const ERDViewComponent = ({
   const canvasRef = React.useRef<HTMLDivElement>(null);
   const lowDetailRef = React.useRef(false);
 
+  React.useEffect(() => {
+    if (!activePerspective) return;
+    requestAnimationFrame(() => void setViewport(activePerspective.viewport, { duration: 280 }));
+  }, [activePerspective?.id, setViewport]);
+
   const handleMoveLocal = useCallback((event: any, viewport: any) => {
     const lowDetail = viewport.zoom < 0.35;
     if (lowDetail !== lowDetailRef.current) {
       lowDetailRef.current = lowDetail;
       canvasRef.current?.classList.toggle('erd-canvas-low-detail', lowDetail);
     }
+    if (activePerspective) {
+      setActivePerspective(current => current ? { ...current, viewport } : current);
+      return;
+    }
     onMove(event, viewport);
-  }, [onMove]);
+  }, [activePerspective, onMove]);
 
 
   // ─── Multi-table selection ───────────────────────────
@@ -349,6 +364,8 @@ const ERDViewComponent = ({
   React.useEffect(() => {
     setSubjectAreasOpen(false);
     setActiveSubjectArea(null);
+    setPerspectivesOpen(false);
+    setActivePerspective(null);
     setSchemaHealthOpen(false);
     setSchemaHealthSelection(null);
     setImpactAnalysisOpen(false);
@@ -362,6 +379,20 @@ const ERDViewComponent = ({
   const subjectAreaVisibility = React.useMemo(() => activeSubjectArea
     ? getSubjectAreaVisibility(nodes, edges, activeSubjectArea.node_ids)
     : null, [activeSubjectArea, nodes, edges]);
+
+  const perspectiveLayout = React.useMemo(() => {
+    if (!activePerspective) return null;
+    const calculated = layoutErdPerspective(
+      nodes.map(node => ({ id: node.id, width: node.measured?.width, height: node.measured?.height, columnCount: node.data.columns?.length || 0 })),
+      edges.map(edge => ({ id: edge.id, source: edge.source, target: edge.target })),
+      activePerspective,
+    );
+    return {
+      ...calculated,
+      sections: activePerspective.sections.some(section => section.width && section.height) ? activePerspective.sections : calculated.sections,
+      node_positions: { ...calculated.node_positions, ...activePerspective.node_positions },
+    };
+  }, [activePerspective, nodes, edges]);
 
   const nodeNames = React.useMemo(() => new Map(nodes.map(node => [node.id, String(node.data.name || node.id)])), [nodes]);
   const schemaHealthReport = React.useMemo(() => analyzeErdSchemaHealth(nodes, edges), [nodes, edges]);
@@ -392,12 +423,13 @@ const ERDViewComponent = ({
         : '';
       const className = [node.className, explorerClass, healthClass, impactClass, migrationClass, governanceClass].filter(Boolean).join(' ');
       const hidden = subjectAreaVisibility ? !subjectAreaVisibility.visibleNodeIds.has(node.id) : !!node.hidden;
+      const perspectivePosition = perspectiveLayout?.node_positions[node.id];
       // Use !! to normalize undefined/null to boolean — avoids creating wrappers
       // for all nodes on the first drag after setNodes() (which may lack `selected`)
-      if (!!node.selected === selected && node.className === className && !!node.hidden === hidden) return node;
-      return { ...node, selected, className, hidden };
+      if (!!node.selected === selected && node.className === className && !!node.hidden === hidden && (!perspectivePosition || (node.position.x === perspectivePosition.x && node.position.y === perspectivePosition.y))) return node;
+      return { ...node, selected, className, hidden, ...(perspectivePosition ? { position: perspectivePosition } : {}) };
     });
-  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, governanceSelection, subjectAreaVisibility]);
+  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, governanceSelection, subjectAreaVisibility, perspectiveLayout]);
 
   const diffNodesWithMode = React.useMemo(() => {
     if (!pendingDiff) return [];
@@ -430,10 +462,21 @@ const ERDViewComponent = ({
         : isExplorerVisible || isConnectedToSelected || edge.selected
         ? 'var(--edge-selected)'
         : 'var(--edge-color)';
+      const sourceSection = perspectiveLayout?.sections.find(section => section.node_ids.includes(edge.source));
+      const targetSection = perspectiveLayout?.sections.find(section => section.node_ids.includes(edge.target));
+      const crossSection = !!sourceSection && !!targetSection && sourceSection.id !== targetSection.id;
+      const route = perspectiveLayout?.edge_routes[edge.id];
+      const perspectiveHidden = activePerspective?.edge_mode === 'internal' ? crossSection
+        : activePerspective?.edge_mode === 'cross-section' ? !crossSection : false;
       const baseEdge = {
         ...edge,
         type: 'erdRelation',
-        hidden: subjectAreaVisibility ? !subjectAreaVisibility.visibleEdgeIds.has(edge.id) : !!edge.hidden,
+        hidden: subjectAreaVisibility ? !subjectAreaVisibility.visibleEdgeIds.has(edge.id) : perspectiveHidden || !!edge.hidden,
+        data: {
+          ...edge.data,
+          layoutRouteX: route?.cross_section && route.axis === 'x' ? route.value : undefined,
+          layoutRouteY: route?.cross_section && route.axis === 'y' ? route.value : undefined,
+        },
         style: {
           ...edge.style,
           stroke: edgeColor,
@@ -477,22 +520,81 @@ const ERDViewComponent = ({
           ? `edge-migration-${migrationSelection.risk}`
           : 'edge-migration-dimmed');
       }
+      if (crossSection) classes.push('edge-perspective-cross-section');
 
       const newClassName = classes.join(' ');
       if (baseEdge.className === newClassName) return baseEdge;
       return { ...baseEdge, className: newClassName };
     });
-  }, [nodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, subjectAreaVisibility]);
+  }, [nodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, subjectAreaVisibility, activePerspective, perspectiveLayout]);
+
+  const perspectiveSectionNodes = React.useMemo(() => perspectiveLayout?.sections.map(section => ({
+    id: `perspective-section:${section.id}`,
+    type: 'perspectiveSection',
+    position: { x: section.x || 0, y: section.y || 0 },
+    data: { name: section.name, color: section.color, description: section.description, tableCount: section.node_ids.length },
+    style: { width: section.width || 360, height: section.height || 220, zIndex: -10 },
+    draggable: false, selectable: false, connectable: false, focusable: false,
+  })) || [], [perspectiveLayout]);
+
+  const flowNodes = React.useMemo(() => pendingDiff ? diffNodesWithMode : activePerspective ? [...perspectiveSectionNodes, ...styledNodes] : styledNodes,
+    [pendingDiff, diffNodesWithMode, activePerspective, perspectiveSectionNodes, styledNodes]);
 
   // Filter out selection-only changes to avoid unnecessary re-renders from React Flow
   const handleNodesChangeLocal = useCallback(
     (changes: any[]) => {
-      const dataChanges = changes.filter((change: any) => change.type !== 'select');
+      const dataChanges = changes.filter((change: any) => change.type !== 'select' && !String(change.id || '').startsWith('perspective-section:'));
       if (dataChanges.length === 0) return;
+      if (activePerspective) {
+        const positions = dataChanges.filter((change: any) => change.type === 'position' && change.position);
+        if (positions.length) {
+          setActivePerspective(current => current ? {
+            ...current,
+            node_positions: { ...current.node_positions, ...Object.fromEntries(positions.map((change: any) => [change.id, change.position])) },
+          } : current);
+        }
+        const nonPosition = dataChanges.filter((change: any) => change.type !== 'position');
+        if (nonPosition.length) onNodesChange(nonPosition);
+        return;
+      }
       onNodesChange(dataChanges);
     },
-    [onNodesChange],
+    [activePerspective, onNodesChange],
   );
+
+  const persistPerspectivePosition = useCallback((_: any, node: Node) => {
+    if (!activePerspective || !activeFileUid) { onNodeDragStop?.(); return; }
+    const node_positions = { ...activePerspective.node_positions, [node.id]: node.position };
+    setActivePerspective(current => current ? { ...current, node_positions } : current);
+    void apiFetch(`/api/diagrams/${encodeURIComponent(activeFileUid)}/perspectives/${encodeURIComponent(activePerspective.id)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ node_positions }),
+    }).then(async response => {
+      if (!response.ok) throw new Error('save failed');
+      const saved = await response.json();
+      setActivePerspective(current => current?.id === saved.id ? saved : current);
+    }).catch(() => toast.error('Could not save perspective table position'));
+  }, [activePerspective, activeFileUid, onNodeDragStop]);
+
+  const persistPerspectiveViewport = useCallback((_: any, viewport: any) => {
+    if (!activePerspective || !activeFileUid) { onMoveEnd?.(_, viewport); return; }
+    const next = { ...activePerspective, viewport };
+    setActivePerspective(next);
+    void apiFetch(`/api/diagrams/${encodeURIComponent(activeFileUid)}/perspectives/${encodeURIComponent(activePerspective.id)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ viewport }),
+    }).catch(() => toast.error('Could not save perspective viewport'));
+  }, [activePerspective, activeFileUid, onMoveEnd]);
+
+  const autoLayoutActivePerspective = useCallback(() => {
+    if (!activePerspective || !activeFileUid) { onAutoLayout(); return; }
+    void apiFetch(`/api/diagrams/${encodeURIComponent(activeFileUid)}/perspectives/${encodeURIComponent(activePerspective.id)}/auto-layout`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+    }).then(async response => {
+      if (!response.ok) throw new Error('layout failed');
+      const saved = await response.json();
+      setActivePerspective(saved);
+      toast.success('Perspective layout updated; canonical ERD remains unchanged');
+    }).catch(() => toast.error('Could not auto-layout this perspective'));
+  }, [activePerspective, activeFileUid, onAutoLayout]);
 
   // ─── Refs for callback stability ──────────────────────
   const nodesRef = React.useRef(nodes);
@@ -831,9 +933,9 @@ const ERDViewComponent = ({
                 <span className="hidden sm:inline">DBML</span>
               </Button>
             )}
-            <Button onClick={onAutoLayout} variant="outline" size="sm" className="h-9 px-3 border-border hover:bg-muted bg-muted/50 text-xs font-semibold cursor-pointer">
+            <Button onClick={autoLayoutActivePerspective} variant="outline" size="sm" className="h-9 px-3 border-border hover:bg-muted bg-muted/50 text-xs font-semibold cursor-pointer" title={activePerspective ? 'Re-layout current perspective without changing the main ERD' : 'Auto-layout canonical ERD'}>
               <LayoutGrid className="w-3.5 h-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">Auto Layout</span>
+              <span className="hidden sm:inline">{activePerspective ? 'Re-layout View' : 'Auto Layout'}</span>
             </Button>
             <Button
               onClick={() => {
@@ -864,6 +966,8 @@ const ERDViewComponent = ({
                 onClick={() => {
                   setExplorerOpen(false);
                   setExplorerSelection(null);
+                  setPerspectivesOpen(false);
+                  setActivePerspective(null);
                   setSchemaHealthOpen(false);
                   setSchemaHealthSelection(null);
                   setImpactAnalysisOpen(false);
@@ -881,6 +985,32 @@ const ERDViewComponent = ({
               >
                 <FolderKanban className="w-3.5 h-3.5 sm:mr-1.5" />
                 <span className="hidden sm:inline">{activeSubjectArea?.name || 'Areas'}</span>
+              </Button>
+            )}
+            {activeFileUid && !isPublicView && !isProductionDb && (
+              <Button
+                onClick={() => {
+                  setExplorerOpen(false);
+                  setExplorerSelection(null);
+                  setSubjectAreasOpen(false);
+                  setActiveSubjectArea(null);
+                  setSchemaHealthOpen(false);
+                  setSchemaHealthSelection(null);
+                  setImpactAnalysisOpen(false);
+                  setImpactSelection(null);
+                  setMigrationPlannerOpen(false);
+                  setMigrationSelection(null);
+                  setDataDictionaryOpen(false);
+                  setGovernanceSelection(null);
+                  setPerspectivesOpen(open => !open);
+                }}
+                variant={perspectivesOpen || activePerspective ? 'default' : 'outline'}
+                size="sm"
+                className="h-9 px-3 text-xs font-semibold cursor-pointer"
+                title="Create business-flow perspectives with colored sections and independent layouts"
+              >
+                <Layers3 className="w-3.5 h-3.5 sm:mr-1.5" />
+                <span className="hidden sm:inline">{activePerspective?.name || 'Perspectives'}</span>
               </Button>
             )}
             <Button
@@ -1048,6 +1178,23 @@ const ERDViewComponent = ({
           onClose={() => setSubjectAreasOpen(false)}
         />
       )}
+      {perspectivesOpen && activeFileUid && !isPublicView && !pendingDiff && (
+        <ErdPerspectivePanel
+          diagramUid={activeFileUid}
+          selectedNodeIds={allSelectedIds}
+          nodeNames={nodeNames}
+          activePerspective={activePerspective}
+          readOnly={isReadOnly}
+          onActivePerspectiveChange={perspective => {
+            setActivePerspective(perspective);
+            if (perspective) {
+              setActiveSubjectArea(null);
+              setSubjectAreasOpen(false);
+            }
+          }}
+          onClose={() => setPerspectivesOpen(false)}
+        />
+      )}
       {schemaHealthOpen && !pendingDiff && (
         <ErdSchemaHealthPanel
           report={schemaHealthReport}
@@ -1103,7 +1250,7 @@ const ERDViewComponent = ({
       )}
       <div ref={canvasRef} className="flex-1">
         <ReactFlow
-          nodes={pendingDiff ? diffNodesWithMode : styledNodes}
+          nodes={flowNodes}
           edges={pendingDiff ? diffEdgesWithMode : styledEdges}
           onNodesChange={handleNodesChangeLocal}
           onEdgesChange={onEdgesChange}
@@ -1185,8 +1332,8 @@ const ERDViewComponent = ({
           nodesDraggable={!pendingDiff && (!isReadOnly || isProductionDb)}
           nodesConnectable={!pendingDiff && (!isReadOnly || (isProductionDb && isReconnecting))}
           elementsSelectable={(!isReadOnly || explorerOpen) && !pendingDiff}
-          onNodeDragStop={onNodeDragStop}
-          onMoveEnd={onMoveEnd}
+          onNodeDragStop={activePerspective ? persistPerspectivePosition : onNodeDragStop}
+          onMoveEnd={activePerspective ? persistPerspectiveViewport : onMoveEnd}
           minZoom={0.1}
           maxZoom={2.5}
           defaultEdgeOptions={defaultEdgeOptions}

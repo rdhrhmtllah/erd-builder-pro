@@ -264,6 +264,32 @@ async function createDiagramSubjectAreasTableIfMissing(): Promise<void> {
   }
 }
 
+async function createDiagramPerspectivesTableIfMissing(): Promise<void> {
+  if (!prisma) return;
+  try {
+    const dateType = isLocalPostgres() ? "TIMESTAMP(3)" : "DATETIME";
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "diagram_perspectives" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "diagram_id" INTEGER NOT NULL,
+        "name" TEXT NOT NULL,
+        "description" TEXT,
+        "direction" TEXT NOT NULL DEFAULT 'left-to-right',
+        "edge_mode" TEXT NOT NULL DEFAULT 'all',
+        "data" TEXT NOT NULL DEFAULT '{"sections":[],"node_positions":{},"viewport":{"x":0,"y":0,"zoom":1}}',
+        "viewport_x" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "viewport_y" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "viewport_zoom" DOUBLE PRECISION NOT NULL DEFAULT 1,
+        "created_at" ${dateType} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updated_at" ${dateType} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "diagram_perspectives_diagram_id_fkey" FOREIGN KEY ("diagram_id") REFERENCES "diagrams" ("id") ON DELETE CASCADE ON UPDATE NO ACTION
+      )`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "idx_diagram_perspectives_diagram" ON "diagram_perspectives"("diagram_id")`);
+  } catch (err: any) {
+    logger.warn({ err: err?.message }, "Failed to create diagram perspectives table (non-fatal)");
+  }
+}
+
 async function normalizeLegacyColumnIds(): Promise<void> {
   if (!prisma) return;
 
@@ -518,6 +544,7 @@ export async function applySchemaMigrations(): Promise<void> {
   await addColumnIfMissing("relationships", "target_cardinality", '"target_cardinality" TEXT DEFAULT \'exactly-one\'');
   await createErdMetadataTablesIfMissing();
   await createDiagramSubjectAreasTableIfMissing();
+  await createDiagramPerspectivesTableIfMissing();
   if (isDesktopMode()) {
     await createDbConnectTablesIfMissing();
     await createSqlQueriesTableIfMissing();

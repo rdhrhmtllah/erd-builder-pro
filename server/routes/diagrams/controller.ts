@@ -7,6 +7,7 @@ import { prisma } from "../../lib/prisma.js";
 import * as diagService from "./service.js";
 import * as saveService from "./save-service.js";
 import * as subjectAreaService from "./subject-area-service.js";
+import * as perspectiveService from "./perspective-service.js";
 import type { ConnectionInfo } from "../../lib/db-connectors/types.js";
 
 export async function list(req: ExpressRequest, res: ExpressResponse): Promise<void> {
@@ -181,6 +182,60 @@ export async function deleteSubjectArea(req: ExpressRequest, res: ExpressRespons
   } catch (err) {
     handleError(res, err, "Failed to delete subject area");
   }
+}
+
+export async function listPerspectives(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const result = await perspectiveService.listPerspectives(req.params.uid, (req as any).user.id);
+    if (!result) { res.status(404).json({ error: 'Diagram not found' }); return; }
+    res.json({ data: result });
+  } catch (err) { handleError(res, err, 'Failed to load perspectives'); }
+}
+
+export async function getPerspective(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const result = await perspectiveService.getPerspective(req.params.uid, req.params.perspectiveId, (req as any).user.id);
+    if (!result) { res.status(404).json({ error: 'Perspective not found' }); return; }
+    res.json(result);
+  } catch (err) { handleError(res, err, 'Failed to load perspective'); }
+}
+
+export async function createPerspective(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const result = await perspectiveService.createPerspective(req.params.uid, (req as any).user.id, req.body);
+    if (!result) { res.status(404).json({ error: 'Diagram not found' }); return; }
+    res.status(201).json(result);
+  } catch (err) {
+    if (err instanceof perspectiveService.InvalidPerspectiveNodesError) { res.status(400).json({ error: err.message }); return; }
+    handleError(res, err, 'Failed to create perspective');
+  }
+}
+
+export async function updatePerspective(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const result = await perspectiveService.updatePerspective(req.params.uid, req.params.perspectiveId, (req as any).user.id, req.body);
+    if (!result) { res.status(404).json({ error: 'Perspective not found' }); return; }
+    res.json(result);
+  } catch (err) {
+    if (err instanceof perspectiveService.InvalidPerspectiveNodesError) { res.status(400).json({ error: err.message }); return; }
+    handleError(res, err, 'Failed to update perspective');
+  }
+}
+
+export async function autoLayoutPerspective(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const result = await perspectiveService.updatePerspective(req.params.uid, req.params.perspectiveId, (req as any).user.id, req.body || {}, true);
+    if (!result) { res.status(404).json({ error: 'Perspective not found' }); return; }
+    res.json(result);
+  } catch (err) { handleError(res, err, 'Failed to auto-layout perspective'); }
+}
+
+export async function deletePerspective(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const result = await perspectiveService.deletePerspective(req.params.uid, req.params.perspectiveId, (req as any).user.id);
+    if (!result) { res.status(404).json({ error: 'Perspective not found' }); return; }
+    res.json(result);
+  } catch (err) { handleError(res, err, 'Failed to delete perspective'); }
 }
 
 export async function getPublic(req: ExpressRequest, res: ExpressResponse): Promise<void> {

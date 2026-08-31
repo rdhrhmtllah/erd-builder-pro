@@ -118,6 +118,7 @@ model Diagram {
   entities      Entity[]
   relationships Relationship[]
   subjectAreas  DiagramSubjectArea[]
+  perspectives  DiagramPerspective[]
 
   @@index([projectId, isDeleted], map: "idx_diagrams_project_deleted")
   @@index([updatedAt(sort: Desc)], map: "idx_diagrams_updated_at")
@@ -141,6 +142,26 @@ model DiagramSubjectArea {
 
   @@index([diagramId], map: "idx_diagram_subject_areas_diagram")
   @@map("diagram_subject_areas")
+  @@schema("public")
+}
+
+model DiagramPerspective {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  diagramId    BigInt   @map("diagram_id")
+  name         String
+  description  String?
+  direction    String   @default("left-to-right")
+  edgeMode     String   @default("all") @map("edge_mode")
+  data         String   @default("{\"sections\":[],\"node_positions\":{},\"viewport\":{\"x\":0,\"y\":0,\"zoom\":1}}")
+  viewportX    Float    @default(0) @map("viewport_x")
+  viewportY    Float    @default(0) @map("viewport_y")
+  viewportZoom Float    @default(1.0) @map("viewport_zoom")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  diagram      Diagram  @relation(fields: [diagramId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([diagramId], map: "idx_diagram_perspectives_diagram")
+  @@map("diagram_perspectives")
   @@schema("public")
 }
 

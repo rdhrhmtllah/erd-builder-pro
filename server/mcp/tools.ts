@@ -24,6 +24,13 @@ import {
   readGranularErd,
 } from "./erd-granular-service.js";
 import { ERD_IMPACT_OPERATIONS } from "../../shared/erd-impact.js";
+import {
+  applyPerspectiveProposal,
+  getPerspective,
+  listPerspectives,
+  previewPerspectiveLayout,
+  proposePerspectiveChange,
+} from "../routes/diagrams/perspective-service.js";
 
 const documentType = z.enum(MCP_DOCUMENT_TYPES);
 const readOnly = { readOnlyHint: true, openWorldHint: false } as const;
@@ -64,6 +71,31 @@ export function registerTools(server: McpServer) {
     description: "Read ERD governance coverage and business metadata as normalized JSON or export-ready Markdown/CSV. This is read-only.",
     inputSchema: { uid: z.string().min(1).max(100), format: z.enum(['json', 'markdown', 'csv']).default('json') }, annotations: readOnly,
   }, async ({ uid, format }) => jsonResult(await readGranularErdDictionary(await resolveMcpUserId(), uid, format)));
+
+  server.registerTool("erd_perspective_list", {
+    description: "List saved non-destructive ERD perspectives with colored sections and local layouts.",
+    inputSchema: { uid: z.string().min(1).max(100) }, annotations: readOnly,
+  }, async ({ uid }) => jsonResult(await listPerspectives(uid, await resolveMcpUserId())));
+
+  server.registerTool("erd_perspective_read", {
+    description: "Read one ERD perspective and its section layout without changing the ERD schema.",
+    inputSchema: { uid: z.string().min(1).max(100), perspective_id: z.string().uuid() }, annotations: readOnly,
+  }, async ({ uid, perspective_id }) => jsonResult(await getPerspective(uid, perspective_id, await resolveMcpUserId())));
+
+  server.registerTool("erd_perspective_auto_layout", {
+    description: "Preview a section-aware layout for a saved perspective or draft section set. It does not write data.",
+    inputSchema: { uid: z.string().min(1).max(100), perspective_id: z.string().uuid().optional(), draft: z.object({}).catchall(z.unknown()).optional() }, annotations: readOnly,
+  }, async ({ uid, perspective_id, draft }) => jsonResult(await previewPerspectiveLayout(uid, await resolveMcpUserId(), perspective_id, draft as any)));
+
+  server.registerTool("erd_perspective_propose", {
+    description: "Prepare create, update, auto_layout, or delete for a non-destructive ERD perspective. Review the section/layout preview and request confirmation before applying.",
+    inputSchema: { uid: z.string().min(1).max(100), operation: z.object({ op: z.enum(['create', 'update', 'auto_layout', 'delete']), perspective_id: z.string().uuid().optional(), perspective: z.object({}).catchall(z.unknown()).optional(), changes: z.object({}).catchall(z.unknown()).optional() }) }, annotations: readOnly,
+  }, async ({ uid, operation }) => jsonResult(await proposePerspectiveChange(await resolveMcpUserId(), uid, operation)));
+
+  server.registerTool("erd_perspective_apply", {
+    description: "Apply one confirmed perspective proposal. confirmation must exactly match proposal_id.",
+    inputSchema: { proposal_id: z.string().uuid(), confirmation: z.string().uuid() }, annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+  }, async ({ proposal_id, confirmation }) => jsonResult(await applyPerspectiveProposal(await resolveMcpUserId(), proposal_id, confirmation)));
 
   server.registerTool("erd_impact_analyze", {
     description: "Simulate the dependency blast radius and migration risk of deleting, renaming, or changing a table/column. This is read-only and should be used before risky patches.",
