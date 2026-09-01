@@ -11,8 +11,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { useWorkspace } from '../../providers/WorkspaceProvider';
-import { useAIAction } from '@/contexts/AIActionContext';
+import { useEntityNodeRuntime } from '@/contexts/EntityNodeRuntimeContext';
 import { governanceFrom } from '../../../shared/erd-governance';
 
 import {
@@ -113,10 +112,8 @@ const EntityColumnRow = memo(({ col, borderColor, typeColor, hideHandles, onDoub
 });
 
 const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
-  const { isPublicView, duplicateEntity, activeDocument, setSelectedNodeId } = useWorkspace();
-  const { setRightPanelMode } = useAIAction();
-  const isProductionDb = activeDocument?.source_type === 'production_db' || !!(data as any).isReadOnly;
-  const isReadOnly = isPublicView || !!data.isDiffMode || isProductionDb;
+  const { isReadOnly: workspaceReadOnly, hideHandles, duplicateEntity, setSelectedNodeId, openProperties } = useEntityNodeRuntime();
+  const isReadOnly = workspaceReadOnly || !!data.isDiffMode || !!(data as any).isReadOnly;
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const updateNodeInternals = useUpdateNodeInternals();
@@ -135,7 +132,7 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
     e.stopPropagation();
     if (isReadOnly) return;
     setSelectedNodeId(id);
-    setRightPanelMode('properties');
+    openProperties();
   };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
@@ -287,7 +284,7 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
               col={col}
               borderColor={borderColor}
               typeColor={typeColor}
-              hideHandles={isProductionDb}
+              hideHandles={hideHandles}
               onDoubleClick={isReadOnly ? undefined : handleEdit}
               tableClassification={tableGovernance.classification}
             />

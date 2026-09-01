@@ -288,9 +288,14 @@
 /* Connected edges when node selected — animate briefly, then stay static */
 .edge-animated-active .react-flow__edge-path {
   stroke-dasharray: 5;
-  animation: edge_dash_draw 0.8s linear 4 !important;
+  animation: edge_dash_draw 0.45s linear 1 !important;
   stroke: var(--edge-selected) !important;
   stroke-width: 1.5 !important;
+}
+
+.erd-large-diagram .edge-animated-active .react-flow__edge-path {
+  animation: none !important;
+  stroke-dasharray: none;
 }
 
 /* Dim non-selected edges when another table is selected */

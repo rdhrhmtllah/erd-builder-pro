@@ -30,7 +30,7 @@ export function DbClientEditorRoute() {
   const layoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { setViewport, getNodes, fitView } = useReactFlow<Node<Entity>>();
   const { handleExportImage } = useImageExporter();
-  const { setBreadcrumbLabel } = useWorkspace();
+  const { setBreadcrumbLabel, resolvedTheme } = useWorkspace();
   const mode = (params.get('tab') || 'data') as DataViewerMode;
   const mountedModesRef = useRef(new Set<DataViewerMode>(['data']));
   mountedModesRef.current.add(mode);
@@ -176,6 +176,11 @@ export function DbClientEditorRoute() {
             onNodeDragStop={scheduleLayoutSave}
             onMoveEnd={handleCanvasMoveEnd}
             isLoading={loading}
+            setSelectedNodeId={() => {}}
+            duplicateEntity={() => {}}
+            resolvedTheme={resolvedTheme}
+            activeFileUid={client.uid}
+            activeDocumentName={client.name}
           />
         </div>
       ) : null}

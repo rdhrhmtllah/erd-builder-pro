@@ -18,6 +18,8 @@ export function OAuthConsent() {
   const [error, setError] = useState(authorizationId ? "" : "Authorization ID is missing.");
   const [loading, setLoading] = useState(Boolean(authorizationId));
   const [submitting, setSubmitting] = useState(false);
+  const requestedScopes = details?.scope.split(/\s+/).filter(Boolean) || [];
+  const canWrite = requestedScopes.includes("mcp:write");
 
   useEffect(() => {
     if (!authorizationId) return;
@@ -58,7 +60,9 @@ export function OAuthConsent() {
           </div>
           <CardTitle>Authorize MCP access</CardTitle>
           <CardDescription>
-            {details ? `${details.client.name} wants read-only access to your ERD Builder Pro Web App workspace.` : "Reviewing the authorization request…"}
+            {details
+              ? `${details.client.name} requests ${canWrite ? "read and write" : "read-only"} access to your ERD Builder Pro Web App workspace.`
+              : "Reviewing the authorization request…"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
@@ -76,9 +80,19 @@ export function OAuthConsent() {
                 <p className="mt-1 text-muted-foreground">Projects, regular ERDs, Notes, Flowcharts, Drawings, and document history owned by {details.user.email}.</p>
               </div>
               <div>
-                <p className="font-medium">It cannot access</p>
-                <p className="mt-1 text-muted-foreground">DB Client, production database diagrams, SQL execution, database credentials, local files, or write operations.</p>
+                <p className="font-medium">{canWrite ? "This client can also modify" : "It cannot access"}</p>
+                <p className="mt-1 text-muted-foreground">
+                  {canWrite
+                    ? "Workspace documents, ERD schema, Subject Areas, Perspectives, and data-dictionary metadata through preview and explicit confirmation."
+                    : "DB Client, production database diagrams, SQL execution, database credentials, local files, or write operations."}
+                </p>
               </div>
+              {canWrite && (
+                <div>
+                  <p className="font-medium">It cannot access</p>
+                  <p className="mt-1 text-muted-foreground">DB Client, production database diagrams, SQL execution, database credentials, or local files.</p>
+                </div>
+              )}
               <div>
                 <p className="font-medium">OAuth scopes</p>
                 <p className="mt-1 break-words font-mono text-xs text-muted-foreground">{details.scope || "email"}</p>
@@ -89,7 +103,9 @@ export function OAuthConsent() {
         {details && (
           <CardFooter className="justify-end gap-2">
             <Button variant="outline" disabled={submitting} onClick={() => decide("deny")}>Deny</Button>
-            <Button disabled={submitting} onClick={() => decide("approve")}>{submitting ? "Submitting…" : "Allow read-only access"}</Button>
+            <Button disabled={submitting} onClick={() => decide("approve")}>
+              {submitting ? "Submitting…" : canWrite ? "Allow read and write access" : "Allow read-only access"}
+            </Button>
           </CardFooter>
         )}
       </Card>

@@ -20,14 +20,14 @@ export function DiagramEditorRoute() {
   const {
     nodes, edges, setNodes, setEdges, isPublicView, publicData, activeDiagramId, activeDiagram,
     onNodesChange, onEdgesChange, onConnect,
-    selectedNodeId, addEntity, undo, redo, canUndo, canRedo,
+    selectedNodeId, setSelectedNodeId, addEntity, duplicateEntity, undo, redo, canUndo, canRedo,
     takeSnapshot, onNodeDragStop, onMoveEnd,
     handleNodeClick, handleNodeDoubleClick, handleEdgeClick, handlePaneClick, handleMove,
     handleWorkspaceExportSQL, handleWorkspaceExportImage,
     handleOpenImportModal,
     viewportRef, saveDiagram, triggerDebouncedSync,
     isERDItemLoading, handleDiagramSelect,
-    pendingErdDiffTrigger,
+    pendingErdDiffTrigger, resolvedTheme, activeFileUid,
     extractColumnIdFromHandle, getRelationKey, dedupeEdgesByRelation,
   } = ctx;
 
@@ -206,6 +206,11 @@ export function DiagramEditorRoute() {
           canRedo={canRedo}
           takeSnapshot={takeSnapshot}
           selectedNodeId={selectedNodeId}
+          setSelectedNodeId={setSelectedNodeId}
+          duplicateEntity={duplicateEntity}
+          resolvedTheme={resolvedTheme}
+          activeFileUid={activeFileUid}
+          activeDocumentName={String(show?.name || 'ERD')}
           onNodeDragStop={onNodeDragStop}
           onMoveEnd={onMoveEnd}
           saveDiagram={saveDiagram}

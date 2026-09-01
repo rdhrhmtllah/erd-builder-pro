@@ -31,7 +31,6 @@ import { toast } from 'sonner';
 import { computeSchemaDiff, DiffResult, type SchemaDiffChange } from '@/lib/schema-diff';
 import { mergeSchemaChanges } from '@/lib/schema-merge';
 import { cn } from '@/lib/utils';
-import { useWorkspace } from '@/providers/WorkspaceContext';
 import { apiFetch } from '@/lib/api';
 import { EyeOff, Monitor } from 'lucide-react';
 import { buildErdIndexes, erdColumnKey, erdSourceColumnKey } from '@/lib/erd-indexes';
@@ -52,6 +51,7 @@ import { ErdDataDictionaryPanel, type ErdGovernanceSelection } from '@/component
 import { analyzeErdGovernance } from '../../../shared/erd-governance';
 import type { ErdGovernanceMetadata } from '@/types';
 import { governanceFrom } from '../../../shared/erd-governance';
+import { EntityNodeRuntimeProvider } from '@/contexts/EntityNodeRuntimeContext';
 
 const nodeTypes = {
   entity: EntityNode,
@@ -180,6 +180,10 @@ const edgeTypes = {
   erdRelation: ReadableRelationEdge,
 };
 
+const LARGE_ERD_TABLE_THRESHOLD = 60;
+const LARGE_ERD_COLUMN_THRESHOLD = 400;
+const LARGE_ERD_EDGE_THRESHOLD = 60;
+
 interface ERDViewProps {
   nodes: Node<Entity>[];
   edges: Edge[];
@@ -211,6 +215,11 @@ interface ERDViewProps {
   takeSnapshot?: (nodes: Node<Entity>[], edges: Edge[]) => void;
   isLoading?: boolean;
   selectedNodeId?: string | null;
+  setSelectedNodeId: (id: string | null) => void;
+  duplicateEntity: (id: string) => void;
+  resolvedTheme: 'light' | 'dark';
+  activeFileUid?: string | null;
+  activeDocumentName?: string;
   onMoveEnd?: (e: any, v: any) => void;
   saveDiagram?: (nodes: Node<Entity>[], edges: Edge[], viewport: any) => Promise<void>;
   triggerDebouncedSync?: () => void;
@@ -251,6 +260,11 @@ const ERDViewComponent = ({
   canRedo,
   takeSnapshot,
   selectedNodeId,
+  setSelectedNodeId,
+  duplicateEntity,
+  resolvedTheme,
+  activeFileUid,
+  activeDocumentName = 'ERD',
   onNodeDragStop,
   onMoveEnd,
   isLoading,
@@ -264,9 +278,21 @@ const ERDViewComponent = ({
 
   const { registerContentHandler, setSelectionText, setActionContextData, setRightPanelMode } = useAIAction();
   const { getViewport, setViewport } = useReactFlow();
-  const { resolvedTheme, activeFileUid, isPublicView, activeDocument } = useWorkspace();
   const bgColor = resolvedTheme === 'dark' ? '#222' : '#ccc';
   const isProductionDb = isDbClient;
+  const isPublicView = Boolean(isReadOnly && !isProductionDb);
+  const openEntityProperties = React.useCallback(() => setRightPanelMode('properties'), [setRightPanelMode]);
+  const entityNodeRuntime = React.useMemo(() => ({
+    isReadOnly,
+    hideHandles: isProductionDb,
+    duplicateEntity,
+    setSelectedNodeId,
+    openProperties: openEntityProperties,
+  }), [isReadOnly, isProductionDb, duplicateEntity, setSelectedNodeId, openEntityProperties]);
+  const isLargeDiagram = React.useMemo(() => nodes.length >= LARGE_ERD_TABLE_THRESHOLD
+    || edges.length >= LARGE_ERD_EDGE_THRESHOLD
+    || nodes.reduce((total, node) => total + (node.data.columns?.length || 0), 0) >= LARGE_ERD_COLUMN_THRESHOLD,
+  [nodes, edges.length]);
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
@@ -414,8 +440,16 @@ const ERDViewComponent = ({
   const schemaHealthReport = React.useMemo(() => analyzeErdSchemaHealth(nodes, edges), [nodes, edges]);
   const governanceReport = React.useMemo(() => analyzeErdGovernance(nodes.map(node => node.data)), [nodes]);
 
+  const routeNodes = React.useMemo(() => nodes.map(node => {
+    const perspectivePosition = perspectiveLayout?.node_positions[node.id];
+    const subjectAreaPosition = subjectAreaLayout?.positions.get(node.id);
+    const displayPosition = perspectivePosition || subjectAreaPosition;
+    if (!displayPosition || (node.position.x === displayPosition.x && node.position.y === displayPosition.y)) return node;
+    return { ...node, position: displayPosition };
+  }), [nodes, perspectiveLayout, subjectAreaLayout]);
+
   const styledNodes = React.useMemo(() => {
-    return nodes.map(node => {
+    return routeNodes.map(node => {
       const selected = allSelectedIds.includes(node.id);
       const explorerActive = explorerSelection !== null;
       const explorerVisible = explorerSelection?.nodeIds.has(node.id) === true;
@@ -439,15 +473,10 @@ const ERDViewComponent = ({
         : '';
       const className = [node.className, explorerClass, healthClass, impactClass, migrationClass, governanceClass].filter(Boolean).join(' ');
       const hidden = subjectAreaVisibility ? !subjectAreaVisibility.visibleNodeIds.has(node.id) : !!node.hidden;
-      const perspectivePosition = perspectiveLayout?.node_positions[node.id];
-      const subjectAreaPosition = subjectAreaLayout?.positions.get(node.id);
-      // Use !! to normalize undefined/null to boolean — avoids creating wrappers
-      // for all nodes on the first drag after setNodes() (which may lack `selected`)
-      const displayPosition = perspectivePosition || subjectAreaPosition;
-      if (!!node.selected === selected && node.className === className && !!node.hidden === hidden && (!displayPosition || (node.position.x === displayPosition.x && node.position.y === displayPosition.y))) return node;
-      return { ...node, selected, className, hidden, ...(displayPosition ? { position: displayPosition } : {}) };
+      if (!!node.selected === selected && node.className === className && !!node.hidden === hidden) return node;
+      return { ...node, selected, className, hidden };
     });
-  }, [nodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, governanceSelection, subjectAreaVisibility, perspectiveLayout, subjectAreaLayout]);
+  }, [routeNodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, governanceSelection, subjectAreaVisibility]);
 
   const diffNodesWithMode = React.useMemo(() => {
     if (!pendingDiff) return [];
@@ -465,31 +494,19 @@ const ERDViewComponent = ({
     return pendingDiff.diffEdges.map(edge => ({ ...edge, type: 'erdRelation' }));
   }, [pendingDiff]);
 
-  const styledEdges = React.useMemo(() => {
-    const hasSelection = allSelectedIds.length > 0;
+  const routedEdges = React.useMemo(() => {
     const areaEdgesById = new Map(subjectAreaLayout?.edges.map(edge => [edge.id, edge]) || []);
-    // Route against the positions actually rendered on screen. Perspective and
-    // Subject Area views can move cards without changing canonical positions.
-    const readableEdges = syncERDEdgeHandles(styledNodes, edges).map(edge => areaEdgesById.get(edge.id) || edge);
+    return syncERDEdgeHandles(routeNodes, edges).map(edge => areaEdgesById.get(edge.id) || edge);
+  }, [routeNodes, edges, subjectAreaLayout]);
 
-    return readableEdges.map(edge => {
-      const isConnectedToSelected = hasSelection && allSelectedIds.some(
-        id => edge.source === id || edge.target === id
-      );
-      const isExplorerVisible = explorerSelection?.edgeIds.has(edge.id) === true;
-      const isExplorerPath = explorerSelection?.pathEdgeIds.has(edge.id) === true;
-      const edgeColor = isExplorerPath
-        ? '#f59e0b'
-        : isExplorerVisible || isConnectedToSelected || edge.selected
-        ? 'var(--edge-selected)'
-        : 'var(--edge-color)';
+  const displayEdges = React.useMemo(() => routedEdges.map(edge => {
       const sourceSection = perspectiveLayout?.sections.find(section => section.node_ids.includes(edge.source));
       const targetSection = perspectiveLayout?.sections.find(section => section.node_ids.includes(edge.target));
       const crossSection = !!sourceSection && !!targetSection && sourceSection.id !== targetSection.id;
       const route = perspectiveLayout?.edge_routes[edge.id];
       const perspectiveHidden = activePerspective?.edge_mode === 'internal' ? crossSection
         : activePerspective?.edge_mode === 'cross-section' ? !crossSection : false;
-      const baseEdge = {
+      return {
         ...edge,
         type: 'erdRelation',
         hidden: subjectAreaVisibility ? !subjectAreaVisibility.visibleEdgeIds.has(edge.id) : perspectiveHidden || !!edge.hidden,
@@ -498,19 +515,26 @@ const ERDViewComponent = ({
           layoutPoints: route?.cross_section ? undefined : edge.data?.layoutPoints,
           layoutRouteX: route?.cross_section && route.axis === 'x' ? route.value : undefined,
           layoutRouteY: route?.cross_section && route.axis === 'y' ? route.value : undefined,
-        },
-        style: {
-          ...edge.style,
-          stroke: edgeColor,
-          strokeWidth: 2,
-        },
-        markerEnd: {
-          type: MarkerType.Arrow,
-          color: edgeColor,
-          width: 10,
-          height: 10,
+          crossSection,
         },
       };
+  }), [routedEdges, subjectAreaVisibility, activePerspective, perspectiveLayout]);
+
+  const edgeVisualCacheRef = React.useRef(new Map<string, { base: Edge; color: string; className: string; edge: Edge }>());
+  const styledEdges = React.useMemo(() => {
+    const hasSelection = allSelectedIds.length > 0;
+    const nextCache = new Map<string, { base: Edge; color: string; className: string; edge: Edge }>();
+
+    const result = displayEdges.map(edge => {
+      const isConnectedToSelected = hasSelection && allSelectedIds.some(id => edge.source === id || edge.target === id);
+      const isExplorerVisible = explorerSelection?.edgeIds.has(edge.id) === true;
+      const isExplorerPath = explorerSelection?.pathEdgeIds.has(edge.id) === true;
+      const edgeColor = isExplorerPath
+        ? '#f59e0b'
+        : isExplorerVisible || isConnectedToSelected || edge.selected
+          ? 'var(--edge-selected)'
+          : 'var(--edge-color)';
+      const crossSection = edge.data?.crossSection === true;
 
       // Build class list from existing + computed classes
       const classes: string[] = [];
@@ -545,10 +569,23 @@ const ERDViewComponent = ({
       if (crossSection) classes.push('edge-perspective-cross-section');
 
       const newClassName = classes.join(' ');
-      if (baseEdge.className === newClassName) return baseEdge;
-      return { ...baseEdge, className: newClassName };
+      const cached = edgeVisualCacheRef.current.get(edge.id);
+      if (cached?.base === edge && cached.color === edgeColor && cached.className === newClassName) {
+        nextCache.set(edge.id, cached);
+        return cached.edge;
+      }
+      const styledEdge = {
+        ...edge,
+        className: newClassName,
+        style: { ...edge.style, stroke: edgeColor, strokeWidth: 2 },
+        markerEnd: { type: MarkerType.Arrow, color: edgeColor, width: 10, height: 10 },
+      };
+      nextCache.set(edge.id, { base: edge, color: edgeColor, className: newClassName, edge: styledEdge });
+      return styledEdge;
     });
-  }, [styledNodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, subjectAreaVisibility, activePerspective, perspectiveLayout, subjectAreaLayout]);
+    edgeVisualCacheRef.current = nextCache;
+    return result;
+  }, [displayEdges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection]);
 
   const perspectiveSectionNodes = React.useMemo(() => perspectiveLayout?.sections.map(section => ({
     id: `perspective-section:${section.id}`,
@@ -1256,7 +1293,7 @@ const ERDViewComponent = ({
       {dataDictionaryOpen && !pendingDiff && !isProductionDb && (
         <ErdDataDictionaryPanel
           nodes={nodes}
-          diagramName={String(activeDocument?.name || 'ERD')}
+          diagramName={activeDocumentName}
           readOnly={Boolean(isReadOnly)}
           selectedNodeIds={allSelectedIds}
           onUpdate={handleGovernanceUpdate}
@@ -1273,7 +1310,9 @@ const ERDViewComponent = ({
         </div>
       )}
       <div ref={canvasRef} className="flex-1">
-        <ReactFlow
+        <EntityNodeRuntimeProvider value={entityNodeRuntime}>
+          <ReactFlow
+          className={cn(isLargeDiagram && 'erd-large-diagram')}
           nodes={flowNodes}
           edges={pendingDiff ? diffEdgesWithMode : styledEdges}
           onNodesChange={handleNodesChangeLocal}
@@ -1368,7 +1407,8 @@ const ERDViewComponent = ({
 
           <Background variant={BackgroundVariant.Lines} gap={50} size={1} color={bgColor} />
           <Controls position="bottom-left" showInteractive={false} />
-        </ReactFlow>
+          </ReactFlow>
+        </EntityNodeRuntimeProvider>
       </div>
 
       {/* Floating Diff Merge Panel */}
@@ -1557,6 +1597,11 @@ export const ERDView = React.memo(ERDViewComponent, (prev, next) => {
     edgesEqual(prev.edges, next.edges) &&
     (shouldIgnoreLoading || prev.isLoading === next.isLoading) &&
     prev.isReadOnly === next.isReadOnly &&
+    prev.resolvedTheme === next.resolvedTheme &&
+    prev.activeFileUid === next.activeFileUid &&
+    prev.activeDocumentName === next.activeDocumentName &&
+    prev.setSelectedNodeId === next.setSelectedNodeId &&
+    prev.duplicateEntity === next.duplicateEntity &&
     prev.selectedNodeId === next.selectedNodeId &&
     prev.canUndo === next.canUndo &&
     prev.canRedo === next.canRedo &&

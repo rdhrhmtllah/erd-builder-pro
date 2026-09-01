@@ -175,6 +175,9 @@ export function registerWorkspaceReadTools(server: McpServer, userId: string) {
     inputSchema: { limit: z.number().int().min(1).max(100).default(20), offset: z.number().int().min(0).default(0) }, annotations: readOnly,
   }, async ({ limit, offset }) => jsonResult(await workspaceBackups(userId, limit, offset)));
 
+}
+
+export function registerWorkspaceWriteTools(server: McpServer, userId: string) {
   server.registerTool("history_restore_propose", {
     description: "Prepare a restore of one saved Note, Flowchart, Drawing, or regular ERD revision. This does not modify data; review the preview before applying.",
     inputSchema: { type: documentType, uid: z.string().min(1).max(100), revision_id: z.string().min(1).max(100) },
@@ -186,9 +189,7 @@ export function registerWorkspaceReadTools(server: McpServer, userId: string) {
     inputSchema: { proposal_id: z.string().uuid(), confirmation: z.string().uuid() },
     annotations: destructiveWrite,
   }, async ({ proposal_id, confirmation }) => jsonResult(await applyHistoryRestore(userId, proposal_id, confirmation)));
-}
 
-export function registerWorkspaceWriteTools(server: McpServer, userId: string) {
   server.registerTool("erd_subject_area_propose", {
     description: "Prepare a hierarchical Subject Area create/update/delete without writing. Read erd_schema_read and erd_subject_area_list first; group tables by coherent business responsibility and relationship flow. create requires area {name,color,node_ids,viewport_x?,viewport_y?,viewport_zoom?,parent_id?}; update requires area_id and changes (including parent_id to move it). parent_id must reference another Area in the same diagram and cannot create a cycle. Show the tree, table membership, and preview, then request confirmation.",
     inputSchema: { uid: z.string().min(1).max(100), operation: z.object({ op: z.enum(['create', 'update', 'delete']), area_id: z.string().uuid().optional(), area: z.object({}).catchall(z.unknown()).optional(), changes: z.object({}).catchall(z.unknown()).optional() }) }, annotations: write,
