@@ -4,7 +4,7 @@ import { generateAllTablesCode } from '../lib/sql-generator-all';
 
 export function useSQLGenerator() {
   const handleExportSQL = (
-    dialect: 'postgresql' | 'mysql',
+    dialect: 'postgresql' | 'mysql' | 'sqlserver',
     targetFile: { name: string },
     nodes: Node<Entity>[],
     edges: Edge[]

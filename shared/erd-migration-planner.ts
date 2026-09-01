@@ -1,4 +1,4 @@
-export const ERD_MIGRATION_DIALECTS = ['postgresql', 'mysql'] as const;
+export const ERD_MIGRATION_DIALECTS = ['postgresql', 'mysql', 'sqlserver'] as const;
 export type ErdMigrationDialect = (typeof ERD_MIGRATION_DIALECTS)[number];
 export type ErdMigrationRisk = 'safe' | 'caution' | 'breaking';
 export type ErdMigrationPhase = 'drop-relations' | 'drop-supporting' | 'rename' | 'create-tables' | 'alter-columns' | 'add-supporting' | 'add-relations' | 'drop-objects';
@@ -118,6 +118,7 @@ const metadataColumnIds = (item: ErdMigrationIndex | ErdMigrationConstraint) => 
 const indexIsUnique = (item: ErdMigrationIndex) => Boolean(item.is_unique ?? item.isUnique);
 
 function quote(identifier: string, dialect: ErdMigrationDialect) {
+  if (dialect === 'sqlserver') return `[${identifier.replace(/]/g, ']]')}]`;
   const token = dialect === 'mysql' ? '`' : '"';
   return `${token}${identifier.replaceAll(token, token + token)}${token}`;
 }
@@ -128,20 +129,32 @@ function typeSql(column: ErdMigrationColumn, dialect: ErdMigrationDialect) {
   const length = maxLength(column);
   const numericPrecision = precision(column);
   const numericScale = scale(column);
-  if (['VARCHAR', 'CHAR'].includes(base) && length) return `${base}(${length})`;
+  const inlineSize = raw.match(/\(([^)]+)\)/)?.[1];
+  if (['VARCHAR', 'CHAR'].includes(base) && (length || inlineSize)) {
+    const name = dialect === 'sqlserver' ? `N${base}` : base;
+    return `${name}(${length || inlineSize})`;
+  }
   if (['DECIMAL', 'NUMERIC'].includes(base) && numericPrecision) return `${base}(${numericPrecision}${numericScale !== null ? `,${numericScale}` : ''})`;
   const aliases: Record<ErdMigrationDialect, Record<string, string>> = {
     postgresql: { INT: 'INTEGER', DATETIME: 'TIMESTAMP', BOOL: 'BOOLEAN', LONGTEXT: 'TEXT', JSON: 'JSONB', FLOAT: 'REAL' },
     mysql: { INTEGER: 'INT', BOOL: 'TINYINT(1)', BOOLEAN: 'TINYINT(1)', JSONB: 'JSON', UUID: 'CHAR(36)', 'DOUBLE PRECISION': 'DOUBLE' },
+    sqlserver: { INTEGER: 'INT', BOOL: 'BIT', BOOLEAN: 'BIT', TEXT: 'NVARCHAR(MAX)', LONGTEXT: 'NVARCHAR(MAX)', JSON: 'NVARCHAR(MAX)', JSONB: 'NVARCHAR(MAX)', UUID: 'UNIQUEIDENTIFIER', TIMESTAMP: 'DATETIME2', DATETIME: 'DATETIME2', 'DOUBLE PRECISION': 'FLOAT' },
   };
   return aliases[dialect][base] || raw;
 }
 
 function columnDefinition(column: ErdMigrationColumn, dialect: ErdMigrationDialect, includeName = true, includeKeys = true) {
   const pieces = [includeName ? quote(column.name, dialect) : '', typeSql(column, dialect)];
+  if (dialect === 'sqlserver' && isPk(column) && ['INT', 'BIGINT'].includes(typeSql(column, dialect))) pieces.push('IDENTITY(1,1)');
   pieces.push(isNullable(column) ? 'NULL' : 'NOT NULL');
   const defaultSql = defaultValue(column);
-  if (defaultSql !== null && value(defaultSql).trim()) pieces.push(`DEFAULT ${value(defaultSql).trim()}`);
+  if (defaultSql !== null && value(defaultSql).trim()) {
+    const rawDefault = value(defaultSql).trim();
+    const compatibleDefault = dialect === 'sqlserver'
+      ? /^now\(\)$|^current_timestamp$/i.test(rawDefault) ? 'SYSUTCDATETIME()' : /^true$/i.test(rawDefault) ? '1' : /^false$/i.test(rawDefault) ? '0' : rawDefault
+      : rawDefault;
+    pieces.push(`DEFAULT ${compatibleDefault}`);
+  }
   if (includeKeys && isUnique(column) && !isPk(column)) pieces.push('UNIQUE');
   if (includeKeys && isPk(column)) pieces.push('PRIMARY KEY');
   return pieces.filter(Boolean).join(' ');
@@ -181,13 +194,18 @@ function relationSql(item: ErdMigrationRelationship, schema: ErdMigrationSchema,
   const endpoint = relationEndpoint(item, schema);
   if (!endpoint) return null;
   const name = constraintName(item) || `fk_${endpoint.sourceTable.name}_${endpoint.sourceColumn.name}`.toLowerCase();
-  const action = (actionValue: string, keyword: string) => actionValue && actionValue !== 'NO ACTION' ? ` ON ${keyword} ${actionValue}` : '';
+  const action = (actionValue: string, keyword: string) => {
+    const compatible = dialect === 'sqlserver' && actionValue === 'RESTRICT' ? 'NO ACTION' : actionValue;
+    return compatible && compatible !== 'NO ACTION' ? ` ON ${keyword} ${compatible}` : '';
+  };
   return {
     name,
     add: `ALTER TABLE ${quote(endpoint.sourceTable.name, dialect)} ADD CONSTRAINT ${quote(name, dialect)} FOREIGN KEY (${quote(endpoint.sourceColumn.name, dialect)}) REFERENCES ${quote(endpoint.targetTable.name, dialect)} (${quote(endpoint.targetColumn.name, dialect)})${action(onDelete(item), 'DELETE')}${action(onUpdate(item), 'UPDATE')};`,
     drop: dialect === 'mysql'
       ? `ALTER TABLE ${quote(endpoint.sourceTable.name, dialect)} DROP FOREIGN KEY ${quote(name, dialect)};`
-      : `ALTER TABLE ${quote(endpoint.sourceTable.name, dialect)} DROP CONSTRAINT IF EXISTS ${quote(name, dialect)};`,
+      : dialect === 'sqlserver'
+        ? `ALTER TABLE ${quote(endpoint.sourceTable.name, dialect)} DROP CONSTRAINT ${quote(name, dialect)};`
+        : `ALTER TABLE ${quote(endpoint.sourceTable.name, dialect)} DROP CONSTRAINT IF EXISTS ${quote(name, dialect)};`,
     object: `${endpoint.sourceTable.name}.${endpoint.sourceColumn.name} → ${endpoint.targetTable.name}.${endpoint.targetColumn.name}`,
   };
 }
@@ -263,7 +281,7 @@ function indexSql(table: ErdMigrationTable, index: ErdMigrationIndex, dialect: E
   return {
     object: `${table.name}.${name}`,
     add: `CREATE ${unique}INDEX ${quote(name, dialect)} ON ${quote(table.name, dialect)} (${columns.map(column => quote(column, dialect)).join(', ')});`,
-    drop: dialect === 'mysql'
+    drop: dialect === 'mysql' || dialect === 'sqlserver'
       ? `DROP INDEX ${quote(name, dialect)} ON ${quote(table.name, dialect)};`
       : `DROP INDEX IF EXISTS ${quote(name, dialect)};`,
   };
@@ -289,7 +307,9 @@ function constraintSql(table: ErdMigrationTable, constraint: ErdMigrationConstra
       : constraint.kind === 'unique'
         ? `ALTER TABLE ${tableName} DROP INDEX ${quote(name, dialect)};`
         : `ALTER TABLE ${tableName} DROP CHECK ${quote(name, dialect)};`
-    : `ALTER TABLE ${tableName} DROP CONSTRAINT IF EXISTS ${quote(name, dialect)};`;
+    : dialect === 'sqlserver'
+      ? `ALTER TABLE ${tableName} DROP CONSTRAINT ${quote(name, dialect)};`
+      : `ALTER TABLE ${tableName} DROP CONSTRAINT IF EXISTS ${quote(name, dialect)};`;
   return { object: `${table.name}.${name}`, add: `ALTER TABLE ${tableName} ADD CONSTRAINT ${quote(name, dialect)} ${addBody};`, drop };
 }
 
@@ -329,6 +349,27 @@ function columnAlterSql(tableName: string, before: ErdMigrationColumn, after: Er
     statements.push(`ALTER TABLE ${table} ${keyword};`);
     if (!isPk(before) && isPk(after)) statements.push(`ALTER TABLE ${table} ADD PRIMARY KEY (${newName});`);
     if (!isUnique(before) && isUnique(after)) statements.push(`ALTER TABLE ${table} ADD CONSTRAINT ${quote(`${tableName}_${after.name}_key`, dialect)} UNIQUE (${newName});`);
+    return statements.join('\n');
+  }
+  if (dialect === 'sqlserver') {
+    const statements: string[] = [];
+    if (before.name !== after.name) statements.push(`EXEC sp_rename N'${tableName.replace(/'/g, "''")}.${before.name.replace(/'/g, "''")}', N'${after.name.replace(/'/g, "''")}', 'COLUMN';`);
+    const definitionChanged = lower(before.type) !== lower(after.type) || maxLength(before) !== maxLength(after)
+      || precision(before) !== precision(after) || scale(before) !== scale(after) || isNullable(before) !== isNullable(after);
+    if (definitionChanged) statements.push(`ALTER TABLE ${table} ALTER COLUMN ${newName} ${typeSql(after, dialect)} ${isNullable(after) ? 'NULL' : 'NOT NULL'};`);
+    if (value(defaultValue(before)) !== value(defaultValue(after))) {
+      statements.push(`-- Review/drop the existing SQL Server default constraint for ${newName} before changing its default.`);
+      const nextDefault = defaultValue(after);
+      if (nextDefault !== null && value(nextDefault).trim()) statements.push(`ALTER TABLE ${table} ADD DEFAULT ${value(nextDefault).trim()} FOR ${newName};`);
+    }
+    if (isUnique(before) !== isUnique(after)) {
+      const name = quote(`${tableName}_${after.name}_key`, dialect);
+      statements.push(isUnique(after) ? `ALTER TABLE ${table} ADD CONSTRAINT ${name} UNIQUE (${newName});` : `ALTER TABLE ${table} DROP CONSTRAINT ${name};`);
+    }
+    if (isPk(before) !== isPk(after)) {
+      const name = quote(`${tableName}_pkey`, dialect);
+      statements.push(isPk(after) ? `ALTER TABLE ${table} ADD CONSTRAINT ${name} PRIMARY KEY (${newName});` : `ALTER TABLE ${table} DROP CONSTRAINT ${name};`);
+    }
     return statements.join('\n');
   }
   const statements: string[] = [];
@@ -375,7 +416,8 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
   const pushIndexStep = (table: ErdMigrationTable, index: ErdMigrationIndex, action: 'add' | 'drop', temporary = false) => {
     const pg = indexSql(table, index, 'postgresql');
     const mysql = indexSql(table, index, 'mysql');
-    if (!pg || !mysql) return;
+    const sqlserver = indexSql(table, index, 'sqlserver');
+    if (!pg || !mysql || !sqlserver) return;
     const risk: ErdMigrationRisk = action === 'add'
       ? indexIsUnique(index) ? 'caution' : 'safe'
       : temporary ? 'caution' : indexIsUnique(index) ? 'breaking' : 'caution';
@@ -385,14 +427,15 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
       title: `${action === 'add' ? 'Create' : temporary ? 'Temporarily drop' : 'Drop'} ${indexIsUnique(index) ? 'unique ' : ''}index`,
       object: pg.object, reversible: true, affected_table_ids: [value(table.id)], affected_relationship_ids: [],
       warnings: indexIsUnique(index) && action === 'add' ? ['Existing duplicate values will prevent unique index creation.'] : [],
-      forward: { postgresql: action === 'add' ? pg.add : pg.drop, mysql: action === 'add' ? mysql.add : mysql.drop },
-      rollback: { postgresql: action === 'add' ? pg.drop : pg.add, mysql: action === 'add' ? mysql.drop : mysql.add },
+      forward: { postgresql: action === 'add' ? pg.add : pg.drop, mysql: action === 'add' ? mysql.add : mysql.drop, sqlserver: action === 'add' ? sqlserver.add : sqlserver.drop },
+      rollback: { postgresql: action === 'add' ? pg.drop : pg.add, mysql: action === 'add' ? mysql.drop : mysql.add, sqlserver: action === 'add' ? sqlserver.drop : sqlserver.add },
     }));
   };
   const pushConstraintStep = (table: ErdMigrationTable, constraint: ErdMigrationConstraint, action: 'add' | 'drop', temporary = false) => {
     const pg = constraintSql(table, constraint, 'postgresql');
     const mysql = constraintSql(table, constraint, 'mysql');
-    if (!pg || !mysql) return;
+    const sqlserver = constraintSql(table, constraint, 'sqlserver');
+    if (!pg || !mysql || !sqlserver) return;
     const risk: ErdMigrationRisk = action === 'add' ? 'caution' : temporary ? 'caution' : 'breaking';
     steps.push(step({
       id: `${action}-constraint:${table.id}:${supportingKey(constraint, pg.object)}`,
@@ -400,8 +443,8 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
       title: `${action === 'add' ? 'Add' : temporary ? 'Temporarily drop' : 'Drop'} ${constraint.kind.replace('_', ' ')} constraint`,
       object: pg.object, reversible: true, affected_table_ids: [value(table.id)], affected_relationship_ids: [],
       warnings: action === 'add' ? ['Validate existing rows before adding this constraint.'] : [],
-      forward: { postgresql: action === 'add' ? pg.add : pg.drop, mysql: action === 'add' ? mysql.add : mysql.drop },
-      rollback: { postgresql: action === 'add' ? pg.drop : pg.add, mysql: action === 'add' ? mysql.drop : mysql.add },
+      forward: { postgresql: action === 'add' ? pg.add : pg.drop, mysql: action === 'add' ? mysql.add : mysql.drop, sqlserver: action === 'add' ? sqlserver.add : sqlserver.drop },
+      rollback: { postgresql: action === 'add' ? pg.drop : pg.add, mysql: action === 'add' ? mysql.drop : mysql.add, sqlserver: action === 'add' ? sqlserver.drop : sqlserver.add },
     }));
   };
   const disruptiveBeforeColumns = new Set<string>();
@@ -449,7 +492,8 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
     const { relation, temporary } = entry;
     const pg = relationSql(relation, before, 'postgresql');
     const mysql = relationSql(relation, before, 'mysql');
-    if (!pg || !mysql) continue;
+    const sqlserver = relationSql(relation, before, 'sqlserver');
+    if (!pg || !mysql || !sqlserver) continue;
     steps.push(step({
       id: `drop-relation:${value(relation.id) || relationSignature(relation, before)}`, phase: 'drop-relations', kind: 'relationship', risk: temporary ? 'caution' : 'breaking',
       title: temporary ? 'Temporarily drop foreign key' : 'Drop foreign key', object: pg.object, reversible: true,
@@ -457,7 +501,7 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
       warnings: [temporary
         ? 'Keep the constraint-free window inside one controlled migration and recreate the key after alteration.'
         : 'Application writes can violate referential integrity after this constraint is removed.'],
-      forward: { postgresql: pg.drop, mysql: mysql.drop }, rollback: { postgresql: pg.add, mysql: mysql.add },
+      forward: { postgresql: pg.drop, mysql: mysql.drop, sqlserver: sqlserver.drop }, rollback: { postgresql: pg.add, mysql: mysql.add, sqlserver: sqlserver.add },
     }));
   }
 
@@ -470,10 +514,12 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
         forward: {
           postgresql: `ALTER TABLE ${quote(pair.before.name, 'postgresql')} RENAME TO ${quote(pair.after.name, 'postgresql')};`,
           mysql: `RENAME TABLE ${quote(pair.before.name, 'mysql')} TO ${quote(pair.after.name, 'mysql')};`,
+          sqlserver: `EXEC sp_rename N'${pair.before.name.replace(/'/g, "''")}', N'${pair.after.name.replace(/'/g, "''")}';`,
         },
         rollback: {
           postgresql: `ALTER TABLE ${quote(pair.after.name, 'postgresql')} RENAME TO ${quote(pair.before.name, 'postgresql')};`,
           mysql: `RENAME TABLE ${quote(pair.after.name, 'mysql')} TO ${quote(pair.before.name, 'mysql')};`,
+          sqlserver: `EXEC sp_rename N'${pair.after.name.replace(/'/g, "''")}', N'${pair.before.name.replace(/'/g, "''")}';`,
         },
       }));
     }
@@ -484,8 +530,8 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
       id: `create-table:${table.id}`, phase: 'create-tables', kind: 'table', risk: 'safe', title: 'Create table', object: table.name, reversible: true,
       affected_table_ids: [value(table.id)], affected_relationship_ids: [],
       warnings: ['Rollback drops the new table and any data inserted after migration.'],
-      forward: { postgresql: tableCreate(table, 'postgresql'), mysql: tableCreate(table, 'mysql') },
-      rollback: { postgresql: `DROP TABLE ${quote(table.name, 'postgresql')};`, mysql: `DROP TABLE ${quote(table.name, 'mysql')};` },
+      forward: { postgresql: tableCreate(table, 'postgresql'), mysql: tableCreate(table, 'mysql'), sqlserver: tableCreate(table, 'sqlserver') },
+      rollback: { postgresql: `DROP TABLE ${quote(table.name, 'postgresql')};`, mysql: `DROP TABLE ${quote(table.name, 'mysql')};`, sqlserver: `DROP TABLE ${quote(table.name, 'sqlserver')};` },
     }));
     for (const index of table.indexes || []) pushIndexStep(table, index, 'add');
     for (const constraint of table.constraints || []) pushConstraintStep(table, constraint, 'add');
@@ -519,10 +565,12 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
         forward: {
           postgresql: `ALTER TABLE ${quote(pair.after.name, 'postgresql')} ADD COLUMN ${columnDefinition(column, 'postgresql')};`,
           mysql: `ALTER TABLE ${quote(pair.after.name, 'mysql')} ADD COLUMN ${columnDefinition(column, 'mysql')};`,
+          sqlserver: `ALTER TABLE ${quote(pair.after.name, 'sqlserver')} ADD ${columnDefinition(column, 'sqlserver')};`,
         },
         rollback: {
           postgresql: `ALTER TABLE ${quote(pair.after.name, 'postgresql')} DROP COLUMN ${quote(column.name, 'postgresql')};`,
           mysql: `ALTER TABLE ${quote(pair.after.name, 'mysql')} DROP COLUMN ${quote(column.name, 'mysql')};`,
+          sqlserver: `ALTER TABLE ${quote(pair.after.name, 'sqlserver')} DROP COLUMN ${quote(column.name, 'sqlserver')};`,
         },
       }));
     }
@@ -544,10 +592,12 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
         forward: {
           postgresql: columnAlterSql(pair.after.name, columnPair.before, columnPair.after, 'postgresql'),
           mysql: columnAlterSql(pair.after.name, columnPair.before, columnPair.after, 'mysql'),
+          sqlserver: columnAlterSql(pair.after.name, columnPair.before, columnPair.after, 'sqlserver'),
         },
         rollback: {
           postgresql: columnAlterSql(pair.after.name, columnPair.after, columnPair.before, 'postgresql'),
           mysql: columnAlterSql(pair.after.name, columnPair.after, columnPair.before, 'mysql'),
+          sqlserver: columnAlterSql(pair.after.name, columnPair.after, columnPair.before, 'sqlserver'),
         },
       }));
     }
@@ -559,10 +609,12 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
         forward: {
           postgresql: `ALTER TABLE ${quote(pair.after.name, 'postgresql')} DROP COLUMN ${quote(column.name, 'postgresql')};`,
           mysql: `ALTER TABLE ${quote(pair.after.name, 'mysql')} DROP COLUMN ${quote(column.name, 'mysql')};`,
+          sqlserver: `ALTER TABLE ${quote(pair.after.name, 'sqlserver')} DROP COLUMN ${quote(column.name, 'sqlserver')};`,
         },
         rollback: {
           postgresql: `ALTER TABLE ${quote(pair.after.name, 'postgresql')} ADD COLUMN ${columnDefinition(column, 'postgresql')}; -- Data restore required`,
           mysql: `ALTER TABLE ${quote(pair.after.name, 'mysql')} ADD COLUMN ${columnDefinition(column, 'mysql')}; -- Data restore required`,
+          sqlserver: `ALTER TABLE ${quote(pair.after.name, 'sqlserver')} ADD ${columnDefinition(column, 'sqlserver')}; -- Data restore required`,
         },
       }));
     }
@@ -571,12 +623,13 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
   for (const relation of [...modifiedRelations.map(pair => pair.after), ...addedRelations]) {
     const pg = relationSql(relation, after, 'postgresql');
     const mysql = relationSql(relation, after, 'mysql');
-    if (!pg || !mysql) continue;
+    const sqlserver = relationSql(relation, after, 'sqlserver');
+    if (!pg || !mysql || !sqlserver) continue;
     steps.push(step({
       id: `add-relation:${value(relation.id) || relationSignature(relation, after)}`, phase: 'add-relations', kind: 'relationship', risk: 'caution', title: 'Add foreign key', object: pg.object, reversible: true,
       affected_table_ids: [sourceTableId(relation), targetTableId(relation)], affected_relationship_ids: [value(relation.id)],
       warnings: ['Validate existing orphan rows before adding the constraint.'],
-      forward: { postgresql: pg.add, mysql: mysql.add }, rollback: { postgresql: pg.drop, mysql: mysql.drop },
+      forward: { postgresql: pg.add, mysql: mysql.add, sqlserver: sqlserver.add }, rollback: { postgresql: pg.drop, mysql: mysql.drop, sqlserver: sqlserver.drop },
     }));
   }
 
@@ -585,8 +638,8 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
       id: `drop-table:${table.id}`, phase: 'drop-objects', kind: 'table', risk: 'breaking', title: 'Drop table', object: table.name, reversible: false,
       affected_table_ids: [value(table.id)], affected_relationship_ids: [],
       warnings: ['Rollback recreates only the table structure; restore row data from a backup.'],
-      forward: { postgresql: `DROP TABLE ${quote(table.name, 'postgresql')};`, mysql: `DROP TABLE ${quote(table.name, 'mysql')};` },
-      rollback: { postgresql: `${tableCreate(table, 'postgresql')}\n-- Data restore required.`, mysql: `${tableCreate(table, 'mysql')}\n-- Data restore required.` },
+      forward: { postgresql: `DROP TABLE ${quote(table.name, 'postgresql')};`, mysql: `DROP TABLE ${quote(table.name, 'mysql')};`, sqlserver: `DROP TABLE ${quote(table.name, 'sqlserver')};` },
+      rollback: { postgresql: `${tableCreate(table, 'postgresql')}\n-- Data restore required.`, mysql: `${tableCreate(table, 'mysql')}\n-- Data restore required.`, sqlserver: `${tableCreate(table, 'sqlserver')}\n-- Data restore required.` },
     }));
   }
 
@@ -610,6 +663,7 @@ export function planErdMigration(before: ErdMigrationSchema, after: ErdMigration
     sql: {
       postgresql: { forward: migrationSql(steps, 'postgresql', 'forward'), rollback: migrationSql(steps, 'postgresql', 'rollback') },
       mysql: { forward: migrationSql(steps, 'mysql', 'forward'), rollback: migrationSql(steps, 'mysql', 'rollback') },
+      sqlserver: { forward: migrationSql(steps, 'sqlserver', 'forward'), rollback: migrationSql(steps, 'sqlserver', 'rollback') },
     },
     warnings,
   };

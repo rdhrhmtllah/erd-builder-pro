@@ -17,6 +17,7 @@ import {
   generateLaravelModel,
   generateMySQL,
   generatePostgreSQL,
+  generateSQLServer,
   generatePrisma,
   generateTypeScript,
   generateZod,
@@ -28,7 +29,7 @@ import { cn } from '@/lib/utils';
 type TableCodeMode = 'schema' | 'dbml';
 
 const CATEGORIES = [
-  { id: 'sql', label: 'SQL', formats: [{ id: 'mysql', label: 'MySQL' }, { id: 'postgresql', label: 'PostgreSQL' }] },
+  { id: 'sql', label: 'SQL', formats: [{ id: 'mysql', label: 'MySQL' }, { id: 'postgresql', label: 'PostgreSQL' }, { id: 'sqlserver', label: 'SQL Server' }] },
   { id: 'laravel', label: 'Laravel', formats: [{ id: 'laravel_migration', label: 'Migration' }, { id: 'laravel_model', label: 'Model' }] },
   { id: 'goravel', label: 'Goravel', formats: [{ id: 'goravel', label: 'Model' }, { id: 'goravel_migration', label: 'Migration' }] },
   { id: 'typescript', label: 'TypeScript', formats: [{ id: 'typescript', label: 'Interface' }, { id: 'zod', label: 'Zod' }] },
@@ -38,6 +39,7 @@ const CATEGORIES = [
 const FORMAT_GENERATORS: Record<string, (entity: Entity) => string> = {
   mysql: generateMySQL,
   postgresql: generatePostgreSQL,
+  sqlserver: generateSQLServer,
   laravel_migration: generateLaravelMigration,
   laravel_model: generateLaravelModel,
   goravel: generateGoravelModel,
@@ -48,12 +50,12 @@ const FORMAT_GENERATORS: Record<string, (entity: Entity) => string> = {
 };
 
 const FORMAT_LANGUAGES: Record<string, string> = {
-  mysql: 'sql', postgresql: 'sql', laravel_migration: 'php', laravel_model: 'php',
+  mysql: 'sql', postgresql: 'sql', sqlserver: 'sql', laravel_migration: 'php', laravel_model: 'php',
   goravel: 'go', goravel_migration: 'go', typescript: 'typescript', zod: 'typescript', prisma: 'prisma',
 };
 
 const FORMAT_EXTENSIONS: Record<string, string> = {
-  mysql: 'sql', postgresql: 'sql', laravel_migration: 'php', laravel_model: 'php',
+  mysql: 'sql', postgresql: 'sql', sqlserver: 'sql', laravel_migration: 'php', laravel_model: 'php',
   goravel: 'go', goravel_migration: 'go', typescript: 'ts', zod: 'ts', prisma: 'prisma',
 };
 

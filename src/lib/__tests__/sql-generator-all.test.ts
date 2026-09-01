@@ -53,9 +53,10 @@ function makeEdge(
 }
 
 describe('getExtension', () => {
-  it('returns "sql" for MySQL and PostgreSQL', () => {
+  it('returns "sql" for all SQL dialects', () => {
     expect(getExtension('mysql')).toBe('sql');
     expect(getExtension('postgresql')).toBe('sql');
+    expect(getExtension('sqlserver')).toBe('sql');
   });
 
   it('returns "php" for Laravel formats', () => {
@@ -106,6 +107,15 @@ describe('generateAllTablesCode', () => {
     expect(code).toContain('CREATE TABLE "users"');
     expect(code).toContain('CREATE TABLE "posts"');
     expect(code).toContain('ALTER TABLE');
+  });
+
+  it('generates SQL Server code with header and bracket-quoted FK', () => {
+    const code = generateAllTablesCode('sqlserver', nodes, edges, 'my_erd');
+    expect(code).toContain('-- Dialect: Microsoft SQL Server');
+    expect(code).toContain('CREATE TABLE [users]');
+    expect(code).toContain('CREATE TABLE [posts]');
+    expect(code).toContain('ALTER TABLE [posts] ADD CONSTRAINT');
+    expect(code).toContain('REFERENCES [users]([id])');
   });
 
   it('exports FK actions and custom constraint names', () => {

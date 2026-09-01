@@ -164,7 +164,7 @@ export interface WorkspaceContextValue {
   handleHeaderDelete: () => void;
   handleHeaderRename: () => void;
   handleHeaderSettingsSaved: () => void;
-  handleHeaderExportSQL: (dialect: 'postgresql' | 'mysql') => void;
+  handleHeaderExportSQL: (dialect: 'postgresql' | 'mysql' | 'sqlserver') => void;
   handleHeaderExportImage: () => void;
   handleExportMarkdown: () => void;
   handleCopyMarkdown: () => void;

@@ -38,6 +38,7 @@ const CATEGORIES = [
     formats: [
       { id: 'mysql', label: 'MySQL' },
       { id: 'postgresql', label: 'PostgreSQL' },
+      { id: 'sqlserver', label: 'SQL Server' },
     ],
   },
   {
@@ -73,7 +74,7 @@ const CATEGORIES = [
   },
 ];
 
-const SINGLE_FILE_TABS = new Set(['mysql', 'postgresql', 'prisma']);
+const SINGLE_FILE_TABS = new Set(['mysql', 'postgresql', 'sqlserver', 'prisma']);
 
 export const ExportAllDialog = ({
   open,
@@ -100,7 +101,7 @@ export const ExportAllDialog = ({
 
   const codeMirrorExtensions = React.useMemo(() => {
     const getLang = (tab: string) => {
-      if (tab === 'mysql' || tab === 'postgresql') return 'sql';
+      if (tab === 'mysql' || tab === 'postgresql' || tab === 'sqlserver') return 'sql';
       if (tab === 'laravel_migration' || tab === 'laravel_model') return 'php';
       if (tab === 'goravel' || tab === 'goravel_migration') return 'go';
       if (tab === 'typescript' || tab === 'zod') return 'typescript';

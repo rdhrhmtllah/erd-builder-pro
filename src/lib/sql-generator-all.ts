@@ -2,6 +2,7 @@ import { Node, Edge } from '@xyflow/react';
 import {
   generateMySQL,
   generatePostgreSQL,
+  generateSQLServer,
   generateLaravelMigration,
   generateTypeScript,
   generatePrisma,
@@ -18,6 +19,7 @@ import { getForeignKeyConstraintName } from './diagram-payload';
 export type AllExportFormat =
   | 'mysql'
   | 'postgresql'
+  | 'sqlserver'
   | 'laravel_migration'
   | 'laravel_model'
   | 'typescript'
@@ -62,6 +64,15 @@ export function generateAllTablesCode(
       });
       body.push('');
       body.push(generateAlterTableFKs(entities, edges, 'postgresql'));
+      break;
+    }
+    case 'sqlserver': {
+      headers.push(`-- ERD Export: ${fileName}`, `-- Dialect: Microsoft SQL Server`, ``);
+      entities.forEach(entity => {
+        body.push(generateSQLServer(entity));
+      });
+      body.push('');
+      body.push(generateAlterTableFKs(entities, edges, 'sqlserver'));
       break;
     }
     case 'laravel_migration': {
@@ -174,7 +185,8 @@ export function generateAllTablesFiles(
 
   switch (format) {
     case 'mysql':
-    case 'postgresql': {
+    case 'postgresql':
+    case 'sqlserver': {
       return [{ filename: `${fileName}.sql`, content: generateAllTablesCode(format, nodes, edges, fileName) }];
     }
     case 'laravel_migration': {
@@ -257,7 +269,7 @@ export function generateAllTablesFiles(
 function generateAlterTableFKs(
   entities: Entity[],
   edges: Edge[],
-  dialect: 'mysql' | 'postgresql'
+  dialect: 'mysql' | 'postgresql' | 'sqlserver'
 ): string {
   const entityMap = new Map(entities.map(e => [e.id, e]));
   const fkLines: string[] = [];
@@ -282,13 +294,18 @@ function generateAlterTableFKs(
     const constraintName = relation.constraint_name
       ? String(relation.constraint_name)
       : getForeignKeyConstraintName(sourceEntity.name, sourceColumn.name);
-    const quote = dialect === 'mysql' ? '`' : '"';
+    const quoted = (value: string) => dialect === 'sqlserver'
+      ? `[${value.replace(/]/g, ']]')}]`
+      : dialect === 'mysql'
+        ? `\`${value.replace(/`/g, '``')}\``
+        : `"${value.replace(/"/g, '""')}"`;
     const action = (value: unknown, keyword: string) => {
       const normalized = typeof value === 'string' ? value.trim().toUpperCase() : '';
-      return normalized && normalized !== 'NO ACTION' ? ` ON ${keyword} ${normalized}` : '';
+      const compatible = dialect === 'sqlserver' && normalized === 'RESTRICT' ? 'NO ACTION' : normalized;
+      return compatible && compatible !== 'NO ACTION' ? ` ON ${keyword} ${compatible}` : '';
     };
     fkLines.push(
-      `ALTER TABLE ${quote}${sourceEntity.name}${quote} ADD CONSTRAINT ${quote}${constraintName}${quote} FOREIGN KEY (${quote}${sourceColumn.name}${quote}) REFERENCES ${quote}${targetEntity.name}${quote}(${quote}${targetColumn.name}${quote})${action(relation.on_delete, 'DELETE')}${action(relation.on_update, 'UPDATE')};`
+      `ALTER TABLE ${quoted(sourceEntity.name)} ADD CONSTRAINT ${quoted(constraintName)} FOREIGN KEY (${quoted(sourceColumn.name)}) REFERENCES ${quoted(targetEntity.name)}(${quoted(targetColumn.name)})${action(relation.on_delete, 'DELETE')}${action(relation.on_update, 'UPDATE')};`
     );
   });
 
@@ -299,6 +316,7 @@ export function getExtension(format: AllExportFormat): string {
   const map: Record<string, string> = {
     mysql: 'sql',
     postgresql: 'sql',
+    sqlserver: 'sql',
     laravel_migration: 'php',
     laravel_model: 'php',
     typescript: 'ts',

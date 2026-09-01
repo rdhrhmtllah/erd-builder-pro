@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   generateMySQL,
   generatePostgreSQL,
+  generateSQLServer,
   generateLaravelMigration,
   generateTypeScript,
   generatePrisma,
@@ -218,6 +219,40 @@ describe('generatePostgreSQL', () => {
 
     const sql = generatePostgreSQL(entity);
     expect(sql).toContain('BOOLEAN');
+  });
+});
+
+describe('generateSQLServer', () => {
+  it('generates SQL Server identifiers, identity keys, and native type mappings', () => {
+    const entity = makeEntity('users', [
+      { name: 'id', type: 'BIGINT', is_pk: true, is_nullable: false },
+      { name: 'external_id', type: 'UUID', is_nullable: false },
+      { name: 'is_active', type: 'BOOLEAN', is_nullable: false, default_value: 'true' },
+      { name: 'created_at', type: 'TIMESTAMP', is_nullable: false, default_value: 'CURRENT_TIMESTAMP' },
+      { name: 'metadata', type: 'JSON', is_nullable: true },
+    ]);
+
+    const sql = generateSQLServer(entity);
+    expect(sql).toContain('CREATE TABLE [users]');
+    expect(sql).toContain('[id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY');
+    expect(sql).toContain('[external_id] UNIQUEIDENTIFIER NOT NULL');
+    expect(sql).toContain('[is_active] BIT DEFAULT 1 NOT NULL');
+    expect(sql).toContain('[created_at] DATETIME2 DEFAULT SYSUTCDATETIME() NOT NULL');
+    expect(sql).toContain('ISJSON([metadata]) = 1');
+  });
+
+  it('exports enum checks, metadata constraints, indexes, and descriptions', () => {
+    const entity = makeEntity('orders', [
+      { id: 'id', name: 'id', type: 'INT', is_pk: true, is_nullable: false },
+      { id: 'status', name: 'status', type: 'ENUM', enum_values: 'pending, paid', is_nullable: false, comment: 'Order state' },
+    ]);
+    entity.comment = 'Customer orders';
+    entity.indexes = [{ id: 'i1', entity_id: entity.id, name: 'orders_status_idx', column_ids: ['status'] }];
+
+    const sql = generateSQLServer(entity);
+    expect(sql).toContain("CHECK ([status] IN (N'pending', N'paid'))");
+    expect(sql).toContain('CREATE INDEX [orders_status_idx] ON [orders] ([status])');
+    expect(sql).toContain("@name=N'MS_Description'");
   });
 });
 

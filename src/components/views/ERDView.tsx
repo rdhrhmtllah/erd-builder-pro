@@ -196,7 +196,7 @@ interface ERDViewProps {
   addEntity: () => void;
   onImportSQL?: () => void;
   onAutoLayout?: () => void;
-  handleExportSQL: (dialect: 'postgresql' | 'mysql') => void;
+  handleExportSQL: (dialect: 'postgresql' | 'mysql' | 'sqlserver') => void;
   onNodeDragStop?: () => void;
 
   handleExportImage: () => void;

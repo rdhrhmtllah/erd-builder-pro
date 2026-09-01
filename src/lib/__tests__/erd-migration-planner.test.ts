@@ -54,6 +54,20 @@ describe('ERD migration planner', () => {
     expect(plan.sql.mysql.forward).toContain('ON DELETE CASCADE');
   });
 
+  it('generates SQL Server forward and rollback migrations', () => {
+    const after = structuredClone(before);
+    after.tables[0].name = 'accounts';
+    after.tables[1].columns.push(column('order-created', 'created_at', { type: 'TIMESTAMP', is_nullable: false, default_value: 'CURRENT_TIMESTAMP' }));
+    after.relationships[0].on_delete = 'CASCADE';
+    const plan = planErdMigration(before, after);
+
+    expect(plan.sql.sqlserver.forward).toContain("EXEC sp_rename N'users', N'accounts'");
+    expect(plan.sql.sqlserver.forward).toContain('ALTER TABLE [orders] ADD [created_at] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()');
+    expect(plan.sql.sqlserver.forward).toContain('ADD CONSTRAINT [orders_user_fk] FOREIGN KEY');
+    expect(plan.sql.sqlserver.forward).toContain('ON DELETE CASCADE');
+    expect(plan.sql.sqlserver.rollback).toContain("EXEC sp_rename N'accounts', N'users'");
+  });
+
   it('plans indexes and composite constraints around column alterations', () => {
     const indexedBefore: any = structuredClone(before);
     indexedBefore.tables[1].indexes = [{ id: 'orders-user-idx', name: 'orders_user_idx', column_ids: ['order-user'] }];

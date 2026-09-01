@@ -22,6 +22,7 @@ import { Entity } from '../../types';
 import {
   generateMySQL,
   generatePostgreSQL,
+  generateSQLServer,
   generateLaravelMigration,
   generateTypeScript,
   generatePrisma,
@@ -44,6 +45,7 @@ const CATEGORIES = [
     formats: [
       { id: 'mysql', label: 'MySQL' },
       { id: 'postgresql', label: 'PostgreSQL' },
+      { id: 'sqlserver', label: 'SQL Server' },
     ],
   },
   {
@@ -82,6 +84,7 @@ const CATEGORIES = [
 const FORMAT_GENERATORS: Record<string, (entity: Entity) => string> = {
   mysql: generateMySQL,
   postgresql: generatePostgreSQL,
+  sqlserver: generateSQLServer,
   laravel_migration: generateLaravelMigration,
   laravel_model: generateLaravelModel,
   goravel: generateGoravelModel,
@@ -94,6 +97,7 @@ const FORMAT_GENERATORS: Record<string, (entity: Entity) => string> = {
 const FORMAT_LANGUAGES: Record<string, string> = {
   mysql: 'sql',
   postgresql: 'sql',
+  sqlserver: 'sql',
   laravel_migration: 'php',
   laravel_model: 'php',
   goravel: 'go',
@@ -106,6 +110,7 @@ const FORMAT_LANGUAGES: Record<string, string> = {
 const FORMAT_EXTENSIONS: Record<string, string> = {
   mysql: 'sql',
   postgresql: 'sql',
+  sqlserver: 'sql',
   laravel_migration: 'php',
   laravel_model: 'php',
   goravel: 'go',
