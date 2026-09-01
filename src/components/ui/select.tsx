@@ -2,7 +2,7 @@ import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
 import { cn } from "@/lib/utils"
-import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
+import { ChevronDownIcon, CheckIcon, ChevronUpIcon, SearchIcon, XIcon } from "lucide-react"
 
 const Select = SelectPrimitive.Root
 
@@ -57,6 +57,9 @@ SelectTrigger.displayName = "SelectTrigger"
 function SelectContent({
   className,
   children,
+  searchable = true,
+  searchPlaceholder = "Search options...",
+  emptyMessage = "No options found",
   side = "bottom",
   sideOffset = 4,
   align = "start",
@@ -67,7 +70,26 @@ function SelectContent({
   Pick<
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
-  >) {
+  > & {
+    searchable?: boolean
+    searchPlaceholder?: string
+    emptyMessage?: string
+  }) {
+  const [query, setQuery] = React.useState("")
+  const searchRef = React.useRef<HTMLInputElement>(null)
+  const normalizedQuery = normalizeSearchText(query)
+  const filteredChildren = React.useMemo(
+    () => normalizedQuery ? filterSelectChildren(children, normalizedQuery) : children,
+    [children, normalizedQuery]
+  )
+  const hasResults = hasSelectItems(filteredChildren)
+
+  React.useEffect(() => {
+    if (!searchable) return
+    const frame = requestAnimationFrame(() => searchRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [searchable])
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -82,20 +104,101 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            "relative isolate z-50 max-h-(--available-height) w-[var(--anchor-width)] min-w-40 origin-(--transform-origin) overflow-y-auto rounded-xl bg-popover text-popover-foreground shadow-2xl ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 custom-scrollbar",
+            "relative isolate z-50 flex max-h-(--available-height) w-[var(--anchor-width)] min-w-48 origin-(--transform-origin) flex-col overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-2xl ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className
           )}
           {...props}
         >
+          {searchable ? (
+            <div
+              className="shrink-0 border-b border-border/70 bg-popover p-1.5"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                if (event.key !== "Escape" && event.key !== "Tab") event.stopPropagation()
+              }}
+            >
+              <div className="flex h-8 items-center gap-2 rounded-md border border-input bg-background/80 px-2 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15">
+                <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <input
+                  ref={searchRef}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault()
+                      const popup = searchRef.current?.closest('[data-slot="select-content"]')
+                      const firstItem = popup?.querySelector<HTMLElement>('[data-slot="select-item"]:not([data-disabled])')
+                      firstItem?.focus()
+                    }
+                    if (event.key !== "Escape" && event.key !== "Tab") event.stopPropagation()
+                  }}
+                  placeholder={searchPlaceholder}
+                  aria-label={searchPlaceholder}
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+                />
+                {query ? (
+                  <button
+                    type="button"
+                    onClick={() => { setQuery(""); searchRef.current?.focus() }}
+                    className="rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    aria-label="Clear search"
+                  >
+                    <XIcon className="size-3.5" />
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           <SelectScrollUpButton />
-          <SelectPrimitive.List className="p-1.5 outline-none">
-            {children}
+          <SelectPrimitive.List className="min-h-0 overflow-y-auto p-1.5 outline-none custom-scrollbar">
+            {hasResults ? filteredChildren : (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground" role="status">
+                {emptyMessage}
+              </div>
+            )}
           </SelectPrimitive.List>
           <SelectScrollDownButton />
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>
     </SelectPrimitive.Portal>
   )
+}
+
+function normalizeSearchText(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().trim()
+}
+
+function selectNodeText(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node)
+  if (Array.isArray(node)) return node.map(selectNodeText).join(" ")
+  if (!React.isValidElement(node)) return ""
+  const props = node.props as { children?: React.ReactNode; textValue?: string; value?: string }
+  return [props.textValue, props.value, selectNodeText(props.children)].filter(Boolean).join(" ")
+}
+
+function filterSelectChildren(node: React.ReactNode, query: string): React.ReactNode {
+  return React.Children.map(node, child => {
+    if (!React.isValidElement(child)) return child
+    const props = child.props as { children?: React.ReactNode; textValue?: string; value?: string }
+    if (child.type === SelectItem) {
+      return normalizeSearchText(selectNodeText(child)).includes(query) ? child : null
+    }
+    if (props.children === undefined) return child
+    const filtered = filterSelectChildren(props.children, query)
+    if (child.type === SelectGroup && !hasSelectItems(filtered)) return null
+    return React.cloneElement(child as React.ReactElement<any>, undefined, filtered)
+  })
+}
+
+function hasSelectItems(node: React.ReactNode): boolean {
+  let found = false
+  React.Children.forEach(node, child => {
+    if (found || !React.isValidElement(child)) return
+    if (child.type === SelectItem) { found = true; return }
+    found = hasSelectItems((child.props as { children?: React.ReactNode }).children)
+  })
+  return found
 }
 
 function SelectLabel({
@@ -190,6 +293,55 @@ function SelectScrollDownButton({
   )
 }
 
+type SearchableSelectOption = {
+  value: string
+  label: React.ReactNode
+  searchText?: string
+  disabled?: boolean
+}
+
+function SearchableSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select an option",
+  searchPlaceholder = "Search options...",
+  emptyMessage,
+  disabled,
+  className,
+  contentClassName,
+  id,
+  ariaLabel,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+  options: SearchableSelectOption[]
+  placeholder?: string
+  searchPlaceholder?: string
+  emptyMessage?: string
+  disabled?: boolean
+  className?: string
+  contentClassName?: string
+  id?: string
+  ariaLabel?: string
+}) {
+  const selected = options.find(option => option.value === value)
+  return (
+    <Select value={value} disabled={disabled} onValueChange={next => next !== null && onValueChange(next)}>
+      <SelectTrigger id={id} aria-label={ariaLabel} className={className}>
+        <SelectValue placeholder={placeholder}>{selected?.label}</SelectValue>
+      </SelectTrigger>
+      <SelectContent className={contentClassName} searchPlaceholder={searchPlaceholder} emptyMessage={emptyMessage}>
+        {options.map(option => (
+          <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
+            {option.label}{option.searchText ? <span className="sr-only"> {option.searchText}</span> : null}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
 export {
   Select,
   SelectContent,
@@ -201,4 +353,6 @@ export {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
+  SearchableSelect,
 }
+export type { SearchableSelectOption }

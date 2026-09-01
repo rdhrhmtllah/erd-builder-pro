@@ -4,6 +4,7 @@ import { useReactFlow } from '@xyflow/react';
 import { AlertTriangle, CheckCircle2, Clipboard, Code2, Download, GitCompareArrows, Loader2, Play, RotateCcw, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { SearchableSelect } from '@/components/ui/select';
 import { apiFetch } from '@/lib/api';
 import type { Entity } from '@/types';
 import { dbmlToERD, erdToDBML } from '@/lib/dbml-converter';
@@ -157,10 +158,7 @@ export function ErdMigrationPlannerPanel({ nodes, edges, diagramUid, onClose, on
         ) : (
           <section className="space-y-2">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Historical baseline</div>
-            <select value={revisionId} onChange={event => setRevisionId(event.target.value)} disabled={loadingHistory || !revisions.length} className="h-9 w-full rounded-md border border-border bg-muted/30 px-2 text-xs outline-none focus:border-primary disabled:opacity-50">
-              {!revisions.length && <option value="">No saved versions</option>}
-              {revisions.map(item => <option key={item.id} value={item.id}>v{item.version} · {new Date(item.created_at).toLocaleString()} · {item.change_type}</option>)}
-            </select>
+            <SearchableSelect value={revisionId} onValueChange={setRevisionId} disabled={loadingHistory || !revisions.length} className="h-9 text-xs" searchPlaceholder="Search version..." options={revisions.length ? revisions.map(item => ({ value: item.id, label: `v${item.version} · ${new Date(item.created_at).toLocaleString()} · ${item.change_type}` })) : [{ value: '', label: 'No saved versions' }]} />
             <Button className="h-9 w-full gap-2 text-xs" disabled={!revisionId || loadingHistory} onClick={() => void analyzeHistory()}>{loadingHistory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitCompareArrows className="h-3.5 w-3.5" />} Compare version to current</Button>
           </section>
         )}

@@ -7,6 +7,7 @@ import type { Entity, ErdGovernanceMetadata } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { SearchableSelect } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
   analyzeErdGovernance,
@@ -146,9 +147,9 @@ export function ErdDataDictionaryPanel({ nodes, diagramName, readOnly, selectedN
         <section className="mt-4 rounded-xl border border-border/60 p-3">
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1"><Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" /><Input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search table or column" className="h-9 pl-8 text-xs" /></div>
-            <select value={filter} onChange={event => setFilter(event.target.value as any)} className="h-9 rounded-md border border-input bg-background px-2 text-[10px]">
-              <option value="gaps">Gaps ({report.gaps.length})</option><option value="sensitive">Sensitive</option><option value="all">All</option>
-            </select>
+            <SearchableSelect value={filter} onValueChange={value => setFilter(value as any)} className="h-9 w-28 text-[10px]" searchPlaceholder="Search filter..." options={[
+              { value: 'gaps', label: `Gaps (${report.gaps.length})` }, { value: 'sensitive', label: 'Sensitive' }, { value: 'all', label: 'All' },
+            ]} />
           </div>
           <div className="mt-2 max-h-32 space-y-1 overflow-y-auto custom-scrollbar">
             {entries.length === 0 ? <div className="py-4 text-center text-[10px] text-muted-foreground">No matching objects.</div> : entries.map(item => {
@@ -164,12 +165,10 @@ export function ErdDataDictionaryPanel({ nodes, diagramName, readOnly, selectedN
 
         {table && <section className="mt-4 space-y-3 rounded-xl border border-border/60 p-3">
           <div className="flex items-center gap-2">
-            <select value={tableId} onChange={event => selectTarget(event.target.value)} className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-xs font-semibold">
-              {nodes.map(node => <option key={node.id} value={node.id}>{node.data.name}</option>)}
-            </select>
-            <select value={columnId} onChange={event => selectTarget(tableId, event.target.value)} className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-xs">
-              <option value="">Table metadata</option>{table.columns.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
+            <SearchableSelect value={tableId} onValueChange={value => selectTarget(value)} className="h-9 min-w-0 flex-1 text-xs font-semibold" searchPlaceholder="Search table..." options={nodes.map(node => ({ value: node.id, label: node.data.name }))} />
+            <SearchableSelect value={columnId} onValueChange={value => selectTarget(tableId, value)} className="h-9 min-w-0 flex-1 text-xs" searchPlaceholder="Search column..." options={[
+              { value: '', label: 'Table metadata' }, ...table.columns.map(item => ({ value: item.id, label: item.name })),
+            ]} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Field label="Business name" value={draft.business_name || ''} onChange={value => patch({ business_name: value })} />
@@ -205,5 +204,5 @@ function Field({ label, value, onChange, placeholder = '' }: { label: string; va
 }
 
 function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) {
-  return <label className="block text-[10px] font-semibold text-muted-foreground">{label}<select value={value} onChange={event => onChange(event.target.value)} className="mt-1 h-8 w-full rounded-md border border-input bg-background px-1.5 text-[10px] capitalize"><option value="">—</option>{options.map(item => <option key={item} value={item}>{item}</option>)}</select></label>;
+  return <div className="block text-[10px] font-semibold text-muted-foreground">{label}<SearchableSelect value={value} onValueChange={onChange} className="mt-1 h-8 text-[10px] capitalize" searchPlaceholder={`Search ${label.toLowerCase()}...`} options={[{ value: '', label: '—' }, ...options.map(item => ({ value: item, label: item }))]} /></div>;
 }

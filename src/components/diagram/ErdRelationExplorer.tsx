@@ -3,6 +3,7 @@ import type { Edge, Node } from '@xyflow/react';
 import { useReactFlow } from '@xyflow/react';
 import { ArrowDownToLine, ArrowUpFromLine, GitBranch, Route, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SearchableSelect } from '@/components/ui/select';
 import type { Entity } from '@/types';
 import {
   findErdRelationPath,
@@ -118,14 +119,8 @@ export function ErdRelationExplorer({ nodes, edges, selectedNodeIds, onClose, on
 
         <section className="space-y-2 border-t border-border/60 pt-4">
           <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><Route className="h-3.5 w-3.5" /> Find path A → B</div>
-          <select value={pathStart} onChange={event => { setPathStart(event.target.value); clearPath(); }} className="h-9 w-full rounded-md border border-border bg-muted/30 px-2 text-xs outline-none focus:border-primary">
-            <option value="">Start table…</option>
-            {sortedNodes.map(node => <option key={node.id} value={node.id}>{node.data.name}</option>)}
-          </select>
-          <select value={pathEnd} onChange={event => { setPathEnd(event.target.value); clearPath(); }} className="h-9 w-full rounded-md border border-border bg-muted/30 px-2 text-xs outline-none focus:border-primary">
-            <option value="">Destination table…</option>
-            {sortedNodes.map(node => <option key={node.id} value={node.id}>{node.data.name}</option>)}
-          </select>
+          <SearchableSelect value={pathStart} onValueChange={value => { setPathStart(value); clearPath(); }} className="h-9 text-xs" placeholder="Start table…" searchPlaceholder="Search start table..." options={[{ value: '', label: 'Start table…' }, ...sortedNodes.map(node => ({ value: node.id, label: node.data.name }))]} />
+          <SearchableSelect value={pathEnd} onValueChange={value => { setPathEnd(value); clearPath(); }} className="h-9 text-xs" placeholder="Destination table…" searchPlaceholder="Search destination..." options={[{ value: '', label: 'Destination table…' }, ...sortedNodes.map(node => ({ value: node.id, label: node.data.name }))]} />
           <Button className="h-8 w-full text-xs" disabled={!pathStart || !pathEnd} onClick={findPath}>Show shortest path</Button>
           {pathAttempted && !pathResult && <p className="text-[11px] text-destructive">No path found for the selected direction.</p>}
           {pathResult && <p className="text-[11px] text-amber-600 dark:text-amber-400">{pathResult.nodeIds.length} tables · {pathResult.edgeIds.length} relationships</p>}

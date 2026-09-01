@@ -3,6 +3,7 @@ import { useReactFlow, type Edge, type Node } from '@xyflow/react';
 import { Check, ChevronRight, FolderKanban, Loader2, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { SearchableSelect } from '@/components/ui/select';
 import { apiFetch } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { flattenSubjectAreaTree, getSubjectAreaBoundary, getSubjectAreaDescendantIds, type ErdSubjectArea } from '@/lib/erd-subject-areas';
@@ -198,10 +199,17 @@ export function ErdSubjectAreaPanel({
           <section className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Create from selection</div>
             <input value={name} maxLength={80} onChange={event => setName(event.target.value)} placeholder="Area name, e.g. Payroll" className="h-9 w-full rounded-md border border-border bg-background px-3 text-xs outline-none focus:border-primary" />
-            <select value={parentId} onChange={event => setParentId(event.target.value)} className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs">
-              <option value="">Top-level area</option>
-              {orderedAreas.map(area => <option key={area.id} value={area.id}>{'— '.repeat(area.depth || 0)}{area.name}</option>)}
-            </select>
+            <SearchableSelect
+              value={parentId}
+              onValueChange={setParentId}
+              className="h-8 text-xs"
+              placeholder="Top-level area"
+              searchPlaceholder="Search parent area..."
+              options={[
+                { value: '', label: 'Top-level area' },
+                ...orderedAreas.map(area => ({ value: area.id, label: `${'— '.repeat(area.depth || 0)}${area.name}`, searchText: area.name })),
+              ]}
+            />
             <div className="flex items-center gap-1.5">
               {colors.map(item => <button key={item} type="button" aria-label={`Use color ${item}`} onClick={() => setColor(item)} className={cn('h-6 w-6 rounded-full border-2 transition-transform', color === item ? 'scale-110 border-foreground' : 'border-transparent')} style={{ backgroundColor: item }} />)}
               <span className="ml-auto text-[11px] text-muted-foreground">{selectedNodeIds.length} selected</span>
@@ -233,10 +241,18 @@ export function ErdSubjectAreaPanel({
               {(area.depth || 0) > 0 && <div className="mt-1 truncate pl-5 text-[9px] text-muted-foreground">inside {areas.find(item => item.id === area.parent_id)?.name || 'parent area'}</div>}
               {!readOnly && (() => {
                 const blocked = getSubjectAreaDescendantIds(areas, area.id);
-                return <select aria-label={`Parent area for ${area.name}`} value={area.parent_id || ''} disabled={saving} onChange={event => void updateArea(area, { parent_id: event.target.value || null })} className="mt-2 h-7 w-full rounded-md border border-border/60 bg-background px-2 text-[10px]">
-                  <option value="">Top-level area</option>
-                  {orderedAreas.filter(candidate => candidate.id !== area.id && !blocked.has(candidate.id)).map(candidate => <option key={candidate.id} value={candidate.id}>{'— '.repeat(candidate.depth || 0)}{candidate.name}</option>)}
-                </select>;
+                return <SearchableSelect
+                  ariaLabel={`Parent area for ${area.name}`}
+                  value={area.parent_id || ''}
+                  disabled={saving}
+                  onValueChange={value => void updateArea(area, { parent_id: value || null })}
+                  className="mt-2 h-7 text-[10px]"
+                  searchPlaceholder="Search parent area..."
+                  options={[
+                    { value: '', label: 'Top-level area' },
+                    ...orderedAreas.filter(candidate => candidate.id !== area.id && !blocked.has(candidate.id)).map(candidate => ({ value: candidate.id, label: `${'— '.repeat(candidate.depth || 0)}${candidate.name}`, searchText: candidate.name })),
+                  ]}
+                />;
               })()}
               <div className="mt-2 flex flex-wrap gap-1">
                 <Button size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={() => applyArea(area)}>Open</Button>

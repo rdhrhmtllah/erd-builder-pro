@@ -4,6 +4,7 @@ import { useReactFlow } from '@xyflow/react';
 import { AlertTriangle, CheckCircle2, Clipboard, Radar, Route, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { SearchableSelect } from '@/components/ui/select';
 import type { Entity } from '@/types';
 import {
   analyzeErdImpact,
@@ -154,25 +155,18 @@ export function ErdImpactAnalysisPanel({ nodes, edges, selectedNodeIds, onClose,
         <section className="grid grid-cols-2 gap-2">
           <label className="space-y-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Table
-            <select value={tableId} onChange={event => setTableId(event.target.value)} className="h-9 w-full rounded-md border border-border bg-muted/30 px-2 text-xs font-normal normal-case text-foreground outline-none focus:border-primary">
-              {sortedNodes.map(node => <option key={node.id} value={node.id}>{node.data.name}</option>)}
-            </select>
+            <SearchableSelect value={tableId} onValueChange={setTableId} className="h-9 text-xs font-normal normal-case" searchPlaceholder="Search table..." options={sortedNodes.map(node => ({ value: node.id, label: node.data.name }))} />
           </label>
           <label className="space-y-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Change
-            <select value={operation} onChange={event => setOperation(event.target.value as ErdImpactOperation)} className="h-9 w-full rounded-md border border-border bg-muted/30 px-2 text-xs font-normal normal-case text-foreground outline-none focus:border-primary">
-              {operations.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
+            <SearchableSelect value={operation} onValueChange={value => setOperation(value as ErdImpactOperation)} className="h-9 text-xs font-normal normal-case" searchPlaceholder="Search change..." options={operations.map(item => ({ value: item.value, label: item.label, searchText: `${item.label} ${item.description}` }))} />
           </label>
         </section>
         <p className="-mt-2 text-[10px] text-muted-foreground">{operations.find(item => item.value === operation)?.description}</p>
         {requiresColumn && (
           <label className="block space-y-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Column
-            <select value={columnId} onChange={event => setColumnId(event.target.value)} disabled={!sortedColumns.length} className="h-9 w-full rounded-md border border-border bg-muted/30 px-2 text-xs font-normal normal-case text-foreground outline-none focus:border-primary disabled:opacity-50">
-              {!sortedColumns.length && <option value="">No columns</option>}
-              {sortedColumns.map(column => <option key={column.id} value={column.id}>{column.name} · {column.type}</option>)}
-            </select>
+            <SearchableSelect value={columnId} onValueChange={setColumnId} disabled={!sortedColumns.length} className="h-9 text-xs font-normal normal-case" searchPlaceholder="Search column..." options={sortedColumns.length ? sortedColumns.map(column => ({ value: column.id, label: `${column.name} · ${column.type}` })) : [{ value: '', label: 'No columns' }]} />
           </label>
         )}
 
