@@ -10,7 +10,8 @@ const TRACK_GAP = 220;
 const MAX_TRACK_HEIGHT = 1900;
 const COMPONENT_GAP = 240;
 const ROUTE_CLEARANCE = 36;
-const ROUTE_LANE_GAP = 44;
+const EDGE_STUB = 28;
+const EDGE_LANE_STEP = 22;
 
 const HEADER_H = 44;
 const ROW_H = 36;
@@ -355,6 +356,46 @@ function layoutConnected(
     }
   }
 
+  // Barycentric ordering is fast but can stop at a locally ambiguous order.
+  // Deterministic adjacent transpositions remove the remaining crossings
+  // between each pair of ranks without destabilising the whole diagram.
+  const crossingsForLayer = (rank: number, order: string[]): number => {
+    const currentOrder = new Map(order.map((id, index) => [id, index]));
+    let crossings = 0;
+    for (let otherRank = 0; otherRank <= maxRank; otherRank += 1) {
+      if (otherRank === rank) continue;
+      const otherOrder = new Map((layers.get(otherRank) || []).map((id, index) => [id, index]));
+      const links = validEdges.flatMap(edge => {
+        const sourceRank = rankOf.get(edge.source);
+        const targetRank = rankOf.get(edge.target);
+        if (sourceRank === rank && targetRank === otherRank) return [{ current: edge.source, other: edge.target }];
+        if (targetRank === rank && sourceRank === otherRank) return [{ current: edge.target, other: edge.source }];
+        return [];
+      });
+      for (let left = 0; left < links.length; left += 1) {
+        for (let right = left + 1; right < links.length; right += 1) {
+          const currentDelta = (currentOrder.get(links[left].current) || 0) - (currentOrder.get(links[right].current) || 0);
+          const otherDelta = (otherOrder.get(links[left].other) || 0) - (otherOrder.get(links[right].other) || 0);
+          if (currentDelta * otherDelta < 0) crossings += 1;
+        }
+      }
+    }
+    return crossings;
+  };
+  for (let pass = 0; pass < 4; pass += 1) {
+    for (let rank = 0; rank <= maxRank; rank += 1) {
+      const current = [...(layers.get(rank) || [])];
+      let score = crossingsForLayer(rank, current);
+      for (let index = 0; index < current.length - 1; index += 1) {
+        [current[index], current[index + 1]] = [current[index + 1], current[index]];
+        const nextScore = crossingsForLayer(rank, current);
+        if (nextScore < score) score = nextScore;
+        else [current[index], current[index + 1]] = [current[index + 1], current[index]];
+      }
+      layers.set(rank, current);
+    }
+  }
+
   const tracksByRank = new Map<number, string[][]>();
   for (let rank = 0; rank <= maxRank; rank += 1) {
     const idsInLayer = layers.get(rank) || [];
@@ -399,7 +440,13 @@ function layoutConnected(
       trackEntries.push({ rank, track, ids: trackIds, width, height: layerHeight(trackIds, nodesById), x: trackX });
       trackX += width + TRACK_GAP;
     });
-    rankX = trackX - TRACK_GAP + HORIZONTAL_GAP;
+    const corridorEdgeCount = validEdges.filter(edge => {
+      const sourceRank = rankOf.get(edge.source) || 0;
+      const targetRank = rankOf.get(edge.target) || 0;
+      return Math.min(sourceRank, targetRank) === rank && Math.max(sourceRank, targetRank) === rank + 1;
+    }).length;
+    const routingGap = Math.max(HORIZONTAL_GAP, Math.min(620, 150 + corridorEdgeCount * EDGE_LANE_STEP));
+    rankX = trackX - TRACK_GAP + routingGap;
   }
 
   const maxHeight = Math.max(...trackEntries.map(entry => entry.height), 0);
@@ -585,16 +632,245 @@ export function autoLayoutERD(
     : layoutByComponent(result, validEdges, nodesById);
 }
 
+type RoutePoint = { x: number; y: number };
+type RouteSegment = { from: RoutePoint; to: RoutePoint };
+type RouteRect = { left: number; right: number; top: number; bottom: number };
+type CachedEdgeRoute = Pick<Edge, 'sourceHandle' | 'targetHandle'> & { data: Record<string, unknown> };
+const edgeRouteCache = new Map<string, Map<string, CachedEdgeRoute>>();
+
+function routePointKey(point: RoutePoint): string {
+  return `${point.x}:${point.y}`;
+}
+
+function routeDirection(from: RoutePoint, to: RoutePoint): 'h' | 'v' {
+  return from.y === to.y ? 'h' : 'v';
+}
+
+function routeSegmentBlocked(from: RoutePoint, to: RoutePoint, obstacles: RouteRect[]): boolean {
+  if (from.y === to.y) {
+    const left = Math.min(from.x, to.x);
+    const right = Math.max(from.x, to.x);
+    return obstacles.some(rect => from.y > rect.top && from.y < rect.bottom
+      && right > rect.left && left < rect.right);
+  }
+  const top = Math.min(from.y, to.y);
+  const bottom = Math.max(from.y, to.y);
+  return obstacles.some(rect => from.x > rect.left && from.x < rect.right
+    && bottom > rect.top && top < rect.bottom);
+}
+
+function routeConflictCost(candidate: RouteSegment, occupied: RouteSegment[]): number {
+  const candidateDirection = routeDirection(candidate.from, candidate.to);
+  let cost = 0;
+  for (const segment of occupied) {
+    const direction = routeDirection(segment.from, segment.to);
+    if (candidateDirection === direction) {
+      const sameLane = candidateDirection === 'h'
+        ? Math.abs(candidate.from.y - segment.from.y) < 1
+        : Math.abs(candidate.from.x - segment.from.x) < 1;
+      if (!sameLane) continue;
+      const a1 = candidateDirection === 'h' ? candidate.from.x : candidate.from.y;
+      const a2 = candidateDirection === 'h' ? candidate.to.x : candidate.to.y;
+      const b1 = candidateDirection === 'h' ? segment.from.x : segment.from.y;
+      const b2 = candidateDirection === 'h' ? segment.to.x : segment.to.y;
+      const overlap = Math.min(Math.max(a1, a2), Math.max(b1, b2))
+        - Math.max(Math.min(a1, a2), Math.min(b1, b2));
+      if (overlap > 1) cost += 3200 + overlap * 14;
+      continue;
+    }
+
+    const horizontal = candidateDirection === 'h' ? candidate : segment;
+    const vertical = candidateDirection === 'v' ? candidate : segment;
+    const crossingX = vertical.from.x;
+    const crossingY = horizontal.from.y;
+    const insideHorizontal = crossingX > Math.min(horizontal.from.x, horizontal.to.x) + 1
+      && crossingX < Math.max(horizontal.from.x, horizontal.to.x) - 1;
+    const insideVertical = crossingY > Math.min(vertical.from.y, vertical.to.y) + 1
+      && crossingY < Math.max(vertical.from.y, vertical.to.y) - 1;
+    if (insideHorizontal && insideVertical) cost += 700;
+  }
+  return cost;
+}
+
+class RouteMinHeap<T> {
+  private values: Array<{ score: number; value: T }> = [];
+
+  push(score: number, value: T) {
+    this.values.push({ score, value });
+    let index = this.values.length - 1;
+    while (index > 0) {
+      const parent = Math.floor((index - 1) / 2);
+      if (this.values[parent].score <= score) break;
+      this.values[index] = this.values[parent];
+      index = parent;
+    }
+    this.values[index] = { score, value };
+  }
+
+  pop(): { score: number; value: T } | undefined {
+    const root = this.values[0];
+    const tail = this.values.pop();
+    if (!tail || this.values.length === 0) return root;
+    let index = 0;
+    while (true) {
+      const left = index * 2 + 1;
+      const right = left + 1;
+      if (left >= this.values.length) break;
+      const child = right < this.values.length && this.values[right].score < this.values[left].score ? right : left;
+      if (this.values[child].score >= tail.score) break;
+      this.values[index] = this.values[child];
+      index = child;
+    }
+    this.values[index] = tail;
+    return root;
+  }
+
+  get size() { return this.values.length; }
+}
+
+function simplifyRoute(points: RoutePoint[]): RoutePoint[] {
+  const result: RoutePoint[] = [];
+  for (const point of points) {
+    const previous = result[result.length - 1];
+    if (previous && previous.x === point.x && previous.y === point.y) continue;
+    result.push(point);
+    while (result.length >= 3) {
+      const a = result[result.length - 3];
+      const b = result[result.length - 2];
+      const c = result[result.length - 1];
+      if ((a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y)) result.splice(result.length - 2, 1);
+      else break;
+    }
+  }
+  return result;
+}
+
+function routeOrthogonally(
+  start: RoutePoint,
+  end: RoutePoint,
+  obstacles: RouteRect[],
+  occupied: RouteSegment[],
+  routingGuides: RouteRect[] = obstacles,
+): RoutePoint[] {
+  const xs = new Set<number>([start.x, end.x]);
+  const ys = new Set<number>([start.y, end.y]);
+  for (const rect of routingGuides) {
+    xs.add(rect.left); xs.add(rect.right);
+    ys.add(rect.top); ys.add(rect.bottom);
+  }
+  const middleX = Math.round((start.x + end.x) / 2);
+  const middleY = Math.round((start.y + end.y) / 2);
+  for (let lane = -4; lane <= 4; lane += 1) {
+    xs.add(middleX + lane * EDGE_LANE_STEP);
+    ys.add(middleY + lane * EDGE_LANE_STEP);
+  }
+
+  const sortedX = [...xs].sort((a, b) => a - b);
+  const sortedY = [...ys].sort((a, b) => a - b);
+  const points: RoutePoint[] = [];
+  const indexByKey = new Map<string, number>();
+  for (const x of sortedX) {
+    for (const y of sortedY) {
+      const point = { x, y };
+      const blocked = obstacles.some(rect => x > rect.left && x < rect.right && y > rect.top && y < rect.bottom);
+      if (blocked) continue;
+      indexByKey.set(routePointKey(point), points.length);
+      points.push(point);
+    }
+  }
+
+  const neighbours = new Map<number, number[]>();
+  const connectLine = (line: RoutePoint[]) => {
+    for (let index = 1; index < line.length; index += 1) {
+      const from = line[index - 1];
+      const to = line[index];
+      if (routeSegmentBlocked(from, to, obstacles)) continue;
+      const fromIndex = indexByKey.get(routePointKey(from))!;
+      const toIndex = indexByKey.get(routePointKey(to))!;
+      neighbours.set(fromIndex, [...(neighbours.get(fromIndex) || []), toIndex]);
+      neighbours.set(toIndex, [...(neighbours.get(toIndex) || []), fromIndex]);
+    }
+  };
+  for (const y of sortedY) connectLine(sortedX.map(x => ({ x, y })).filter(point => indexByKey.has(routePointKey(point))));
+  for (const x of sortedX) connectLine(sortedY.map(y => ({ x, y })).filter(point => indexByKey.has(routePointKey(point))));
+
+  const startIndex = indexByKey.get(routePointKey(start));
+  const endIndex = indexByKey.get(routePointKey(end));
+  if (startIndex === undefined || endIndex === undefined) return [start, { x: start.x, y: end.y }, end];
+
+  type State = { point: number; direction: 'h' | 'v' | 'n'; cost: number };
+  const heap = new RouteMinHeap<State>();
+  const distances = new Map<string, number>();
+  const previous = new Map<string, string>();
+  const conflictCosts = new Map<string, number>();
+  const stateKey = (state: State) => `${state.point}:${state.direction}`;
+  const heuristic = (point: RoutePoint) => Math.abs(point.x - end.x) + Math.abs(point.y - end.y);
+  const initial: State = { point: startIndex, direction: 'n', cost: 0 };
+  distances.set(stateKey(initial), 0);
+  heap.push(heuristic(start), initial);
+  let finalKey: string | null = null;
+
+  while (heap.size) {
+    const entry = heap.pop()!;
+    const key = stateKey(entry.value);
+    const distance = distances.get(key);
+    if (distance === undefined || entry.value.cost > distance) continue;
+    if (entry.value.point === endIndex) { finalKey = key; break; }
+    const from = points[entry.value.point];
+    for (const nextPoint of neighbours.get(entry.value.point) || []) {
+      const to = points[nextPoint];
+      const direction = routeDirection(from, to);
+      const length = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
+      const bend = entry.value.direction !== 'n' && entry.value.direction !== direction ? 72 : 0;
+      const segmentKey = entry.value.point < nextPoint
+        ? `${entry.value.point}:${nextPoint}`
+        : `${nextPoint}:${entry.value.point}`;
+      let conflictCost = conflictCosts.get(segmentKey);
+      if (conflictCost === undefined) {
+        conflictCost = routeConflictCost({ from, to }, occupied);
+        conflictCosts.set(segmentKey, conflictCost);
+      }
+      const nextDistance = distance + length + bend + conflictCost;
+      const next: State = { point: nextPoint, direction, cost: nextDistance };
+      const nextKey = stateKey(next);
+      if (nextDistance >= (distances.get(nextKey) ?? Number.POSITIVE_INFINITY)) continue;
+      distances.set(nextKey, nextDistance);
+      previous.set(nextKey, key);
+      heap.push(nextDistance + heuristic(to), next);
+    }
+  }
+
+  if (!finalKey) return [start, { x: start.x, y: end.y }, end];
+  const route: RoutePoint[] = [];
+  let key: string | undefined = finalKey;
+  while (key) {
+    route.push(points[Number(key.split(':')[0])]);
+    key = previous.get(key);
+  }
+  return simplifyRoute(route.reverse());
+}
+
 /** Recalculate left/right row handles after a layout changes relative X order. */
 export function syncERDEdgeHandles(
   nodes: Node<Entity>[],
   edges: Edge[],
 ): Edge[] {
   const nodesById = new Map(nodes.map(node => [node.id, node]));
-  const componentIds = weakComponents(nodes.map(node => node.id), edges);
-  const componentByNode = new Map<string, string[]>();
-  componentIds.forEach(ids => ids.forEach(id => componentByNode.set(id, ids)));
-  const usedLongRouteYs: number[] = [];
+  const cacheKey = [
+    ...nodes.map(node => `${node.id}:${node.position.x}:${node.position.y}:${footprint(node).width}:${footprint(node).height}`).sort(),
+    '|',
+    ...edges.map(edge => `${edge.id}:${edge.source}:${edge.target}:${columnIdFromHandle(edge.sourceHandle)}:${columnIdFromHandle(edge.targetHandle)}`).sort(),
+  ].join(';');
+  const cachedRoutes = edgeRouteCache.get(cacheKey);
+  if (cachedRoutes) {
+    return edges.map(edge => {
+      const cached = cachedRoutes.get(edge.id);
+      if (!cached) return edge;
+      const data = { ...(edge.data || {}) } as Record<string, unknown>;
+      delete data.layoutRouteX; delete data.layoutRouteY; delete data.layoutPoints;
+      return { ...edge, sourceHandle: cached.sourceHandle, targetHandle: cached.targetHandle, data: { ...data, ...cached.data } };
+    });
+  }
 
   const handledEdges = edges.map(edge => {
     const source = nodesById.get(edge.source);
@@ -604,6 +880,13 @@ export function syncERDEdgeHandles(
     if (!source || !target || !sourceColumn || !targetColumn) return edge;
 
     if (edge.source === edge.target) {
+      return {
+        ...edge,
+        sourceHandle: `col-${sourceColumn}-source`,
+        targetHandle: `col-${targetColumn}-target-r`,
+      };
+    }
+    if (Math.abs(source.position.x - target.position.x) < 2) {
       return {
         ...edge,
         sourceHandle: `col-${sourceColumn}-source`,
@@ -621,110 +904,74 @@ export function syncERDEdgeHandles(
     };
   });
 
-  // Allocate a separate vertical lane to every relationship in a corridor.
-  // Lines may share their final short segment at a PK, but never the long
-  // middle segment where they need to be visually traceable.
-  const corridorGroups = new Map<string, Edge[]>();
-  for (const edge of handledEdges) {
+  const obstacleByNode = new Map(nodes.map(node => [node.id, {
+    left: node.position.x - ROUTE_CLEARANCE,
+    right: node.position.x + footprint(node).width + ROUTE_CLEARANCE,
+    top: node.position.y - ROUTE_CLEARANCE,
+    bottom: node.position.y + footprint(node).height + ROUTE_CLEARANCE,
+  }]));
+  const occupied: RouteSegment[] = [];
+  const routedById = new Map<string, Edge>();
+  const orderedEdges = [...handledEdges].sort((a, b) => {
+    const span = (edge: Edge) => {
+      const source = nodesById.get(edge.source);
+      const target = nodesById.get(edge.target);
+      if (!source || !target) return Number.POSITIVE_INFINITY;
+      return Math.abs(source.position.x - target.position.x) + Math.abs(source.position.y - target.position.y);
+    };
+    return span(a) - span(b) || a.id.localeCompare(b.id);
+  });
+
+  for (const edge of orderedEdges) {
     const source = nodesById.get(edge.source);
     const target = nodesById.get(edge.target);
-    if (!source || !target || source.id === target.id) continue;
-    const leftX = Math.min(source.position.x, target.position.x);
-    const rightX = Math.max(source.position.x, target.position.x);
-    const hasIntermediateColumn = nodes.some(node =>
-      node.id !== source.id
-      && node.id !== target.id
-      && node.position.x > leftX + 1
-      && node.position.x < rightX - 1,
-    );
-    if (hasIntermediateColumn) continue;
-    const key = `${Math.round(leftX)}:${Math.round(rightX)}`;
-    corridorGroups.set(key, [...(corridorGroups.get(key) || []), edge]);
-  }
-
-  const routeXByEdge = new Map<string, number>();
-  for (const [key, corridorEdges] of corridorGroups) {
-    const [leftX, rightX] = key.split(':').map(Number);
-    const leftBoundary = Math.max(
-      ...nodes.filter(node => Math.abs(node.position.x - leftX) < 2)
-        .map(node => node.position.x + footprint(node).width),
-    );
-    const available = rightX - leftBoundary;
-    if (available < 100) continue;
-    const sorted = [...corridorEdges].sort((a, b) => {
-      const anchorAverage = (edge: Edge) => {
-        const source = nodesById.get(edge.source)!;
-        const target = nodesById.get(edge.target)!;
-        return (source.position.y + columnAnchorOffset(source, edge.sourceHandle)
-          + target.position.y + columnAnchorOffset(target, edge.targetHandle)) / 2;
-      };
-      return anchorAverage(a) - anchorAverage(b) || a.id.localeCompare(b.id);
-    });
-    sorted.forEach((edge, index) => {
-      routeXByEdge.set(edge.id, leftBoundary + available * (index + 1) / (sorted.length + 1));
-    });
-  }
-
-  return handledEdges.map(edge => {
-    const source = nodesById.get(edge.source);
-    const target = nodesById.get(edge.target);
-    if (!source || !target) return edge;
+    if (!source || !target) { routedById.set(edge.id, edge); continue; }
     const nextData = { ...(edge.data || {}) } as Record<string, unknown>;
     delete nextData.layoutRouteX;
     delete nextData.layoutRouteY;
+    delete nextData.layoutPoints;
 
     if (source.id === target.id) {
       nextData.layoutRouteX = source.position.x + footprint(source).width + 90;
-      return { ...edge, data: nextData };
+      routedById.set(edge.id, { ...edge, data: nextData });
+      continue;
     }
 
-    const minEndpointX = Math.min(source.position.x, target.position.x);
-    const maxEndpointX = Math.max(source.position.x, target.position.x);
-    const component = componentByNode.get(source.id) || [source.id, target.id];
-    const intermediateNodes = component
-      .map(id => nodesById.get(id))
-      .filter((node): node is Node<Entity> => Boolean(node) && node!.id !== source.id && node!.id !== target.id)
-      .filter(node => node.position.x > minEndpointX + 1 && node.position.x < maxEndpointX - 1);
-
-    let layoutRouteY: number | undefined;
-    if (intermediateNodes.length) {
-      const sourceAnchorY = source.position.y + columnAnchorOffset(source, edge.sourceHandle);
-      const targetAnchorY = target.position.y + columnAnchorOffset(target, edge.targetHandle);
-      const midpoint = (sourceAnchorY + targetAnchorY) / 2;
-      const blockedIntervals = intermediateNodes.map(node => ({
-        min: node.position.y - ROUTE_CLEARANCE,
-        max: node.position.y + footprint(node).height + ROUTE_CLEARANCE,
-      }));
-      const candidates = [
-        sourceAnchorY,
-        targetAnchorY,
-        midpoint,
-        ...blockedIntervals.flatMap(interval => [interval.min, interval.max]),
-      ].sort((a, b) => {
-        const score = (value: number) => Math.abs(value - sourceAnchorY)
-          + Math.abs(value - targetAnchorY)
-          + Math.abs(value - midpoint) * 0.2;
-        return score(a) - score(b);
-      });
-      const isFree = (value: number) => blockedIntervals.every(interval => value <= interval.min || value >= interval.max)
-        && usedLongRouteYs.every(used => Math.abs(value - used) >= ROUTE_LANE_GAP);
-      layoutRouteY = candidates.find(isFree);
-      if (layoutRouteY === undefined) {
-        layoutRouteY = Math.min(...blockedIntervals.map(interval => interval.min)) - ROUTE_LANE_GAP;
-        while (!isFree(layoutRouteY)) layoutRouteY -= ROUTE_LANE_GAP;
-      }
-      usedLongRouteYs.push(layoutRouteY);
-    }
-
-    if (layoutRouteY !== undefined) nextData.layoutRouteY = layoutRouteY;
-    else {
-      const layoutRouteX = routeXByEdge.get(edge.id);
-      if (layoutRouteX !== undefined) nextData.layoutRouteX = layoutRouteX;
-    }
-
-    return {
-      ...edge,
-      data: nextData,
+    const sourceOnRight = !String(edge.sourceHandle || '').endsWith('-l');
+    const targetOnRight = String(edge.targetHandle || '').endsWith('-r');
+    const sourceAnchor = {
+      x: sourceOnRight ? source.position.x + footprint(source).width : source.position.x,
+      y: source.position.y + columnAnchorOffset(source, edge.sourceHandle),
     };
-  });
+    const targetAnchor = {
+      x: targetOnRight ? target.position.x + footprint(target).width : target.position.x,
+      y: target.position.y + columnAnchorOffset(target, edge.targetHandle),
+    };
+    const sourceStub = { x: sourceAnchor.x + (sourceOnRight ? EDGE_STUB + ROUTE_CLEARANCE : -EDGE_STUB - ROUTE_CLEARANCE), y: sourceAnchor.y };
+    const targetStub = { x: targetAnchor.x + (targetOnRight ? EDGE_STUB + ROUTE_CLEARANCE : -EDGE_STUB - ROUTE_CLEARANCE), y: targetAnchor.y };
+    const minRouteX = Math.min(sourceStub.x, targetStub.x) - HORIZONTAL_GAP * 2;
+    const maxRouteX = Math.max(sourceStub.x, targetStub.x) + HORIZONTAL_GAP * 2;
+    const obstacles = [...obstacleByNode.values()];
+    const routingGuides = obstacles.filter(rect => rect.right >= minRouteX && rect.left <= maxRouteX);
+    const middle = routeOrthogonally(sourceStub, targetStub, obstacles, occupied, routingGuides);
+    const fullRoute = simplifyRoute([sourceAnchor, sourceStub, ...middle, targetStub, targetAnchor]);
+    nextData.layoutPoints = fullRoute.slice(1, -1);
+
+    for (let index = 1; index < fullRoute.length; index += 1) {
+      const segment = { from: fullRoute[index - 1], to: fullRoute[index] };
+      if (Math.abs(segment.from.x - segment.to.x) + Math.abs(segment.from.y - segment.to.y) > EDGE_STUB * 1.5) occupied.push(segment);
+    }
+    routedById.set(edge.id, { ...edge, data: nextData });
+  }
+
+  const result = handledEdges.map(edge => routedById.get(edge.id) || edge);
+  edgeRouteCache.set(cacheKey, new Map(result.map(edge => {
+    const data: Record<string, unknown> = {};
+    if (edge.data?.layoutRouteX !== undefined) data.layoutRouteX = edge.data.layoutRouteX;
+    if (edge.data?.layoutRouteY !== undefined) data.layoutRouteY = edge.data.layoutRouteY;
+    if (edge.data?.layoutPoints !== undefined) data.layoutPoints = edge.data.layoutPoints;
+    return [edge.id, { sourceHandle: edge.sourceHandle, targetHandle: edge.targetHandle, data }];
+  })));
+  if (edgeRouteCache.size > 6) edgeRouteCache.delete(edgeRouteCache.keys().next().value!);
+  return result;
 }

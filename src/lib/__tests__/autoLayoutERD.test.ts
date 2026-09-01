@@ -46,6 +46,33 @@ function makeEdge(
   };
 }
 
+type Point = { x: number; y: number };
+
+function edgeRoute(edge: Edge, nodes: Node<Entity>[]): Point[] {
+  const source = nodes.find(node => node.id === edge.source)!;
+  const target = nodes.find(node => node.id === edge.target)!;
+  const sourceRight = !String(edge.sourceHandle || '').endsWith('-l');
+  const targetRight = String(edge.targetHandle || '').endsWith('-r');
+  const anchorY = (node: Node<Entity>) => node.position.y + 44 + 18;
+  return [
+    { x: source.position.x + (sourceRight ? (source.measured?.width || 220) : 0), y: anchorY(source) },
+    ...((edge.data?.layoutPoints || []) as Point[]),
+    { x: target.position.x + (targetRight ? (target.measured?.width || 220) : 0), y: anchorY(target) },
+  ];
+}
+
+function segmentIntersectsCard(a: Point, b: Point, node: Node<Entity>): boolean {
+  const left = node.position.x;
+  const right = left + (node.measured?.width || 220);
+  const top = node.position.y;
+  const bottom = top + (node.measured?.height || 120);
+  if (a.y === b.y) return a.y > top && a.y < bottom
+    && Math.max(a.x, b.x) > left && Math.min(a.x, b.x) < right;
+  if (a.x === b.x) return a.x > left && a.x < right
+    && Math.max(a.y, b.y) > top && Math.min(a.y, b.y) < bottom;
+  return true;
+}
+
 describe('autoLayoutERD', () => {
   it('returns empty array when no nodes given', () => {
     const result = autoLayoutERD([], []);
@@ -254,8 +281,60 @@ describe('autoLayoutERD', () => {
     const positioned = autoLayoutERD(nodes, edges);
     const result = syncERDEdgeHandles(positioned, edges);
 
-    expect(result[0].data?.layoutRouteX).toEqual(expect.any(Number));
-    expect(result[1].data?.layoutRouteX).toEqual(expect.any(Number));
-    expect(result[0].data?.layoutRouteX).not.toBe(result[1].data?.layoutRouteX);
+    expect(result[0].data?.layoutPoints).toEqual(expect.any(Array));
+    expect(result[1].data?.layoutPoints).toEqual(expect.any(Array));
+    expect(result[0].data?.layoutPoints).not.toEqual(result[1].data?.layoutPoints);
+  });
+
+  it('routes a long relationship around an intervening table card', () => {
+    const nodes = [
+      { ...makeNode('parent', 'parent', [{ name: 'id' }]), position: { x: 50, y: 50 }, measured: { width: 220, height: 120 } },
+      { ...makeNode('blocker', 'blocker', [{ name: 'id' }]), position: { x: 400, y: 50 }, measured: { width: 220, height: 120 } },
+      { ...makeNode('child', 'child', [{ name: 'parent_id' }]), position: { x: 800, y: 50 }, measured: { width: 220, height: 120 } },
+    ];
+    const routed = syncERDEdgeHandles(nodes, [makeEdge('child', 'parent')]);
+    const points = edgeRoute(routed[0], nodes);
+
+    expect(points.length).toBeGreaterThan(4);
+    for (let index = 1; index < points.length; index += 1) {
+      expect(segmentIntersectsCard(points[index - 1], points[index], nodes[1])).toBe(false);
+    }
+  });
+
+  it('keeps every generated waypoint finite and orthogonal in a dense graph', () => {
+    const nodes = Array.from({ length: 24 }, (_, index) => ({
+      ...makeNode(`dense_${index}`, `dense_${index}`, [{ name: 'id' }, { name: 'parent_id' }]),
+      measured: { width: 240, height: 120 },
+    }));
+    const edges = nodes.flatMap((node, index) => {
+      if (index === 0) return [];
+      const result = [makeEdge(node.id, nodes[Math.floor((index - 1) / 2)].id)];
+      if (index > 5 && index % 3 === 0) result.push(makeEdge(node.id, nodes[index % 5].id));
+      return result;
+    }).map((edge, index) => ({ ...edge, id: `dense_edge_${index}` }));
+    const positioned = autoLayoutERD(nodes, edges);
+    const routed = syncERDEdgeHandles(positioned, edges);
+
+    for (const edge of routed) {
+      const points = edgeRoute(edge, positioned);
+      for (const point of points) {
+        expect(Number.isFinite(point.x)).toBe(true);
+        expect(Number.isFinite(point.y)).toBe(true);
+      }
+      for (let index = 1; index < points.length; index += 1) {
+        expect(points[index - 1].x === points[index].x || points[index - 1].y === points[index].y).toBe(true);
+      }
+    }
+  });
+
+  it('reuses geometry routes without dropping updated relationship metadata', () => {
+    const nodes = [makeNode('cache_parent', 'cache_parent'), makeNode('cache_child', 'cache_child')];
+    const positioned = autoLayoutERD(nodes, [makeEdge('cache_child', 'cache_parent')]);
+    const first = syncERDEdgeHandles(positioned, [makeEdge('cache_child', 'cache_parent')]);
+    const secondInput = [{ ...makeEdge('cache_child', 'cache_parent'), data: { constraintName: 'fk_cache' } }];
+    const second = syncERDEdgeHandles(positioned, secondInput);
+
+    expect(second[0].data?.layoutPoints).toEqual(first[0].data?.layoutPoints);
+    expect(second[0].data?.constraintName).toBe('fk_cache');
   });
 });

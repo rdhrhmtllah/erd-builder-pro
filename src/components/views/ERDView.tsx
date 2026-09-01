@@ -91,7 +91,12 @@ const ReadableRelationEdge = React.memo((props: EdgeProps) => {
   } = props;
   const routeY = typeof data?.layoutRouteY === 'number' ? data.layoutRouteY : null;
   const routeX = typeof data?.layoutRouteX === 'number' ? data.layoutRouteX : null;
-  const path = routeY === null && routeX === null
+  const layoutPoints = Array.isArray(data?.layoutPoints)
+    ? data.layoutPoints.filter((point: any) => Number.isFinite(point?.x) && Number.isFinite(point?.y))
+    : [];
+  const path = layoutPoints.length
+    ? [`M ${sourceX} ${sourceY}`, ...layoutPoints.map((point: any) => `L ${point.x} ${point.y}`), `L ${targetX} ${targetY}`].join(' ')
+    : routeY === null && routeX === null
     ? getSmoothStepPath({
       sourceX,
       sourceY,
@@ -463,7 +468,9 @@ const ERDViewComponent = ({
   const styledEdges = React.useMemo(() => {
     const hasSelection = allSelectedIds.length > 0;
     const areaEdgesById = new Map(subjectAreaLayout?.edges.map(edge => [edge.id, edge]) || []);
-    const readableEdges = syncERDEdgeHandles(nodes, edges).map(edge => areaEdgesById.get(edge.id) || edge);
+    // Route against the positions actually rendered on screen. Perspective and
+    // Subject Area views can move cards without changing canonical positions.
+    const readableEdges = syncERDEdgeHandles(styledNodes, edges).map(edge => areaEdgesById.get(edge.id) || edge);
 
     return readableEdges.map(edge => {
       const isConnectedToSelected = hasSelection && allSelectedIds.some(
@@ -488,6 +495,7 @@ const ERDViewComponent = ({
         hidden: subjectAreaVisibility ? !subjectAreaVisibility.visibleEdgeIds.has(edge.id) : perspectiveHidden || !!edge.hidden,
         data: {
           ...edge.data,
+          layoutPoints: route?.cross_section ? undefined : edge.data?.layoutPoints,
           layoutRouteX: route?.cross_section && route.axis === 'x' ? route.value : undefined,
           layoutRouteY: route?.cross_section && route.axis === 'y' ? route.value : undefined,
         },
@@ -540,7 +548,7 @@ const ERDViewComponent = ({
       if (baseEdge.className === newClassName) return baseEdge;
       return { ...baseEdge, className: newClassName };
     });
-  }, [nodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, subjectAreaVisibility, activePerspective, perspectiveLayout, subjectAreaLayout]);
+  }, [styledNodes, edges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, subjectAreaVisibility, activePerspective, perspectiveLayout, subjectAreaLayout]);
 
   const perspectiveSectionNodes = React.useMemo(() => perspectiveLayout?.sections.map(section => ({
     id: `perspective-section:${section.id}`,
