@@ -31,7 +31,8 @@ router.delete("/upload", authenticate, validate(deleteUploadSchema), ctrl.delete
 
 // ── Private storage access endpoints ──
 // Proxy streaming: works for same-origin & cross-origin (via ?token= query param)
-router.get("/serve/:key(*)", authenticate, ctrl.serveFile);
+// Express 4 and 5 both accept this regex route for storage keys containing slashes.
+router.get(/^\/serve\/(.+)$/, authenticate, ctrl.serveFile);
 // On-demand pre-signed URL generation
 router.post("/signed-urls", authenticate, ctrl.getSignedUrls);
 
