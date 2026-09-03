@@ -221,7 +221,7 @@ app.use((_req, res, next) => {
 // Structured request logging (via Pino)
 app.use(httpLogger);
 
-app.use("/api/*", (req, res, next) => {
+app.use(/^\/api(?:\/.*)?$/, (req, res, next) => {
   const path = req.originalUrl.split("?")[0];
   if (["/api/auth-config", "/api/login", "/api/logout", "/api/me"].includes(path)) {
     return next();

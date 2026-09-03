@@ -190,7 +190,7 @@ if (isProd) {
   if (fs.existsSync(distPath)) {
     console.log(`Serving static files from: ${distPath}`);
     app.use(express.static(distPath, { index: false }));
-    app.get("*", (req, res, next) => {
+    app.get(/^(?!\/api(?:\/|$)).*$/, (req, res, next) => {
       // Only serve index.html for HTML requests (not API calls)
       if (req.path.startsWith("/api/")) return next();
       // Also skip requests that already got served as static files
