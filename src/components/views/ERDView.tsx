@@ -39,6 +39,7 @@ import { autoLayoutERD, syncERDEdgeHandles } from '@/lib/autoLayoutERD';
 import { ErdRelationExplorer, type ErdExplorerSelection } from '@/components/diagram/ErdRelationExplorer';
 import { ErdSubjectAreaPanel } from '@/components/diagram/ErdSubjectAreaPanel';
 import { ErdOrganizerPanel } from '@/components/diagram/ErdOrganizerPanel';
+import { ErdTemplatePanel } from '@/components/diagram/ErdTemplatePanel';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 import { ErdPerspectivePanel, type ErdPerspective } from '@/components/diagram/ErdPerspectivePanel';
 import { PerspectiveSectionNode } from '@/components/diagram/PerspectiveSectionNode';
@@ -301,6 +302,7 @@ const ERDViewComponent = ({
   const [explorerSelection, setExplorerSelection] = useState<ErdExplorerSelection | null>(null);
   const [subjectAreasOpen, setSubjectAreasOpen] = useState(false);
   const [organizerOpen, setOrganizerOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [activeSubjectArea, setActiveSubjectArea] = useState<ErdSubjectArea | null>(null);
   const [perspectivesOpen, setPerspectivesOpen] = useState(false);
   const [activePerspective, setActivePerspective] = useState<ErdPerspective | null>(null);
@@ -397,6 +399,7 @@ const ERDViewComponent = ({
   React.useEffect(() => {
     setSubjectAreasOpen(false);
     setOrganizerOpen(false);
+    setTemplateOpen(false);
     setActiveSubjectArea(null);
     setPerspectivesOpen(false);
     setActivePerspective(null);
@@ -1016,6 +1019,7 @@ const ERDViewComponent = ({
                   setMigrationSelection(null);
                   setDataDictionaryOpen(false);
                   setGovernanceSelection(null);
+                  setTemplateOpen(false);
                   setOrganizerOpen(open => !open);
                 }}
                 variant={organizerOpen ? 'default' : 'outline'}
@@ -1025,6 +1029,35 @@ const ERDViewComponent = ({
               >
                 <WandSparkles className="w-3.5 h-3.5 sm:mr-1.5" />
                 <span className="hidden sm:inline">Organize</span>
+              </Button>
+            )}
+            {!isReadOnly && !isProductionDb && (
+              <Button
+                onClick={() => {
+                  setExplorerOpen(false);
+                  setExplorerSelection(null);
+                  setSubjectAreasOpen(false);
+                  setActiveSubjectArea(null);
+                  setPerspectivesOpen(false);
+                  setActivePerspective(null);
+                  setSchemaHealthOpen(false);
+                  setSchemaHealthSelection(null);
+                  setImpactAnalysisOpen(false);
+                  setImpactSelection(null);
+                  setMigrationPlannerOpen(false);
+                  setMigrationSelection(null);
+                  setDataDictionaryOpen(false);
+                  setGovernanceSelection(null);
+                  setOrganizerOpen(false);
+                  setTemplateOpen(open => !open);
+                }}
+                variant={templateOpen ? 'default' : 'outline'}
+                size="sm"
+                className="h-9 px-3 text-xs font-semibold cursor-pointer"
+                title="Load a proven ERD design pattern into a reviewable schema preview"
+              >
+                <Database className="w-3.5 h-3.5 sm:mr-1.5" />
+                <span className="hidden sm:inline">Templates</span>
               </Button>
             )}
             <Button
@@ -1038,6 +1071,8 @@ const ERDViewComponent = ({
                 setMigrationSelection(null);
                 setDataDictionaryOpen(false);
                 setGovernanceSelection(null);
+                setOrganizerOpen(false);
+                setTemplateOpen(false);
                 setExplorerOpen(open => {
                   if (open) setExplorerSelection(null);
                   return !open;
@@ -1253,6 +1288,15 @@ const ERDViewComponent = ({
           readOnly={isReadOnly}
           onAutoLayout={onAutoLayout || (() => undefined)}
           onClose={() => setOrganizerOpen(false)}
+        />
+      )}
+      {templateOpen && !pendingDiff && (
+        <ErdTemplatePanel
+          nodes={nodes}
+          edges={edges}
+          readOnly={isReadOnly}
+          onPreview={(previewNodes, previewEdges) => startDiff(nodesRef.current, edgesRef.current, previewNodes, previewEdges)}
+          onClose={() => setTemplateOpen(false)}
         />
       )}
       {explorerOpen && !pendingDiff && (
