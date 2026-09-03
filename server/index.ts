@@ -381,7 +381,7 @@ initAutoBackupScheduler().catch((err) => {
   console.error("Failed to init auto-backup scheduler:", err);
 });
 
-app.use("/api/*", (req, res) => {
+app.use(/^\/api(?:\/.*)?$/, (req, res) => {
   res.status(404).json({ error: `API route not found: ${req.originalUrl}` });
 });
 
