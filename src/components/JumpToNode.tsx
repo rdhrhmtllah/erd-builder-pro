@@ -46,14 +46,23 @@ export function JumpToNode({ nodes, className, label = 'Symbol' }: JumpToNodePro
   const filteredNodes = useMemo(() => {
     const s = search.trim().toLowerCase();
     if (!s) return nodes;
-    
+
     return nodes.filter(node => {
       const data = node.data as Record<string, any>;
-      const name = ((data.name || data.label) || '').toLowerCase();
-      // Simple fuzzy match: starts with or includes
-      return name.includes(s);
+      const name = String((data.name || data.label) || '').toLowerCase();
+      const columns = Array.isArray(data.columns) ? data.columns : [];
+      return name.includes(s) || columns.some((column: any) => String(column.name || '').toLowerCase().includes(s));
     });
   }, [nodes, search]);
+
+  const matchLabel = (node: Node) => {
+    const data = node.data as Record<string, any>;
+    const tableName = String(data.name || data.label || 'Unnamed component');
+    const query = search.trim().toLowerCase();
+    if (!query || tableName.toLowerCase().includes(query)) return tableName;
+    const column = (Array.isArray(data.columns) ? data.columns : []).find((item: any) => String(item.name || '').toLowerCase().includes(query));
+    return column ? `${tableName} · ${column.name}` : tableName;
+  };
 
   const handleJump = (node: Node) => {
     setOpen(false);
@@ -128,7 +137,7 @@ export function JumpToNode({ nodes, className, label = 'Symbol' }: JumpToNodePro
                     className="flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors focus:bg-accent focus:text-accent-foreground rounded-lg mx-1"
                   >
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: (node.data as Record<string, any>).color || '#8b5cf6' }} />
-                    <span className="text-[13px] font-medium truncate tracking-tight">{name}</span>
+                    <span className="text-[13px] font-medium truncate tracking-tight">{matchLabel(node)}</span>
                   </DropdownMenuItem>
                 );
               })

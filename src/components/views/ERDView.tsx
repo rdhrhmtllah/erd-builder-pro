@@ -19,7 +19,7 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck, Radar, GitCompareArrows, BookOpenCheck, Layers3 } from 'lucide-react';
+import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck, Radar, GitCompareArrows, BookOpenCheck, Layers3, WandSparkles } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -38,6 +38,7 @@ import { databaseColumnToERD } from '@/lib/column-metadata';
 import { autoLayoutERD, syncERDEdgeHandles } from '@/lib/autoLayoutERD';
 import { ErdRelationExplorer, type ErdExplorerSelection } from '@/components/diagram/ErdRelationExplorer';
 import { ErdSubjectAreaPanel } from '@/components/diagram/ErdSubjectAreaPanel';
+import { ErdOrganizerPanel } from '@/components/diagram/ErdOrganizerPanel';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 import { ErdPerspectivePanel, type ErdPerspective } from '@/components/diagram/ErdPerspectivePanel';
 import { PerspectiveSectionNode } from '@/components/diagram/PerspectiveSectionNode';
@@ -299,6 +300,7 @@ const ERDViewComponent = ({
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [explorerSelection, setExplorerSelection] = useState<ErdExplorerSelection | null>(null);
   const [subjectAreasOpen, setSubjectAreasOpen] = useState(false);
+  const [organizerOpen, setOrganizerOpen] = useState(false);
   const [activeSubjectArea, setActiveSubjectArea] = useState<ErdSubjectArea | null>(null);
   const [perspectivesOpen, setPerspectivesOpen] = useState(false);
   const [activePerspective, setActivePerspective] = useState<ErdPerspective | null>(null);
@@ -394,6 +396,7 @@ const ERDViewComponent = ({
 
   React.useEffect(() => {
     setSubjectAreasOpen(false);
+    setOrganizerOpen(false);
     setActiveSubjectArea(null);
     setPerspectivesOpen(false);
     setActivePerspective(null);
@@ -996,6 +999,34 @@ const ERDViewComponent = ({
               <LayoutGrid className="w-3.5 h-3.5 sm:mr-1.5" />
               <span className="hidden sm:inline">{activePerspective ? 'Re-layout View' : 'Auto Layout'}</span>
             </Button>
+            {!isReadOnly && !isProductionDb && (
+              <Button
+                onClick={() => {
+                  setExplorerOpen(false);
+                  setExplorerSelection(null);
+                  setSubjectAreasOpen(false);
+                  setActiveSubjectArea(null);
+                  setPerspectivesOpen(false);
+                  setActivePerspective(null);
+                  setSchemaHealthOpen(false);
+                  setSchemaHealthSelection(null);
+                  setImpactAnalysisOpen(false);
+                  setImpactSelection(null);
+                  setMigrationPlannerOpen(false);
+                  setMigrationSelection(null);
+                  setDataDictionaryOpen(false);
+                  setGovernanceSelection(null);
+                  setOrganizerOpen(open => !open);
+                }}
+                variant={organizerOpen ? 'default' : 'outline'}
+                size="sm"
+                className="h-9 px-3 text-xs font-semibold cursor-pointer"
+                title="Analyze and group related tables into saved Subject Areas"
+              >
+                <WandSparkles className="w-3.5 h-3.5 sm:mr-1.5" />
+                <span className="hidden sm:inline">Organize</span>
+              </Button>
+            )}
             <Button
               onClick={() => {
                 setSubjectAreasOpen(false);
@@ -1213,6 +1244,16 @@ const ERDViewComponent = ({
             )}
           </div>
         </div>
+      )}
+      {organizerOpen && activeFileUid && !isPublicView && !isProductionDb && !pendingDiff && (
+        <ErdOrganizerPanel
+          diagramUid={activeFileUid}
+          nodes={nodes}
+          edges={edges}
+          readOnly={isReadOnly}
+          onAutoLayout={onAutoLayout || (() => undefined)}
+          onClose={() => setOrganizerOpen(false)}
+        />
       )}
       {explorerOpen && !pendingDiff && (
         <ErdRelationExplorer
