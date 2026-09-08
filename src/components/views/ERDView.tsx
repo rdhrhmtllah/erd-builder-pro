@@ -43,6 +43,7 @@ import { ErdToolbar, type ErdPanelId } from '@/components/diagram/ErdToolbar';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 import { applyClearSelection, applySelectAllTables, selectionKeyOf } from '@/lib/erd-selection';
 import { CANVAS_GESTURES } from '@/lib/canvas-gestures';
+import { useCanvasPinchZoom } from '@/hooks/useCanvasPinchZoom';
 import { ErdPerspectivePanel, type ErdPerspective } from '@/components/diagram/ErdPerspectivePanel';
 import { PerspectiveSectionNode } from '@/components/diagram/PerspectiveSectionNode';
 import { layoutErdPerspective } from '../../../shared/erd-perspectives';
@@ -399,6 +400,20 @@ const ERDViewComponent = ({
     setActivePerspective(null);
   }, [activeFileUid, handlePanelChange]);
 
+  useCanvasPinchZoom(canvasRef, 0.1, 2.5);
+
+  React.useEffect(() => {
+    const container = canvasRef.current;
+    if (!container || pendingDiff) return;
+    const onDoubleClick = (event: MouseEvent) => {
+      // Only the empty canvas — double-click keeps its edit meaning on a table.
+      if (!(event.target as HTMLElement | null)?.classList.contains('react-flow__pane')) return;
+      void fitView({ duration: 220, padding: 0.2, minZoom: 0.1, maxZoom: 1.25 });
+    };
+    container.addEventListener('dblclick', onDoubleClick);
+    return () => container.removeEventListener('dblclick', onDoubleClick);
+  }, [pendingDiff, fitView]);
+
   const subjectAreaVisibility = React.useMemo(() => activeSubjectArea
     ? getSubjectAreaVisibility(nodes, edges, activeSubjectArea.effective_node_ids || activeSubjectArea.node_ids)
     : null, [activeSubjectArea, nodes, edges]);
@@ -429,11 +444,18 @@ const ERDViewComponent = ({
       if (key === '0') {
         event.preventDefault();
         void fitView({ duration: 220, padding: 0.2, minZoom: 0.1, maxZoom: 1.25 });
+        return;
+      }
+      // duplicateEntity reads the node list it was created with, so duplicating
+      // a multi-selection in a loop would collide on names. Keep it to one.
+      if (key === 'd' && !isReadOnly && allSelectedIds.length === 1) {
+        event.preventDefault();
+        duplicateEntity(allSelectedIds[0]);
       }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [pendingDiff, selectAllTables, fitView]);
+  }, [pendingDiff, selectAllTables, fitView, isReadOnly, allSelectedIds, duplicateEntity]);
 
   // Subject Areas are focused, non-destructive views: their compact layout is
   // calculated only for the tables in the selected area and never overwrites

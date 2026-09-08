@@ -34,6 +34,7 @@ import { SymbolPropertiesModal } from '../flowchart/SymbolPropertiesModal';
 import { ConnectorPropertiesModal } from '../flowchart/ConnectorPropertiesModal';
 import { JumpToNode } from '../JumpToNode';
 import { CANVAS_GESTURES } from '@/lib/canvas-gestures';
+import { useCanvasPinchZoom } from '@/hooks/useCanvasPinchZoom';
 import { useAIAction } from '@/contexts/AIActionContext';
 import { toast } from 'sonner';
 import { applyToFlowchartContent, previewFlowchartContent, applyInsertBetween, applyReplaceAll, clearParseCache, FlowchartApplyResult } from '@/components/ai/actions/flowchartActions';
@@ -84,11 +85,13 @@ export const FlowchartView = React.memo(({
     shape: 'rectangle',
     color: '#8b5cf6',
   });
+  const canvasRef = React.useRef<HTMLDivElement>(null);
   const initialLoadRef = React.useRef(true);
   const isParsingFromDataRef = React.useRef(false);
   const isDraggingRef = React.useRef(false);
   const pendingContentAppliedRef = React.useRef(false);
   const lastFlowchartIdRef = React.useRef(activeFlowchartId);
+  useCanvasPinchZoom(canvasRef, 0.1, 2.5);
   const isEditingEdgeRef = React.useRef(false);
   const isEditingNodeRef = React.useRef(false);
   const nodesRef = React.useRef(nodes);
@@ -810,7 +813,7 @@ export const FlowchartView = React.memo(({
         </div>
       )}
 
-      <div className="flex-1 w-full h-full relative">
+      <div ref={canvasRef} className="flex-1 w-full h-full relative">
         <ReactFlow
           nodes={memoizedNodes}
           edges={memoizedEdges}
