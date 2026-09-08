@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Node } from '@xyflow/react';
 import {
-  BookOpenCheck, Database, Download, FilePlus2, FolderKanban, GitBranch, GitCompareArrows,
+  BookOpenCheck, BoxSelect, Database, Download, Eraser, FilePlus2, FolderKanban, GitBranch, GitCompareArrows,
   LayoutGrid, Layers3, MoreHorizontal, Plus, Radar, RefreshCw, Redo2, ShieldCheck, Undo2,
   Upload, WandSparkles,
 } from 'lucide-react';
@@ -56,8 +56,11 @@ type Props = {
   healthScore: number;
   dictionaryScore: number;
   isSyncing: boolean;
+  selectedCount: number;
   canUndo?: boolean;
   canRedo?: boolean;
+  onSelectAll: () => void;
+  onClearSelection: () => void;
   onAddTable: () => void;
   onImportSQL?: () => void;
   onOpenDbml: () => void;
@@ -81,8 +84,11 @@ export function ErdToolbar({
   healthScore,
   dictionaryScore,
   isSyncing,
+  selectedCount,
   canUndo,
   canRedo,
+  onSelectAll,
+  onClearSelection,
   onAddTable,
   onImportSQL,
   onOpenDbml,
@@ -219,6 +225,26 @@ export function ErdToolbar({
           }
         />
         <DropdownMenuContent align="end" className="w-[290px] p-1.5">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="px-2 text-[10px] font-bold uppercase tracking-wider">Selection</DropdownMenuLabel>
+            <DropdownMenuItem onClick={onSelectAll} className="cursor-pointer gap-2 px-2 py-1.5">
+              <BoxSelect className="h-3.5 w-3.5 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold">Select all tables</div>
+                <div className="truncate text-[10px] text-muted-foreground">Ctrl/Cmd+A · then drag to move them together</div>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onClearSelection} disabled={selectedCount === 0} className="cursor-pointer gap-2 px-2 py-1.5">
+              <Eraser className="h-3.5 w-3.5 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold">Clear selection</div>
+                <div className="truncate text-[10px] text-muted-foreground">Shift-drag on canvas selects a group</div>
+              </div>
+              {selectedCount > 0 && <span className="shrink-0 rounded border border-border/60 px-1.5 py-0.5 text-[9px] font-bold">{selectedCount}</span>}
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+
           {createItems.length > 0 && (
             <DropdownMenuGroup>
               <DropdownMenuLabel className="px-2 text-[10px] font-bold uppercase tracking-wider">Create</DropdownMenuLabel>

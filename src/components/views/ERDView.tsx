@@ -41,6 +41,7 @@ import { ErdOrganizerPanel } from '@/components/diagram/ErdOrganizerPanel';
 import { ErdTemplatePanel } from '@/components/diagram/ErdTemplatePanel';
 import { ErdToolbar, type ErdPanelId } from '@/components/diagram/ErdToolbar';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
+import { applyClearSelection, applySelectAllTables, selectionKeyOf } from '@/lib/erd-selection';
 import { ErdPerspectivePanel, type ErdPerspective } from '@/components/diagram/ErdPerspectivePanel';
 import { PerspectiveSectionNode } from '@/components/diagram/PerspectiveSectionNode';
 import { layoutErdPerspective } from '../../../shared/erd-perspectives';
@@ -345,9 +346,6 @@ const ERDViewComponent = ({
   }, [activePerspective, onMove]);
 
 
-  // ─── Multi-table selection ───────────────────────────
-  const [multiSelectedIds, setMultiSelectedIds] = useState<string[]>([]);
-
   // ─── Visual Schema Diffing States ────────────────────
   const [pendingDiff, setPendingDiff] = useState<{
     originalNodes: Node<Entity>[];
@@ -380,30 +378,19 @@ const ERDViewComponent = ({
     return [...groups];
   }, [diffChanges]);
 
-  const handleNodeClickLocal = useCallback((e: React.MouseEvent, n: Node) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.stopPropagation();
-      setMultiSelectedIds(prev => {
-        const exists = prev.includes(n.id);
-        return exists ? prev.filter(id => id !== n.id) : [...prev, n.id];
-      });
-      return;
-    }
-    setMultiSelectedIds([]);
-    onNodeClick(e, n);
-  }, [onNodeClick]);
-
-  const handlePaneClickLocal = useCallback(() => {
-    setMultiSelectedIds([]);
-    onPaneClick();
-  }, [onPaneClick]);
-
-  // Collect all visually-selected node IDs (multi-select + primary)
+  // React Flow owns node selection, so Ctrl/Cmd-click, Shift-drag box select and
+  // dragging a whole group all work natively instead of fighting a parallel list.
+  // Keyed on a string so the array identity survives drags — every position
+  // change would otherwise re-run the AI-context effects and restyle all edges.
+  const selectionKey = React.useMemo(() => selectionKeyOf(nodes), [nodes]);
   const allSelectedIds = React.useMemo(() => {
-    if (multiSelectedIds.length > 0) return multiSelectedIds;
-    if (selectedNodeId) return [selectedNodeId];
-    return [];
-  }, [multiSelectedIds, selectedNodeId]);
+    const selected = nodes.filter(node => node.selected).map(node => node.id);
+    if (selected.length > 0) return selected;
+    return selectedNodeId ? [selectedNodeId] : [];
+    // Deliberately keyed on selectionKey, not nodes: the ids read here are fully
+    // determined by it, so dragging a table keeps the array identity stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionKey, selectedNodeId]);
 
   React.useEffect(() => {
     handlePanelChange(null);
@@ -414,6 +401,29 @@ const ERDViewComponent = ({
   const subjectAreaVisibility = React.useMemo(() => activeSubjectArea
     ? getSubjectAreaVisibility(nodes, edges, activeSubjectArea.effective_node_ids || activeSubjectArea.node_ids)
     : null, [activeSubjectArea, nodes, edges]);
+
+  const selectAllTables = useCallback(() => {
+    setNodes(current => applySelectAllTables(current, subjectAreaVisibility?.visibleNodeIds));
+  }, [setNodes, subjectAreaVisibility]);
+
+  const clearSelection = useCallback(() => {
+    setNodes(current => applyClearSelection(current));
+    setSelectedNodeId(null);
+  }, [setNodes, setSelectedNodeId]);
+
+  React.useEffect(() => {
+    if (pendingDiff) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'a') return;
+      const target = event.target as HTMLElement | null;
+      // Never hijack Ctrl+A while the user is editing text.
+      if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName || '')) return;
+      event.preventDefault();
+      selectAllTables();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [pendingDiff, selectAllTables]);
 
   // Subject Areas are focused, non-destructive views: their compact layout is
   // calculated only for the tables in the selected area and never overwrites
@@ -454,7 +464,6 @@ const ERDViewComponent = ({
 
   const styledNodes = React.useMemo(() => {
     return routeNodes.map(node => {
-      const selected = allSelectedIds.includes(node.id);
       const explorerActive = explorerSelection !== null;
       const explorerVisible = explorerSelection?.nodeIds.has(node.id) === true;
       const explorerPath = explorerSelection?.pathNodeIds.has(node.id) === true;
@@ -477,10 +486,11 @@ const ERDViewComponent = ({
         : '';
       const className = [node.className, explorerClass, healthClass, impactClass, migrationClass, governanceClass].filter(Boolean).join(' ');
       const hidden = subjectAreaVisibility ? !subjectAreaVisibility.visibleNodeIds.has(node.id) : !!node.hidden;
-      if (!!node.selected === selected && node.className === className && !!node.hidden === hidden) return node;
-      return { ...node, selected, className, hidden };
+      // node.selected is left untouched: React Flow is the source of truth for it.
+      if (node.className === className && !!node.hidden === hidden) return node;
+      return { ...node, className, hidden };
     });
-  }, [routeNodes, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, governanceSelection, subjectAreaVisibility]);
+  }, [routeNodes, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, governanceSelection, subjectAreaVisibility]);
 
   const diffNodesWithMode = React.useMemo(() => {
     if (!pendingDiff) return [];
@@ -606,7 +616,9 @@ const ERDViewComponent = ({
   // Filter out selection-only changes to avoid unnecessary re-renders from React Flow
   const handleNodesChangeLocal = useCallback(
     (changes: any[]) => {
-      const dataChanges = changes.filter((change: any) => change.type !== 'select' && !String(change.id || '').startsWith('perspective-section:'));
+      // Selection changes must reach state, otherwise box-select and group drag
+      // are silently dropped. Only the decorative perspective frames are ignored.
+      const dataChanges = changes.filter((change: any) => !String(change.id || '').startsWith('perspective-section:'));
       if (dataChanges.length === 0) return;
       if (activePerspective) {
         const positions = dataChanges.filter((change: any) => change.type === 'position' && change.position);
@@ -987,8 +999,11 @@ const ERDViewComponent = ({
             healthScore={schemaHealthReport.score}
             dictionaryScore={governanceReport.score}
             isSyncing={isSyncing}
+            selectedCount={allSelectedIds.length}
             canUndo={canUndo}
             canRedo={canRedo}
+            onSelectAll={selectAllTables}
+            onClearSelection={clearSelection}
             onAddTable={addEntity}
             onImportSQL={onImportSQL}
             onOpenDbml={() => setRightPanelMode('dbml')}
@@ -1171,10 +1186,10 @@ const ERDViewComponent = ({
           }}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          onNodeClick={handleNodeClickLocal}
+          onNodeClick={onNodeClick}
           onNodeDoubleClick={onNodeDoubleClick}
           onEdgeClick={onEdgeClick}
-          onPaneClick={handlePaneClickLocal}
+          onPaneClick={onPaneClick}
           onMove={handleMoveLocal}
           colorMode={resolvedTheme}
           onlyRenderVisibleElements={true}
@@ -1182,6 +1197,10 @@ const ERDViewComponent = ({
           nodesDraggable={!pendingDiff && (!isReadOnly || isProductionDb)}
           nodesConnectable={!pendingDiff && (!isReadOnly || (isProductionDb && isReconnecting))}
           elementsSelectable={(!isReadOnly || activePanel === 'explorer') && !pendingDiff}
+          // Ctrl/Cmd-click adds one table; Shift-drag rubber-bands a whole group.
+          multiSelectionKeyCode={['Meta', 'Control']}
+          selectionKeyCode="Shift"
+          selectionOnDrag={false}
           onNodeDragStop={activePerspective ? persistPerspectivePosition : onNodeDragStop}
           onMoveEnd={activePerspective ? persistPerspectiveViewport : onMoveEnd}
           minZoom={0.1}
