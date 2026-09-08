@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { HAS_SQLITE_PRISMA_CLIENT } from "../../lib/generated-prisma-provider.js";
 import Database from "better-sqlite3";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
@@ -19,7 +20,8 @@ const notes = await import("../notes/service.js");
 const history = await import("./service.js");
 const mcp = await import("../../mcp/service.js");
 
-describe("entity history restore", () => {
+// Needs the SQLite-generated Prisma client; see generated-prisma-provider.ts.
+describe.skipIf(!HAS_SQLITE_PRISMA_CLIENT)("entity history restore", () => {
   beforeAll(async () => {
     await prisma!.user.create({ data: { id: "history-user", email: "history@test.local", password: "test" } });
   });

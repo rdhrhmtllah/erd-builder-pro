@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { HAS_SQLITE_PRISMA_CLIENT } from './generated-prisma-provider.js';
 
 const originalUrl = process.env.DATABASE_URL;
 let tempPath: string | null = null;
@@ -14,7 +15,8 @@ afterEach(async () => {
   tempPath = null;
 });
 
-describe('DB Client startup migration', () => {
+// Needs the SQLite-generated Prisma client; see generated-prisma-provider.ts.
+describe.skipIf(!HAS_SQLITE_PRISMA_CLIENT)('DB Client startup migration', () => {
   it('copies legacy data once and leaves the source intact', async () => {
     tempPath = mkdtempSync(join(tmpdir(), 'erdbpro-db-client-migration-'));
     const dbPath = join(tempPath, 'legacy.db');
