@@ -108,6 +108,8 @@ export const createNoteSchema = z.object({
   title: z.string().min(1).max(255),
   content: z.string().max(10_000_000).optional(),
   project_id: projectIdField,
+  /** The page this one sits inside; accepts a note uid or numeric id. */
+  parent_id: projectIdField,
   uid: z.string().uuid().optional(),
 });
 

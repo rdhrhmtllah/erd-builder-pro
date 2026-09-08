@@ -53,7 +53,7 @@ async function addDeletedProjectFilter(where: any, userId: string) {
 }
 
 const LIST_SELECT = {
-  id: true, uid: true, title: true, projectId: true,
+  id: true, uid: true, title: true, projectId: true, parentId: true,
   isPublic: true, shareToken: true, expiryDate: true,
   createdAt: true, updatedAt: true, isDeleted: true, userId: true,
   project: { select: { name: true, uid: true, id: true } },
@@ -81,15 +81,63 @@ export async function listNotes(
   return { data: data || [], total: total || 0 };
 }
 
+export class InvalidNoteParentError extends Error {}
+
+/**
+ * A page may sit inside another page, so the tree has to stay a tree: the
+ * parent must belong to the same user and must not already sit beneath the note
+ * being moved, or the sidebar would recurse forever.
+ */
+export async function assertValidNoteParent(parentId: number | null, userId: string, noteId?: number) {
+  if (parentId === null || parentId === undefined) return;
+  if (!prisma) throw new Error("Database connection not available");
+  if (noteId !== undefined && parentId === noteId) throw new InvalidNoteParentError("A page cannot be inside itself");
+
+  const parent = await prisma.note.findFirst({ where: { id: parentId, userId, isDeleted: false }, select: { id: true, parentId: true } });
+  if (!parent) throw new InvalidNoteParentError("Parent page was not found");
+  if (noteId === undefined) return;
+
+  const seen = new Set<number>([parentId]);
+  let cursor = parent.parentId ?? null;
+  while (cursor !== null) {
+    if (cursor === noteId) throw new InvalidNoteParentError("A page cannot be moved inside one of its own sub-pages");
+    if (seen.has(cursor)) break;
+    seen.add(cursor);
+    const ancestor: any = await prisma.note.findFirst({ where: { id: cursor, userId }, select: { parentId: true } });
+    cursor = ancestor?.parentId ?? null;
+  }
+}
+
+/** Turn a uid or numeric id from the client into an owned note id. */
+export async function resolveOwnedNoteId(userId: string, value: unknown): Promise<number | null> {
+  if (value === null || value === undefined || value === "" || value === "null") return null;
+  if (!prisma) throw new Error("Database connection not available");
+
+  const raw = String(value);
+  const numeric = Number(raw);
+  const note = await prisma.note.findFirst({
+    where: {
+      userId,
+      isDeleted: false,
+      OR: [{ uid: raw }, ...(Number.isFinite(numeric) && raw.trim() !== "" ? [{ id: numeric }] : [])],
+    },
+    select: { id: true },
+  });
+  if (!note) throw new InvalidNoteParentError("Parent page was not found");
+  return note.id;
+}
+
 export async function createNote(data: {
-  title: string; content?: string; projectId?: number | null; userId: string; uid?: string;
+  title: string; content?: string; projectId?: number | null; parentId?: number | null; userId: string; uid?: string;
 }) {
   if (!prisma) throw new Error("Database connection not available");
+  await assertValidNoteParent(data.parentId ?? null, data.userId);
   return prisma.note.create({
     data: {
       title: data.title,
       content: data.content || "",
       projectId: data.projectId ?? null,
+      parentId: data.parentId ?? null,
       userId: data.userId,
       ...(data.uid ? { uid: data.uid } : {}),
     },
@@ -105,7 +153,7 @@ export async function getNote(uid: string, userId: string) {
 
 export async function updateNote(
   uid: string, userId: string,
-  data: { title?: string; content?: string; projectId?: number | null; historySource?: "autosave" | "manual" | "mcp" }
+  data: { title?: string; content?: string; projectId?: number | null; parentId?: number | null; historySource?: "autosave" | "manual" | "mcp" }
 ) {
   if (!prisma) throw new Error("Database connection not available");
   const existing = await prisma.note.findFirst({
@@ -127,6 +175,10 @@ export async function updateNote(
   if (data.title !== undefined) updatePayload.title = data.title;
   if (data.content !== undefined) updatePayload.content = data.content;
   if (data.projectId !== undefined) updatePayload.projectId = data.projectId;
+  if (data.parentId !== undefined) {
+    await assertValidNoteParent(data.parentId, userId, existing.id);
+    updatePayload.parentId = data.parentId;
+  }
 
   const updated = await prisma.note.update({ where: { id: existing.id }, data: updatePayload, select: { version: true, updatedAt: true } });
   return { success: true, version: updated.version, updatedAt: updated.updatedAt };

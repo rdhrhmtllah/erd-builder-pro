@@ -223,6 +223,9 @@ model Note {
   shareToken String?   @map("share_token")
   expiryDate DateTime? @map("expiry_date")
   publishedAt DateTime? @map("published_at")
+  parentId   Int?      @map("parent_id")
+  parent     Note?     @relation("note_children", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  children   Note[]    @relation("note_children")
   user       User?     @relation(fields: [userId], references: [id], onUpdate: NoAction)
   project    Project?  @relation(fields: [projectId], references: [id], onUpdate: NoAction)
 

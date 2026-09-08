@@ -29,14 +29,16 @@ export async function create(req: ExpressRequest, res: ExpressResponse): Promise
   try {
     if (!prisma) { res.status(500).json({ error: "Database connection not available" }); return; }
     const userId = (req as any).user.id;
-    const { title, content, project_id, uid } = req.body;
+    const { title, content, project_id, parent_id, uid } = req.body;
     const resolvedProjectId = await resolveOwnedProjectId(prisma, userId, project_id);
+    const resolvedParentId = await notesService.resolveOwnedNoteId(userId, parent_id);
 
     const note = await notesService.createNote({
-      title, content, projectId: resolvedProjectId, userId, uid,
+      title, content, projectId: resolvedProjectId, parentId: resolvedParentId, userId, uid,
     });
     res.json(note);
   } catch (err: any) {
+    if (err instanceof notesService.InvalidNoteParentError) { res.status(400).json({ error: err.message }); return; }
     handleError(res, err, "Failed to create note");
   }
 }
@@ -55,7 +57,7 @@ export async function get(req: ExpressRequest, res: ExpressResponse): Promise<vo
 export async function update(req: ExpressRequest, res: ExpressResponse): Promise<void> {
   try {
     const userId = (req as any).user.id;
-    const { title, content, project_id } = req.body;
+    const { title, content, project_id, parent_id } = req.body;
 
     if (!prisma) { res.status(500).json({ error: "Database connection not available" }); return; }
 
@@ -63,13 +65,18 @@ export async function update(req: ExpressRequest, res: ExpressResponse): Promise
     if (project_id !== undefined) {
       resolvedProjectId = await resolveOwnedProjectId(prisma, userId, project_id);
     }
+    let resolvedParentId: number | null | undefined;
+    if (parent_id !== undefined) {
+      resolvedParentId = await notesService.resolveOwnedNoteId(userId, parent_id);
+    }
 
     const result = await notesService.updateNote(req.params.uid, userId, {
-      title, content, projectId: resolvedProjectId,
+      title, content, projectId: resolvedProjectId, parentId: resolvedParentId,
     });
     if (!result) { res.status(404).json({ error: "Note not found" }); return; }
     res.json(result);
   } catch (err: any) {
+    if (err instanceof notesService.InvalidNoteParentError) { res.status(400).json({ error: err.message }); return; }
     handleError(res, err, "Failed to update note");
   }
 }
