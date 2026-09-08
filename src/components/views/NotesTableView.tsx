@@ -20,6 +20,7 @@ import {
 import { Plus, FileText, MoreHorizontal, Pencil, Trash2, ChevronLeft, ChevronRight, Columns3, Search } from 'lucide-react';
 import { useColumnVisibility, ColumnDef } from '@/hooks/useColumnVisibility';
 import { Input } from '@/components/ui/input';
+import { flattenNoteTree } from '@/lib/note-tree';
 
 interface NotesTableViewProps {
   notes: Note[];
@@ -41,6 +42,7 @@ interface NotesTableViewProps {
 
 const ITEMS_PER_PAGE = 10;
 const STORAGE_KEY = 'notes-table-column-visibility';
+
 
 const COLUMNS: ColumnDef[] = [
   { id: 'name', label: 'Name', defaultVisible: true, hideable: false, width: 'w-[30%]' },
@@ -72,6 +74,9 @@ export const NotesTableView = React.memo(function NotesTableView({
   const totalPages = Math.max(1, Math.ceil(totalNotes / ITEMS_PER_PAGE));
   const { toggle, visibleCols } = useColumnVisibility(STORAGE_KEY, COLUMNS);
   const cols = visibleCols();
+  // A sub-page is listed directly under its parent and indented. Pages whose
+  // parent is not on this page of results stay at the top level.
+  const orderedNotes = React.useMemo(() => flattenNoteTree(notes), [notes]);
 
   const getProjectById = (projectId: number | string | null | undefined) => {
     if (projectId === null || projectId === undefined) return null;
@@ -208,7 +213,7 @@ export const NotesTableView = React.memo(function NotesTableView({
                 </TableCell>
               </TableRow>
             ) : (
-              notes.map(note => {
+              orderedNotes.map(note => {
                 const uid = note.uid ?? String(note.id);
                 const currentProjectUid = getProjectUid(note);
                 return (
@@ -221,7 +226,12 @@ export const NotesTableView = React.memo(function NotesTableView({
                       if (col.id === 'name') {
                         return (
                           <TableCell key="name" className="font-medium">
-                            <span className="truncate block max-w-70">{note.title || 'Untitled'}</span>
+                            <span
+                              className="truncate block max-w-70"
+                              // Sub-pages are indented rather than nested, so a deep
+                              // tree cannot push titles out of the column.
+                              style={note.depth ? { paddingLeft: `${Math.min(note.depth, 5) * 14}px` } : undefined}
+                            >{note.title || 'Untitled'}</span>
                           </TableCell>
                         );
                       }

@@ -134,7 +134,7 @@ export function useNotes(isGuest: boolean = false) {
     }
   }, []); 
 
-  const createNote = async (title: string, projectId?: number | string | null, content?: string) => {
+  const createNote = async (title: string, projectId?: number | string | null, content?: string, parentUid?: string | null) => {
     const effectiveProjectId = (projectId === 'none' || projectId === 'uncategorized') ? null : projectId;
 
     if (isGuestCheck()) {
@@ -145,6 +145,7 @@ export function useNotes(isGuest: boolean = false) {
         title,
         content: content || '',
         project_id: effectiveProjectId || null,
+        parent_id: parentUid || null,
         is_deleted: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -161,7 +162,7 @@ export function useNotes(isGuest: boolean = false) {
       const res = await apiFetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, project_id: effectiveProjectId, content: content || "", uid: noteUid }),
+        body: JSON.stringify({ title, project_id: effectiveProjectId, content: content || "", uid: noteUid, ...(parentUid ? { parent_id: parentUid } : {}) }),
       });
       if (res.ok) {
         const newNote = await res.json();

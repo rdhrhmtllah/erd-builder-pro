@@ -4,7 +4,7 @@ export interface UseSidebarHandlersParams {
   createDiagram: (n: string, pid?: number | string | null) => Promise<any>;
   updateDiagram: (id: number | string, n: string, opts?: any) => Promise<any>;
   deleteDiagram: (id: number | string) => Promise<any>;
-  createNote: (t: string, pid?: number | string | null) => Promise<any>;
+  createNote: (t: string, pid?: number | string | null, content?: string, parentUid?: string | null) => Promise<any>;
   updateNote: (uid: string, t: string, opts?: any) => Promise<any>;
   deleteNote: (uid: string) => Promise<any>;
   createDrawing: (t: string, pid?: number | string | null) => Promise<any>;
@@ -62,8 +62,8 @@ export function useSidebarHandlers(params: UseSidebarHandlersParams) {
     return d;
   }, [createDiagram, fetchProjects, handleDiagramSelect]);
 
-  const handleSidebarNoteCreate = useCallback(async (t: string, pid?: number | string | null) => {
-    const n = await createNote(t, pid);
+  const handleSidebarNoteCreate = useCallback(async (t: string, pid?: number | string | null, parentUid?: string | null) => {
+    const n = await createNote(t, pid, undefined, parentUid);
     if (n) {
       await fetchProjects();
       await handleNoteSelect(n.uid);

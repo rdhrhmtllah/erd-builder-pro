@@ -146,6 +146,8 @@ export interface Note {
   content?: string;
   user_id?: string;
   project_id: number | string | null;
+  /** The page this one lives inside, if any. */
+  parent_id?: number | string | null;
   projects?: Project;
   is_deleted: boolean;
   deleted_at?: string;
