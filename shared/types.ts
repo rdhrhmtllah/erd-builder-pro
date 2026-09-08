@@ -148,6 +148,8 @@ export interface Note {
   project_id: number | string | null;
   /** The page this one lives inside, if any. */
   parent_id?: number | string | null;
+  /** Pages this one lives inside, outermost first. Sent with a single note, not with the list. */
+  ancestors?: Array<{ id: number | string; uid?: string | null; title?: string | null }>;
   projects?: Project;
   is_deleted: boolean;
   deleted_at?: string;

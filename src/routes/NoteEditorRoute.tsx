@@ -3,6 +3,7 @@ import { useWorkspace } from '@/providers/WorkspaceProvider';
 import { useParams } from 'react-router-dom';
 import { FileQuestion } from 'lucide-react';
 import { ProjectFileTabs } from '@/components/ProjectFileTabs';
+import { NoteBreadcrumb } from '@/components/notes/NoteBreadcrumb';
 
 const NotesView = React.lazy(() => import('@/components/views/NotesView').then(m => ({ default: m.NotesView })));
 
@@ -12,7 +13,7 @@ export function NoteEditorRoute() {
 
   const {
     activeNote, activeNoteUid, saveNote, handleNoteChange, deleteNote,
-    isPublicView, isLoading, isNoteItemLoading, handleNoteSelect,
+    isPublicView, isLoading, isNoteItemLoading, handleNoteSelect, notes,
   } = ctx;
 
   // Safety net: URL has id but context hasn't synced yet
@@ -68,6 +69,9 @@ export function NoteEditorRoute() {
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <ProjectFileTabs currentView="notes" />
+      {!isPublicView && (
+        <NoteBreadcrumb notes={notes} activeNote={activeNote} onSelect={handleNoteSelect} />
+      )}
       <Suspense fallback={
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">

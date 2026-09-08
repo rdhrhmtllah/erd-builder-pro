@@ -48,7 +48,8 @@ export async function get(req: ExpressRequest, res: ExpressResponse): Promise<vo
     const userId = (req as any).user.id;
     const note = await notesService.getNote(req.params.uid, userId);
     if (!note) { res.status(404).json({ error: "Note not found" }); return; }
-    res.json(note);
+    const ancestors = await notesService.getNoteAncestors((note as any).id, userId);
+    res.json({ ...note, ancestors });
   } catch (err: any) {
     handleError(res, err, "Failed to fetch note");
   }

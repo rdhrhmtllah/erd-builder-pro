@@ -92,3 +92,41 @@ describe("note page hierarchy", () => {
     expect(payload.title).toBe("Renamed");
   });
 });
+
+describe("note ancestors", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** findFirst answers both the parentId lookup and the parent row lookup. */
+  function usePages(tree: Record<number, { parentId: number | null; title?: string }>) {
+    mocks.findFirst.mockImplementation(async ({ where, select }: any) => {
+      const row = tree[where.id];
+      if (!row) return null;
+      if (select?.uid) return { id: where.id, uid: `uid-${where.id}`, title: row.title ?? null };
+      return { parentId: row.parentId };
+    });
+  }
+
+  it("returns the trail outermost first", async () => {
+    usePages({ 1: { parentId: null, title: "Platform" }, 2: { parentId: 1, title: "Runbook" }, 3: { parentId: 2, title: "Deploy" } });
+    const trail = await service.getNoteAncestors(3, "owner");
+    expect(trail.map(p => p.title)).toEqual(["Platform", "Runbook"]);
+    expect(trail[0]).toMatchObject({ id: 1, uid: "uid-1" });
+  });
+
+  it("is empty for a top-level page", async () => {
+    usePages({ 1: { parentId: null } });
+    expect(await service.getNoteAncestors(1, "owner")).toEqual([]);
+  });
+
+  it("stops instead of hanging when the stored rows form a loop", async () => {
+    usePages({ 1: { parentId: 2 }, 2: { parentId: 1 } });
+    const trail = await service.getNoteAncestors(1, "owner");
+    expect(trail.length).toBeLessThanOrEqual(2);
+  });
+
+  it("stops at a parent that has been deleted rather than reporting a broken trail", async () => {
+    // 2 points at 1, but 1 is filtered out by isDeleted, so findFirst returns null.
+    usePages({ 2: { parentId: 1, title: "Child" } });
+    expect(await service.getNoteAncestors(2, "owner")).toEqual([]);
+  });
+});

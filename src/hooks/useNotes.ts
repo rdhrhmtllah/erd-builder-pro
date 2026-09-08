@@ -414,7 +414,7 @@ export function useNotes(isGuest: boolean = false) {
         if (fullNote && !fullNote.is_deleted && versionCheck()) {
           setNotes(prev => {
             const exists = prev.some(n => n.uid === uid);
-            if (exists) return prev.map(n => n.uid === uid ? { ...n, content: fullNote.content } : n);
+            if (exists) return prev.map(n => n.uid === uid ? { ...n, content: fullNote.content, ancestors: fullNote.ancestors ?? n.ancestors } : n);
             return [...prev, fullNote];
           });
         }
@@ -445,7 +445,7 @@ export function useNotes(isGuest: boolean = false) {
           if (shouldApplyServerContent) {
             setNotes(prev => {
               const exists = prev.some(n => n.uid === uid);
-              if (exists) return prev.map(n => n.uid === uid ? { ...n, content: fullNote.content } : n);
+              if (exists) return prev.map(n => n.uid === uid ? { ...n, content: fullNote.content, ancestors: fullNote.ancestors ?? n.ancestors } : n);
               return [...prev, fullNote];
             });
           }

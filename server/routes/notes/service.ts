@@ -151,6 +151,41 @@ export async function getNote(uid: string, userId: string) {
   return note || null;
 }
 
+/**
+ * The chain of pages a note lives inside, outermost first, for a breadcrumb.
+ *
+ * The note list is paginated, so the client usually has not loaded the
+ * ancestors of the page it is opening; the trail has to come from the server.
+ * The walk is capped and cycle-guarded so corrupt rows cannot hang the request.
+ */
+export async function getNoteAncestors(noteId: number, userId: string) {
+  if (!prisma) return [];
+
+  const trail: Array<{ id: number; uid: string | null; title: string | null }> = [];
+  const seen = new Set<number>([noteId]);
+  let cursor: number | null = noteId;
+
+  while (cursor !== null && trail.length < 20) {
+    const row: any = await prisma.note.findFirst({
+      where: { id: cursor, userId, isDeleted: false },
+      select: { parentId: true },
+    });
+    const parentId: number | null = row?.parentId ?? null;
+    if (parentId === null || seen.has(parentId)) break;
+    seen.add(parentId);
+
+    const parent: any = await prisma.note.findFirst({
+      where: { id: parentId, userId, isDeleted: false },
+      select: { id: true, uid: true, title: true },
+    });
+    if (!parent) break;
+    trail.unshift({ id: parent.id, uid: parent.uid ?? null, title: parent.title ?? null });
+    cursor = parentId;
+  }
+
+  return trail;
+}
+
 export async function updateNote(
   uid: string, userId: string,
   data: { title?: string; content?: string; projectId?: number | null; parentId?: number | null; historySource?: "autosave" | "manual" | "mcp" }

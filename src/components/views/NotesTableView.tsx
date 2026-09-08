@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu';
-import { Plus, FileText, MoreHorizontal, Pencil, Trash2, ChevronLeft, ChevronRight, Columns3, Search } from 'lucide-react';
+import { Plus, FileText, FilePlus2, MoreHorizontal, Pencil, Trash2, ChevronLeft, ChevronRight, Columns3, Search } from 'lucide-react';
 import { useColumnVisibility, ColumnDef } from '@/hooks/useColumnVisibility';
 import { Input } from '@/components/ui/input';
 import { flattenNoteTree } from '@/lib/note-tree';
@@ -34,6 +34,7 @@ interface NotesTableViewProps {
   onPageChange: (page: number) => void;
   onWorkspaceClick: (projectUid: string | null) => void;
   onOpenEditDocument: (uid: string) => void;
+  onCreateSubPage: (parentUid: string) => void;
   onDeleteNote: (uid: string) => void;
   searchQuery: string;
   onSearchChange: (value: string) => void;
@@ -66,6 +67,7 @@ export const NotesTableView = React.memo(function NotesTableView({
   onPageChange,
   onWorkspaceClick,
   onOpenEditDocument,
+  onCreateSubPage,
   onDeleteNote,
   searchQuery,
   onSearchChange,
@@ -290,6 +292,10 @@ export const NotesTableView = React.memo(function NotesTableView({
                                 <DropdownMenuItem onClick={() => onOpenEditDocument(uid)}>
                                   <Pencil className="h-4 w-4 mr-2" />
                                   Edit Document
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onCreateSubPage(uid)}>
+                                  <FilePlus2 className="h-4 w-4 mr-2" />
+                                  New sub-page
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => onDeleteNote(uid)} className="text-destructive">

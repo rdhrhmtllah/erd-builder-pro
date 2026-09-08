@@ -17,7 +17,7 @@ export function TableRoute() {
     flowcharts, flowchartsTotal, projects,
     selectedWorkspaceUid, tableSearchParams, setTableSearchParams,
     handleNoteSelect, handleDiagramSelect, handleDrawingSelect, handleFlowchartSelect,
-    handleOpenEditDocument, handleOpenCreateDocument,
+    handleOpenEditDocument, handleOpenCreateDocument, handleSidebarNoteCreate,
     setItemToDelete, setIsMoveToTrashAlertOpen,
     setTableDeleteDoc,
     isNotesLoading, isDiagramsLoading, isDrawingsLoading, isFlowchartsLoading,
@@ -71,6 +71,12 @@ export function TableRoute() {
           onPageChange={handlePageChange}
           onWorkspaceClick={handleWorkspaceClick}
           onOpenEditDocument={(uid: string) => handleOpenEditDocument(uid)}
+          onCreateSubPage={(parentUid: string) => {
+            // A sub-page belongs to the same workspace as the page holding it.
+            const parent = notes.find((n: any) => String(n.uid) === String(parentUid));
+            const workspaceUid = parent?.projects?.uid ?? parent?.project_id ?? null;
+            void handleSidebarNoteCreate('Untitled', workspaceUid, parentUid);
+          }}
           onDeleteNote={makeDeleteHandler(notes)}
           searchQuery={fileSearchQuery}
           onSearchChange={setFileSearchQuery}
