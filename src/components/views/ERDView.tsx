@@ -19,7 +19,6 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Plus, Upload, Undo2, Redo2, LayoutGrid, RefreshCw, Database, Download, GitBranch, FolderKanban, ShieldCheck, Radar, GitCompareArrows, BookOpenCheck, Layers3, WandSparkles } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,12 +39,13 @@ import { ErdRelationExplorer, type ErdExplorerSelection } from '@/components/dia
 import { ErdSubjectAreaPanel } from '@/components/diagram/ErdSubjectAreaPanel';
 import { ErdOrganizerPanel } from '@/components/diagram/ErdOrganizerPanel';
 import { ErdTemplatePanel } from '@/components/diagram/ErdTemplatePanel';
+import { ErdToolbar, type ErdPanelId } from '@/components/diagram/ErdToolbar';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 import { ErdPerspectivePanel, type ErdPerspective } from '@/components/diagram/ErdPerspectivePanel';
 import { PerspectiveSectionNode } from '@/components/diagram/PerspectiveSectionNode';
 import { layoutErdPerspective } from '../../../shared/erd-perspectives';
 import { analyzeErdSchemaHealth } from '@/lib/erd-schema-health';
-import { ErdSchemaHealthPanel, healthScoreTone, type SchemaHealthSelection } from '@/components/diagram/ErdSchemaHealthPanel';
+import { ErdSchemaHealthPanel, type SchemaHealthSelection } from '@/components/diagram/ErdSchemaHealthPanel';
 import { inferRelationshipSemantics } from '@/lib/relationship-semantics';
 import { ErdImpactAnalysisPanel, type ErdImpactSelection } from '@/components/diagram/ErdImpactAnalysisPanel';
 import { ErdMigrationPlannerPanel, type ErdMigrationSelection } from '@/components/diagram/ErdMigrationPlannerPanel';
@@ -233,7 +233,6 @@ interface ERDViewProps {
 }
 
 
-import { JumpToNode } from '../JumpToNode';
 
 const ERDViewComponent = ({
   nodes,
@@ -298,22 +297,32 @@ const ERDViewComponent = ({
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
-  const [explorerOpen, setExplorerOpen] = useState(false);
+  // One panel is visible at a time; each panel's highlight selection is cleared
+  // centrally when the panel closes so the canvas never keeps a stale overlay.
+  const [activePanel, setActivePanel] = useState<ErdPanelId | null>(null);
   const [explorerSelection, setExplorerSelection] = useState<ErdExplorerSelection | null>(null);
-  const [subjectAreasOpen, setSubjectAreasOpen] = useState(false);
-  const [organizerOpen, setOrganizerOpen] = useState(false);
-  const [templateOpen, setTemplateOpen] = useState(false);
   const [activeSubjectArea, setActiveSubjectArea] = useState<ErdSubjectArea | null>(null);
-  const [perspectivesOpen, setPerspectivesOpen] = useState(false);
   const [activePerspective, setActivePerspective] = useState<ErdPerspective | null>(null);
-  const [schemaHealthOpen, setSchemaHealthOpen] = useState(false);
   const [schemaHealthSelection, setSchemaHealthSelection] = useState<SchemaHealthSelection | null>(null);
-  const [impactAnalysisOpen, setImpactAnalysisOpen] = useState(false);
   const [impactSelection, setImpactSelection] = useState<ErdImpactSelection | null>(null);
-  const [migrationPlannerOpen, setMigrationPlannerOpen] = useState(false);
   const [migrationSelection, setMigrationSelection] = useState<ErdMigrationSelection | null>(null);
-  const [dataDictionaryOpen, setDataDictionaryOpen] = useState(false);
   const [governanceSelection, setGovernanceSelection] = useState<ErdGovernanceSelection | null>(null);
+
+  const handlePanelChange = useCallback((panel: ErdPanelId | null) => {
+    setActivePanel(panel);
+    setExplorerSelection(null);
+    setSchemaHealthSelection(null);
+    setImpactSelection(null);
+    setMigrationSelection(null);
+    setGovernanceSelection(null);
+    // Areas and Perspectives are competing view modes: only one can shape the canvas.
+    if (panel === 'areas') setActivePerspective(null);
+    if (panel === 'perspectives') setActiveSubjectArea(null);
+    if (panel === 'organizer' || panel === 'templates') {
+      setActiveSubjectArea(null);
+      setActivePerspective(null);
+    }
+  }, []);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   const lowDetailRef = React.useRef(false);
 
@@ -397,21 +406,10 @@ const ERDViewComponent = ({
   }, [multiSelectedIds, selectedNodeId]);
 
   React.useEffect(() => {
-    setSubjectAreasOpen(false);
-    setOrganizerOpen(false);
-    setTemplateOpen(false);
+    handlePanelChange(null);
     setActiveSubjectArea(null);
-    setPerspectivesOpen(false);
     setActivePerspective(null);
-    setSchemaHealthOpen(false);
-    setSchemaHealthSelection(null);
-    setImpactAnalysisOpen(false);
-    setImpactSelection(null);
-    setMigrationPlannerOpen(false);
-    setMigrationSelection(null);
-    setDataDictionaryOpen(false);
-    setGovernanceSelection(null);
-  }, [activeFileUid]);
+  }, [activeFileUid, handlePanelChange]);
 
   const subjectAreaVisibility = React.useMemo(() => activeSubjectArea
     ? getSubjectAreaVisibility(nodes, edges, activeSubjectArea.effective_node_ids || activeSubjectArea.node_ids)
@@ -976,342 +974,61 @@ const ERDViewComponent = ({
 
       {!pendingDiff && (
         <div className="absolute top-6 inset-x-0 z-10 flex justify-center pointer-events-none">
-          <div className="flex items-center gap-1.5 p-1.5 bg-background/95 backdrop-blur-md border border-border/50 rounded-2xl shadow-2xl pointer-events-auto max-w-[95vw] overflow-x-auto no-scrollbar">
-            <JumpToNode nodes={nodes} label="Table" />
-            {!isReadOnly && <div className="w-px h-6 bg-border mx-0.5" />}
-            
-            {!isReadOnly && (
-              <Button onClick={addEntity} size="sm" className="h-9 px-3 sm:px-4 font-bold shadow-lg shadow-primary/20 cursor-pointer">
-                <Plus className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Add Table</span>
-              </Button>
-            )}
-            {!isReadOnly && (
-              <Button onClick={onImportSQL} variant="outline" size="sm" className="h-9 px-3 border-border hover:bg-muted bg-muted/50 text-xs font-semibold cursor-pointer">
-                <Upload className="w-3.5 h-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Import SQL</span>
-              </Button>
-            )}
-            {!isProductionDb && (
-              <Button onClick={() => setRightPanelMode('dbml')} variant="outline" size="sm" className="h-9 px-3 border-border hover:bg-muted bg-muted/50 text-xs font-semibold cursor-pointer">
-                <Database className="w-3.5 h-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">DBML</span>
-              </Button>
-            )}
-            <Button onClick={autoLayoutActivePerspective} variant="outline" size="sm" className="h-9 px-3 border-border hover:bg-muted bg-muted/50 text-xs font-semibold cursor-pointer" title={activePerspective ? 'Re-layout current perspective without changing the main ERD' : 'Auto-layout canonical ERD'}>
-              <LayoutGrid className="w-3.5 h-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">{activePerspective ? 'Re-layout View' : 'Auto Layout'}</span>
-            </Button>
-            {!isReadOnly && !isProductionDb && (
-              <Button
-                onClick={() => {
-                  setExplorerOpen(false);
-                  setExplorerSelection(null);
-                  setSubjectAreasOpen(false);
-                  setActiveSubjectArea(null);
-                  setPerspectivesOpen(false);
-                  setActivePerspective(null);
-                  setSchemaHealthOpen(false);
-                  setSchemaHealthSelection(null);
-                  setImpactAnalysisOpen(false);
-                  setImpactSelection(null);
-                  setMigrationPlannerOpen(false);
-                  setMigrationSelection(null);
-                  setDataDictionaryOpen(false);
-                  setGovernanceSelection(null);
-                  setTemplateOpen(false);
-                  setOrganizerOpen(open => !open);
-                }}
-                variant={organizerOpen ? 'default' : 'outline'}
-                size="sm"
-                className="h-9 px-3 text-xs font-semibold cursor-pointer"
-                title="Analyze and group related tables into saved Subject Areas"
-              >
-                <WandSparkles className="w-3.5 h-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Organize</span>
-              </Button>
-            )}
-            {!isReadOnly && !isProductionDb && (
-              <Button
-                onClick={() => {
-                  setExplorerOpen(false);
-                  setExplorerSelection(null);
-                  setSubjectAreasOpen(false);
-                  setActiveSubjectArea(null);
-                  setPerspectivesOpen(false);
-                  setActivePerspective(null);
-                  setSchemaHealthOpen(false);
-                  setSchemaHealthSelection(null);
-                  setImpactAnalysisOpen(false);
-                  setImpactSelection(null);
-                  setMigrationPlannerOpen(false);
-                  setMigrationSelection(null);
-                  setDataDictionaryOpen(false);
-                  setGovernanceSelection(null);
-                  setOrganizerOpen(false);
-                  setTemplateOpen(open => !open);
-                }}
-                variant={templateOpen ? 'default' : 'outline'}
-                size="sm"
-                className="h-9 px-3 text-xs font-semibold cursor-pointer"
-                title="Load a proven ERD design pattern into a reviewable schema preview"
-              >
-                <Database className="w-3.5 h-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Templates</span>
-              </Button>
-            )}
-            <Button
-              onClick={() => {
-                setSubjectAreasOpen(false);
-                setSchemaHealthOpen(false);
-                setSchemaHealthSelection(null);
-                setImpactAnalysisOpen(false);
-                setImpactSelection(null);
-                setMigrationPlannerOpen(false);
-                setMigrationSelection(null);
-                setDataDictionaryOpen(false);
-                setGovernanceSelection(null);
-                setOrganizerOpen(false);
-                setTemplateOpen(false);
-                setExplorerOpen(open => {
-                  if (open) setExplorerSelection(null);
-                  return !open;
-                });
-              }}
-              variant={explorerOpen ? 'default' : 'outline'}
-              size="sm"
-              className="h-9 px-3 text-xs font-semibold cursor-pointer"
-              title="Trace upstream/downstream relationships and find paths"
-            >
-              <GitBranch className="w-3.5 h-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">Explorer</span>
-            </Button>
-            {activeFileUid && !isPublicView && !isProductionDb && (
-              <Button
-                onClick={() => {
-                  setExplorerOpen(false);
-                  setExplorerSelection(null);
-                  setPerspectivesOpen(false);
-                  setActivePerspective(null);
-                  setSchemaHealthOpen(false);
-                  setSchemaHealthSelection(null);
-                  setImpactAnalysisOpen(false);
-                  setImpactSelection(null);
-                  setMigrationPlannerOpen(false);
-                  setMigrationSelection(null);
-                  setDataDictionaryOpen(false);
-                  setGovernanceSelection(null);
-                  setSubjectAreasOpen(open => !open);
-                }}
-                variant={subjectAreasOpen || activeSubjectArea ? 'default' : 'outline'}
-                size="sm"
-                className="h-9 px-3 text-xs font-semibold cursor-pointer"
-                title="Create and open saved module views"
-              >
-                <FolderKanban className="w-3.5 h-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">{activeSubjectArea?.name || 'Areas'}</span>
-              </Button>
-            )}
-            {activeFileUid && !isPublicView && !isProductionDb && (
-              <Button
-                onClick={() => {
-                  setExplorerOpen(false);
-                  setExplorerSelection(null);
-                  setSubjectAreasOpen(false);
-                  setActiveSubjectArea(null);
-                  setSchemaHealthOpen(false);
-                  setSchemaHealthSelection(null);
-                  setImpactAnalysisOpen(false);
-                  setImpactSelection(null);
-                  setMigrationPlannerOpen(false);
-                  setMigrationSelection(null);
-                  setDataDictionaryOpen(false);
-                  setGovernanceSelection(null);
-                  setPerspectivesOpen(open => !open);
-                }}
-                variant={perspectivesOpen || activePerspective ? 'default' : 'outline'}
-                size="sm"
-                className="h-9 px-3 text-xs font-semibold cursor-pointer"
-                title="Create business-flow perspectives with colored sections and independent layouts"
-              >
-                <Layers3 className="w-3.5 h-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">{activePerspective?.name || 'Perspectives'}</span>
-              </Button>
-            )}
-            <Button
-              onClick={() => {
-                setExplorerOpen(false);
-                setExplorerSelection(null);
-                setSubjectAreasOpen(false);
-                setActiveSubjectArea(null);
-                setImpactAnalysisOpen(false);
-                setImpactSelection(null);
-                setMigrationPlannerOpen(false);
-                setMigrationSelection(null);
-                setDataDictionaryOpen(false);
-                setGovernanceSelection(null);
-                setSchemaHealthOpen(open => {
-                  if (open) setSchemaHealthSelection(null);
-                  return !open;
-                });
-              }}
-              variant={schemaHealthOpen ? 'default' : 'outline'}
-              size="sm"
-              className="h-9 px-3 text-xs font-semibold cursor-pointer"
-              title="Audit schema keys, relationships, indexes, and naming"
-            >
-              <ShieldCheck className={cn('w-3.5 h-3.5 sm:mr-1.5', !schemaHealthOpen && healthScoreTone(schemaHealthReport.score))} />
-              <span className="hidden sm:inline">Health {schemaHealthReport.score}</span>
-            </Button>
-            <Button
-              onClick={() => {
-                setExplorerOpen(false);
-                setExplorerSelection(null);
-                setSubjectAreasOpen(false);
-                setActiveSubjectArea(null);
-                setSchemaHealthOpen(false);
-                setSchemaHealthSelection(null);
-                setMigrationPlannerOpen(false);
-                setMigrationSelection(null);
-                setDataDictionaryOpen(false);
-                setGovernanceSelection(null);
-                setImpactAnalysisOpen(open => {
-                  if (open) setImpactSelection(null);
-                  return !open;
-                });
-              }}
-              variant={impactAnalysisOpen ? 'default' : 'outline'}
-              size="sm"
-              className="h-9 px-3 text-xs font-semibold cursor-pointer"
-              title="Simulate the dependency blast radius of a table or column change"
-            >
-              <Radar className="w-3.5 h-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">Impact</span>
-            </Button>
-            <Button
-              onClick={() => {
-                setExplorerOpen(false);
-                setExplorerSelection(null);
-                setSubjectAreasOpen(false);
-                setActiveSubjectArea(null);
-                setSchemaHealthOpen(false);
-                setSchemaHealthSelection(null);
-                setImpactAnalysisOpen(false);
-                setImpactSelection(null);
-                setDataDictionaryOpen(false);
-                setGovernanceSelection(null);
-                setMigrationPlannerOpen(open => {
-                  if (open) setMigrationSelection(null);
-                  return !open;
-                });
-              }}
-              variant={migrationPlannerOpen ? 'default' : 'outline'}
-              size="sm"
-              className="h-9 px-3 text-xs font-semibold cursor-pointer"
-              title="Compare schema versions and generate ordered forward/rollback SQL"
-            >
-              <GitCompareArrows className="w-3.5 h-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">Migrate</span>
-            </Button>
-            {!isProductionDb && <Button
-              onClick={() => {
-                setExplorerOpen(false);
-                setExplorerSelection(null);
-                setSubjectAreasOpen(false);
-                setActiveSubjectArea(null);
-                setSchemaHealthOpen(false);
-                setSchemaHealthSelection(null);
-                setImpactAnalysisOpen(false);
-                setImpactSelection(null);
-                setMigrationPlannerOpen(false);
-                setMigrationSelection(null);
-                setDataDictionaryOpen(open => {
-                  if (open) setGovernanceSelection(null);
-                  return !open;
-                });
-              }}
-              variant={dataDictionaryOpen ? 'default' : 'outline'}
-              size="sm"
-              className="h-9 px-3 text-xs font-semibold cursor-pointer"
-              title="Manage business definitions, ownership, classification, and documentation coverage"
-            >
-              <BookOpenCheck className={cn('w-3.5 h-3.5 sm:mr-1.5', !dataDictionaryOpen && (governanceReport.score >= 80 ? 'text-emerald-500' : governanceReport.score >= 50 ? 'text-amber-500' : 'text-red-500'))} />
-              <span className="hidden sm:inline">Dictionary {governanceReport.score}</span>
-            </Button>}
-
-            {isProductionDb && (
-              <Button onClick={handleSync} variant="outline" size="sm" className="h-9 px-3 border-amber-500/50 hover:bg-amber-500/10 bg-amber-500/5 text-amber-600 dark:text-amber-400 text-xs font-semibold cursor-pointer" disabled={isSyncing}>
-                <RefreshCw className={`w-3.5 h-3.5 sm:mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
-              </Button>
-            )}
-
-            {isProductionDb && (
-              <Button onClick={handleExportImage} variant="outline" size="sm" className="h-9 px-3 border-border hover:bg-muted bg-muted/50 text-xs font-semibold cursor-pointer" title="Export SVG">
-                <Download className="w-3.5 h-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Export SVG</span>
-              </Button>
-            )}
-
-            {!isReadOnly && (
-              <div className="flex items-center gap-0.5 ml-auto">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={undo} 
-                  disabled={!canUndo}
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  title="Undo (Ctrl+Z)"
-                >
-                  <Undo2 className="w-4 h-4" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={redo} 
-                  disabled={!canRedo}
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  title="Redo (Ctrl+Y)"
-                >
-                  <Redo2 className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
-          </div>
+          <ErdToolbar
+            nodes={nodes}
+            isReadOnly={Boolean(isReadOnly)}
+            isProductionDb={isProductionDb}
+            isPublicView={isPublicView}
+            hasDiagramFile={Boolean(activeFileUid)}
+            activePanel={activePanel}
+            onPanelChange={handlePanelChange}
+            activeAreaName={activeSubjectArea?.name}
+            activePerspectiveName={activePerspective?.name}
+            healthScore={schemaHealthReport.score}
+            dictionaryScore={governanceReport.score}
+            isSyncing={isSyncing}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onAddTable={addEntity}
+            onImportSQL={onImportSQL}
+            onOpenDbml={() => setRightPanelMode('dbml')}
+            onAutoLayout={autoLayoutActivePerspective}
+            onSync={handleSync}
+            onExportImage={handleExportImage}
+            onUndo={undo}
+            onRedo={redo}
+          />
         </div>
       )}
-      {organizerOpen && activeFileUid && !isPublicView && !isProductionDb && !pendingDiff && (
+      {activePanel === 'organizer' && activeFileUid && !isPublicView && !isProductionDb && !pendingDiff && (
         <ErdOrganizerPanel
           diagramUid={activeFileUid}
           nodes={nodes}
           edges={edges}
           readOnly={isReadOnly}
           onAutoLayout={onAutoLayout || (() => undefined)}
-          onClose={() => setOrganizerOpen(false)}
+          onClose={() => handlePanelChange(null)}
         />
       )}
-      {templateOpen && !pendingDiff && (
+      {activePanel === 'templates' && !pendingDiff && (
         <ErdTemplatePanel
           nodes={nodes}
           edges={edges}
           readOnly={isReadOnly}
           onPreview={(previewNodes, previewEdges) => startDiff(nodesRef.current, edgesRef.current, previewNodes, previewEdges)}
-          onClose={() => setTemplateOpen(false)}
+          onClose={() => handlePanelChange(null)}
         />
       )}
-      {explorerOpen && !pendingDiff && (
+      {activePanel === 'explorer' && !pendingDiff && (
         <ErdRelationExplorer
           nodes={nodes}
           edges={edges}
           selectedNodeIds={allSelectedIds}
           onSelectionChange={setExplorerSelection}
-          onClose={() => {
-            setExplorerOpen(false);
-            setExplorerSelection(null);
-          }}
+          onClose={() => handlePanelChange(null)}
         />
       )}
-      {subjectAreasOpen && activeFileUid && !isPublicView && !pendingDiff && (
+      {activePanel === 'areas' && activeFileUid && !isPublicView && !pendingDiff && (
         <ErdSubjectAreaPanel
           diagramUid={activeFileUid}
           selectedNodeIds={allSelectedIds}
@@ -1321,10 +1038,10 @@ const ERDViewComponent = ({
           activeArea={activeSubjectArea}
           readOnly={isReadOnly}
           onActiveAreaChange={setActiveSubjectArea}
-          onClose={() => setSubjectAreasOpen(false)}
+          onClose={() => handlePanelChange(null)}
         />
       )}
-      {perspectivesOpen && activeFileUid && !isPublicView && !pendingDiff && (
+      {activePanel === 'perspectives' && activeFileUid && !isPublicView && !pendingDiff && (
         <ErdPerspectivePanel
           diagramUid={activeFileUid}
           selectedNodeIds={allSelectedIds}
@@ -1333,49 +1050,37 @@ const ERDViewComponent = ({
           readOnly={isReadOnly}
           onActivePerspectiveChange={perspective => {
             setActivePerspective(perspective);
-            if (perspective) {
-              setActiveSubjectArea(null);
-              setSubjectAreasOpen(false);
-            }
+            if (perspective) setActiveSubjectArea(null);
           }}
-          onClose={() => setPerspectivesOpen(false)}
+          onClose={() => handlePanelChange(null)}
         />
       )}
-      {schemaHealthOpen && !pendingDiff && (
+      {activePanel === 'health' && !pendingDiff && (
         <ErdSchemaHealthPanel
           report={schemaHealthReport}
           onSelectionChange={setSchemaHealthSelection}
-          onClose={() => {
-            setSchemaHealthOpen(false);
-            setSchemaHealthSelection(null);
-          }}
+          onClose={() => handlePanelChange(null)}
         />
       )}
-      {impactAnalysisOpen && !pendingDiff && (
+      {activePanel === 'impact' && !pendingDiff && (
         <ErdImpactAnalysisPanel
           nodes={nodes}
           edges={edges}
           selectedNodeIds={allSelectedIds}
           onSelectionChange={setImpactSelection}
-          onClose={() => {
-            setImpactAnalysisOpen(false);
-            setImpactSelection(null);
-          }}
+          onClose={() => handlePanelChange(null)}
         />
       )}
-      {migrationPlannerOpen && !pendingDiff && (
+      {activePanel === 'migrate' && !pendingDiff && (
         <ErdMigrationPlannerPanel
           nodes={nodes}
           edges={edges}
           diagramUid={!isPublicView && !isProductionDb ? activeFileUid : null}
           onSelectionChange={setMigrationSelection}
-          onClose={() => {
-            setMigrationPlannerOpen(false);
-            setMigrationSelection(null);
-          }}
+          onClose={() => handlePanelChange(null)}
         />
       )}
-      {dataDictionaryOpen && !pendingDiff && !isProductionDb && (
+      {activePanel === 'dictionary' && !pendingDiff && !isProductionDb && (
         <ErdDataDictionaryPanel
           nodes={nodes}
           diagramName={activeDocumentName}
@@ -1383,10 +1088,7 @@ const ERDViewComponent = ({
           selectedNodeIds={allSelectedIds}
           onUpdate={handleGovernanceUpdate}
           onSelectionChange={setGovernanceSelection}
-          onClose={() => {
-            setDataDictionaryOpen(false);
-            setGovernanceSelection(null);
-          }}
+          onClose={() => handlePanelChange(null)}
         />
       )}
       {isLoading && (
@@ -1479,7 +1181,7 @@ const ERDViewComponent = ({
           // Production DB ERD stays read-only for schema edits, but table positions are editable.
           nodesDraggable={!pendingDiff && (!isReadOnly || isProductionDb)}
           nodesConnectable={!pendingDiff && (!isReadOnly || (isProductionDb && isReconnecting))}
-          elementsSelectable={(!isReadOnly || explorerOpen) && !pendingDiff}
+          elementsSelectable={(!isReadOnly || activePanel === 'explorer') && !pendingDiff}
           onNodeDragStop={activePerspective ? persistPerspectivePosition : onNodeDragStop}
           onMoveEnd={activePerspective ? persistPerspectiveViewport : onMoveEnd}
           minZoom={0.1}
