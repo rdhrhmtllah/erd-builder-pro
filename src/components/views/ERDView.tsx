@@ -45,7 +45,7 @@ import { applyClearSelection, applySelectAllTables, selectionKeyOf } from '@/lib
 import { CANVAS_GESTURES } from '@/lib/canvas-gestures';
 import { useCanvasPinchZoom } from '@/hooks/useCanvasPinchZoom';
 import { useSchemaSnapshot } from '@/hooks/useSchemaSnapshot';
-import { flashErdColumn, takePendingErdFocus } from '@/lib/erd-focus-flash';
+import { clearPendingErdFocus, flashErdColumn, peekPendingErdFocus } from '@/lib/erd-focus-flash';
 import { ErdPerspectivePanel, type ErdPerspective } from '@/components/diagram/ErdPerspectivePanel';
 import { PerspectiveSectionNode } from '@/components/diagram/PerspectiveSectionNode';
 import { layoutErdPerspective } from '../../../shared/erd-perspectives';
@@ -404,17 +404,22 @@ const ERDViewComponent = ({
 
   useCanvasPinchZoom(canvasRef, 0.1, 2.5);
 
-  // A table or column opened from global search lands here once the diagram has
-  // loaded; the target is consumed so a later reload does not jump again.
+  // A table or column opened from global search lands here. The canvas renders
+  // several times before the requested diagram's tables mount — often with the
+  // previous diagram still on screen — so the target is only cleared once its
+  // node is actually present, never on the first pass.
   React.useEffect(() => {
     if (isLoading || nodes.length === 0) return;
-    const focus = takePendingErdFocus();
+    const focus = peekPendingErdFocus();
     if (!focus || !nodes.some(node => node.id === focus.nodeId)) return;
+
+    clearPendingErdFocus();
+    setSelectedNodeId(focus.nodeId);
     requestAnimationFrame(() => {
       void fitView({ nodes: [{ id: focus.nodeId }], duration: 260, padding: 1.2, minZoom: 0.2, maxZoom: 1.2 });
       if (focus.columnId) flashErdColumn(focus.columnId, 420);
     });
-  }, [isLoading, nodes, fitView]);
+  }, [isLoading, nodes, fitView, setSelectedNodeId]);
 
 
   React.useEffect(() => {

@@ -30,24 +30,50 @@ export function flashErdColumn(columnId: string, settleMs = SETTLE_MS): void {
   }, settleMs);
 }
 
-export type PendingErdFocus = { nodeId: string; columnId?: string };
+export type PendingErdFocus = { nodeId: string; columnId?: string; expiresAt: number };
 
 const PENDING_FOCUS_KEY = 'pending_focus_erd_node';
 
+/**
+ * How long a target stays valid. Long enough for a slow diagram to load, short
+ * enough that an abandoned navigation never yanks the viewport later on.
+ */
+const FOCUS_TTL_MS = 30_000;
+
 /** Hand a focus target to the ERD canvas across a route change. */
-export function setPendingErdFocus(focus: PendingErdFocus): void {
-  try { localStorage.setItem(PENDING_FOCUS_KEY, JSON.stringify(focus)); } catch { /* storage unavailable */ }
+export function setPendingErdFocus(focus: { nodeId: string; columnId?: string }): void {
+  try {
+    localStorage.setItem(PENDING_FOCUS_KEY, JSON.stringify({ ...focus, expiresAt: Date.now() + FOCUS_TTL_MS }));
+  } catch { /* storage unavailable */ }
 }
 
-/** Read and clear the target, so a later reload does not jump again. */
-export function takePendingErdFocus(): PendingErdFocus | null {
+/**
+ * Read the target WITHOUT consuming it.
+ *
+ * The canvas re-renders several times before the requested diagram's tables are
+ * mounted — often while the previous diagram's nodes are still on screen. A
+ * read that consumed the target would throw it away on that first pass, so the
+ * caller must clear it only once it has actually focused the node.
+ */
+export function peekPendingErdFocus(): PendingErdFocus | null {
   try {
     const raw = localStorage.getItem(PENDING_FOCUS_KEY);
     if (!raw) return null;
-    localStorage.removeItem(PENDING_FOCUS_KEY);
     const parsed = JSON.parse(raw);
-    return typeof parsed?.nodeId === 'string' ? parsed as PendingErdFocus : null;
+    if (typeof parsed?.nodeId !== 'string' || !parsed.nodeId) {
+      clearPendingErdFocus();
+      return null;
+    }
+    if (typeof parsed.expiresAt === 'number' && parsed.expiresAt < Date.now()) {
+      clearPendingErdFocus();
+      return null;
+    }
+    return parsed as PendingErdFocus;
   } catch {
     return null;
   }
+}
+
+export function clearPendingErdFocus(): void {
+  try { localStorage.removeItem(PENDING_FOCUS_KEY); } catch { /* storage unavailable */ }
 }
