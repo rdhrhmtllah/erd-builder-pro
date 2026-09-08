@@ -857,7 +857,12 @@ export function syncERDEdgeHandles(
 ): Edge[] {
   const nodesById = new Map(nodes.map(node => [node.id, node]));
   const cacheKey = [
-    ...nodes.map(node => `${node.id}:${node.position.x}:${node.position.y}:${footprint(node).width}:${footprint(node).height}`).sort(),
+    // footprint() measures every column, so it is computed once per node here
+    // rather than once per dimension — this key is rebuilt on every drag frame.
+    ...nodes.map(node => {
+      const { width, height } = footprint(node);
+      return `${node.id}:${node.position.x}:${node.position.y}:${width}:${height}`;
+    }).sort(),
     '|',
     ...edges.map(edge => `${edge.id}:${edge.source}:${edge.target}:${columnIdFromHandle(edge.sourceHandle)}:${columnIdFromHandle(edge.targetHandle)}`).sort(),
   ].join(';');

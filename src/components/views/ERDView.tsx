@@ -44,6 +44,7 @@ import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject
 import { applyClearSelection, applySelectAllTables, selectionKeyOf } from '@/lib/erd-selection';
 import { CANVAS_GESTURES } from '@/lib/canvas-gestures';
 import { useCanvasPinchZoom } from '@/hooks/useCanvasPinchZoom';
+import { useSchemaSnapshot } from '@/hooks/useSchemaSnapshot';
 import { ErdPerspectivePanel, type ErdPerspective } from '@/components/diagram/ErdPerspectivePanel';
 import { PerspectiveSectionNode } from '@/components/diagram/PerspectiveSectionNode';
 import { layoutErdPerspective } from '../../../shared/erd-perspectives';
@@ -482,9 +483,12 @@ const ERDViewComponent = ({
     };
   }, [activePerspective, nodes, edges]);
 
-  const nodeNames = React.useMemo(() => new Map(nodes.map(node => [node.id, String(node.data.name || node.id)])), [nodes]);
-  const schemaHealthReport = React.useMemo(() => analyzeErdSchemaHealth(nodes, edges), [nodes, edges]);
-  const governanceReport = React.useMemo(() => analyzeErdGovernance(nodes.map(node => node.data)), [nodes]);
+  // None of these read positions, so they run against a snapshot that ignores
+  // movement — otherwise dragging one table re-analyses the whole schema 60x/s.
+  const schemaNodes = useSchemaSnapshot(nodes);
+  const nodeNames = React.useMemo(() => new Map(schemaNodes.map(node => [node.id, String(node.data.name || node.id)])), [schemaNodes]);
+  const schemaHealthReport = React.useMemo(() => analyzeErdSchemaHealth(schemaNodes, edges), [schemaNodes, edges]);
+  const governanceReport = React.useMemo(() => analyzeErdGovernance(schemaNodes.map(node => node.data)), [schemaNodes]);
 
   const routeNodes = React.useMemo(() => nodes.map(node => {
     const perspectivePosition = perspectiveLayout?.node_positions[node.id];
