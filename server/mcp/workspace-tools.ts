@@ -37,6 +37,11 @@ import {
   proposePerspectiveChange,
 } from "../routes/diagrams/perspective-service.js";
 import {
+  analyzeErdOrganization,
+  applyErdOrganizationProposal,
+  proposeErdOrganization,
+} from "./erd-organize-service.js";
+import {
   applySubjectAreaProposal,
   getSubjectArea,
   listSubjectAreas,
@@ -170,6 +175,11 @@ export function registerWorkspaceReadTools(server: McpServer, userId: string) {
     await analyzeGranularErdImpact(userId, uid, selectedOperation, table_id, column_id),
   ));
 
+  server.registerTool("erd_organize_analyze", {
+    description: "Suggest how one regular ERD could be grouped into Subject Areas, using table names, existing Data Dictionary domains, and the foreign-key graph. Deterministic and read-only: it saves nothing. Each suggestion reports the tables it covers, why they were grouped, a confidence level, and how many relationships stay inside versus cross the group. Show these to the user before proposing anything.",
+    inputSchema: { uid: z.string().min(1).max(100) }, annotations: readOnly,
+  }, async ({ uid }) => jsonResult(await analyzeErdOrganization(userId, uid)));
+
   server.registerTool("backup_list", {
     description: "List this user's backup metadata and statuses. Backup file contents are never returned through MCP.",
     inputSchema: { limit: z.number().int().min(1).max(100).default(20), offset: z.number().int().min(0).default(0) }, annotations: readOnly,
@@ -189,6 +199,23 @@ export function registerWorkspaceWriteTools(server: McpServer, userId: string) {
     inputSchema: { proposal_id: z.string().uuid(), confirmation: z.string().uuid() },
     annotations: destructiveWrite,
   }, async ({ proposal_id, confirmation }) => jsonResult(await applyHistoryRestore(userId, proposal_id, confirmation)));
+
+  server.registerTool("erd_organize_propose", {
+    description: "Prepare several Subject Areas at once from an approved organization plan, without writing. Call erd_organize_analyze first and let the user adjust the names and membership. Each group is {name, color?, node_ids}; every table ID must exist in the diagram and may appear in only one group. Returns an exact preview; show it and obtain explicit confirmation before applying. This only creates Subject Areas — tables, columns and relationships are never modified.",
+    inputSchema: {
+      uid: z.string().min(1).max(100),
+      groups: z.array(z.object({
+        name: z.string().min(1).max(80),
+        color: z.string().max(20).optional(),
+        node_ids: z.array(z.string().min(1).max(160)).min(1).max(1000),
+      })).min(1).max(40),
+    }, annotations: write,
+  }, async ({ uid, groups }) => jsonResult(await proposeErdOrganization(userId, uid, groups)));
+
+  server.registerTool("erd_organize_apply", {
+    description: "Apply one confirmed organization proposal, creating every Subject Area in it. confirmation must exactly equal proposal_id; expired proposals, stale diagrams, and tables that have since been removed are rejected.",
+    inputSchema: { proposal_id: z.string().uuid(), confirmation: z.string().uuid() }, annotations: destructiveWrite,
+  }, async ({ proposal_id, confirmation }) => jsonResult(await applyErdOrganizationProposal(userId, proposal_id, confirmation)));
 
   server.registerTool("erd_subject_area_propose", {
     description: "Prepare a hierarchical Subject Area create/update/delete without writing. Read erd_schema_read and erd_subject_area_list first; group tables by coherent business responsibility and relationship flow. create requires area {name,color,node_ids,viewport_x?,viewport_y?,viewport_zoom?,parent_id?}; update requires area_id and changes (including parent_id to move it). parent_id must reference another Area in the same diagram and cannot create a cycle. Show the tree, table membership, and preview, then request confirmation.",
