@@ -275,6 +275,23 @@
   marker-end: none !important;
 }
 
+/* Marks the column a search result jumped to, so it is findable inside a wide table. */
+.erd-column-flash {
+  animation: erd_column_flash 2s ease-out 1;
+}
+
+@keyframes erd_column_flash {
+  0%, 60% {
+    background-color: color-mix(in srgb, var(--primary) 32%, transparent);
+    box-shadow: inset 3px 0 0 0 var(--primary);
+  }
+
+  100% {
+    background-color: transparent;
+    box-shadow: inset 3px 0 0 0 transparent;
+  }
+}
+
 @keyframes edge_dash_draw {
   from {
     stroke-dashoffset: 20;

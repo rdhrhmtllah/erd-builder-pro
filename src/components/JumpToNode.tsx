@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useReactFlow, Node } from '@xyflow/react';
-import { Search, MapPin, ChevronDown } from 'lucide-react';
+import { Search, MapPin, ChevronDown, Columns3, KeyRound } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,12 +14,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
+import { buildJumpResults, type JumpResult } from '@/lib/erd-jump-search';
 
 interface JumpToNodeProps {
   nodes: Node[];
   className?: string;
   label?: string;
 }
+
+/** A wide ERD can match thousands of columns; keep the list responsive. */
+const MAX_RESULTS = 60;
+
 
 export function JumpToNode({ nodes, className, label = 'Symbol' }: JumpToNodeProps) {
   const { fitView } = useReactFlow();
@@ -43,53 +48,57 @@ export function JumpToNode({ nodes, className, label = 'Symbol' }: JumpToNodePro
     }
   };
 
-  const filteredNodes = useMemo(() => {
-    const s = search.trim().toLowerCase();
-    if (!s) return nodes;
+  const { results, truncated, columnMatches } = useMemo(
+    () => buildJumpResults(nodes, search, MAX_RESULTS),
+    [nodes, search],
+  );
 
-    return nodes.filter(node => {
-      const data = node.data as Record<string, any>;
-      const name = String((data.name || data.label) || '').toLowerCase();
-      const columns = Array.isArray(data.columns) ? data.columns : [];
-      return name.includes(s) || columns.some((column: any) => String(column.name || '').toLowerCase().includes(s));
-    });
-  }, [nodes, search]);
-
-  const matchLabel = (node: Node) => {
-    const data = node.data as Record<string, any>;
-    const tableName = String(data.name || data.label || 'Unnamed component');
-    const query = search.trim().toLowerCase();
-    if (!query || tableName.toLowerCase().includes(query)) return tableName;
-    const column = (Array.isArray(data.columns) ? data.columns : []).find((item: any) => String(item.name || '').toLowerCase().includes(query));
-    return column ? `${tableName} · ${column.name}` : tableName;
+  /**
+   * React Flow only mounts visible nodes, so the row exists after the jump has
+   * brought its table on screen — flash it there rather than before moving.
+   */
+  const flashColumn = (columnId: string) => {
+    window.setTimeout(() => {
+      const selector = typeof CSS !== 'undefined' && CSS.escape
+        ? `[data-erd-column-id="${CSS.escape(columnId)}"]`
+        : `[data-erd-column-id="${columnId}"]`;
+      const row = document.querySelector<HTMLElement>(selector);
+      if (!row) return;
+      row.classList.remove('erd-column-flash');
+      void row.offsetWidth; // restart the animation when jumping twice in a row
+      row.classList.add('erd-column-flash');
+      window.setTimeout(() => row.classList.remove('erd-column-flash'), 2100);
+    }, 180);
   };
 
-  const handleJump = (node: Node) => {
+  const handleJump = (result: JumpResult) => {
     setOpen(false);
     setSearch('');
 
     // Use fitView with a tiny timeout to ensure the UI has updated (dropdown closed)
     // and the viewport is ready for manipulation.
-    const x = node.position.x + (node.measured?.width ?? 200) / 2;
-    const y = node.position.y + (node.measured?.height ?? 100) / 2;
-
     setTimeout(() => {
-      fitView({ 
-        nodes: [{ id: node.id }], 
+      fitView({
+        nodes: [{ id: result.nodeId }],
         duration: 0, // Instant as requested
         padding: 1.5,
         minZoom: 1.2,
         maxZoom: 1.2
       });
+      if (result.columnId) flashColumn(result.columnId);
     }, 100);
   };
+
+  const summary = search.trim()
+    ? `${results.length}${truncated ? `+` : ''} match${results.length === 1 ? '' : 'es'}${columnMatches ? ` · ${columnMatches} column${columnMatches === 1 ? '' : 's'}` : ''}`
+    : `Showing ${results.length} of ${nodes.length} ${label.toLowerCase()}s`;
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger render={
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           className={cn(
             "h-9 px-3 text-xs font-bold border-border/50 bg-muted/20 hover:bg-muted text-muted-foreground transition-all",
             className
@@ -101,13 +110,13 @@ export function JumpToNode({ nodes, className, label = 'Symbol' }: JumpToNodePro
           <ChevronDown className="w-3 h-3 ml-2 opacity-50" />
         </Button>
       } />
-      <DropdownMenuContent align="start" className="w-[280px] p-0 shadow-2xl border-border/50 bg-background/95 backdrop-blur-xl">
+      <DropdownMenuContent align="start" className="w-[320px] p-0 shadow-2xl border-border/50 bg-background/95 backdrop-blur-xl">
         <div className="p-3 pb-2" onPointerDown={(e) => e.stopPropagation()}>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input 
+            <Input
               ref={inputRef}
-              placeholder={`Search ${label.toLowerCase()}s...`} 
+              placeholder={`Search ${label.toLowerCase()}s or columns...`}
               className="h-8 pl-8 text-xs bg-muted/50 border-none focus-visible:ring-1 focus-visible:ring-primary/50"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -119,28 +128,48 @@ export function JumpToNode({ nodes, className, label = 'Symbol' }: JumpToNodePro
         <DropdownMenuSeparator className="bg-border/50" />
         <DropdownMenuGroup>
           <DropdownMenuLabel className="px-3 pt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
-            Showing {filteredNodes.length} of {nodes.length} {label.toLowerCase()}s
+            {summary}
           </DropdownMenuLabel>
           <ScrollArea className="h-[250px] px-1 pb-1">
-            {filteredNodes.length === 0 ? (
+            {results.length === 0 ? (
               <div className="px-3 py-6 text-center text-[11px] text-muted-foreground italic">
                 No matching items found
               </div>
             ) : (
-              filteredNodes.map((node) => {
-                const d = node.data as Record<string, any>;
-                const name = d.name || d.label || 'Unnamed component';
-                return (
-                  <DropdownMenuItem 
-                    key={node.id} 
-                    onClick={() => handleJump(node)}
-                    className="flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors focus:bg-accent focus:text-accent-foreground rounded-lg mx-1"
-                  >
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: (node.data as Record<string, any>).color || '#8b5cf6' }} />
-                    <span className="text-[13px] font-medium truncate tracking-tight">{matchLabel(node)}</span>
-                  </DropdownMenuItem>
-                );
-              })
+              results.map((result) => (
+                <DropdownMenuItem
+                  key={result.key}
+                  onClick={() => handleJump(result)}
+                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors focus:bg-accent focus:text-accent-foreground rounded-lg mx-1"
+                >
+                  {result.columnId ? (
+                    <Columns3 className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <div className="w-2 h-2 shrink-0 rounded-full" style={{ backgroundColor: result.color }} />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-[13px] font-medium tracking-tight">{result.title}</span>
+                      {result.isPrimaryKey && <KeyRound className="w-3 h-3 shrink-0 text-amber-500" />}
+                    </div>
+                    {result.subtitle && (
+                      <div className="truncate text-[10px] text-muted-foreground">
+                        {result.columnId ? `in ${result.subtitle}` : result.subtitle}
+                      </div>
+                    )}
+                  </div>
+                  {result.badge && (
+                    <span className="shrink-0 rounded border border-border/60 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">
+                      {result.badge}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              ))
+            )}
+            {truncated > 0 && (
+              <div className="px-3 py-2 text-center text-[10px] text-muted-foreground">
+                +{truncated} more — refine your search
+              </div>
             )}
           </ScrollArea>
         </DropdownMenuGroup>
