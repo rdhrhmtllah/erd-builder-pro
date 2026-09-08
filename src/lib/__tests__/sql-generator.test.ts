@@ -234,14 +234,15 @@ describe('generateSQLServer', () => {
 
     const sql = generateSQLServer(entity);
     expect(sql).toContain('CREATE TABLE [users]');
-    expect(sql).toContain('[id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY');
+    expect(sql).toContain('[id] BIGINT IDENTITY(1,1) NOT NULL,');
+    expect(sql).toContain('CONSTRAINT [PK_users] PRIMARY KEY ([id])');
     expect(sql).toContain('[external_id] UNIQUEIDENTIFIER NOT NULL');
     expect(sql).toContain('[is_active] BIT DEFAULT 1 NOT NULL');
     expect(sql).toContain('[created_at] DATETIME2 DEFAULT SYSUTCDATETIME() NOT NULL');
     expect(sql).toContain('ISJSON([metadata]) = 1');
   });
 
-  it('exports enum checks, metadata constraints, indexes, and descriptions', () => {
+  it('exports enum checks, metadata constraints, indexes, and portable comments', () => {
     const entity = makeEntity('orders', [
       { id: 'id', name: 'id', type: 'INT', is_pk: true, is_nullable: false },
       { id: 'status', name: 'status', type: 'ENUM', enum_values: 'pending, paid', is_nullable: false, comment: 'Order state' },
@@ -252,7 +253,44 @@ describe('generateSQLServer', () => {
     const sql = generateSQLServer(entity);
     expect(sql).toContain("CHECK ([status] IN (N'pending', N'paid'))");
     expect(sql).toContain('CREATE INDEX [orders_status_idx] ON [orders] ([status])');
-    expect(sql).toContain("@name=N'MS_Description'");
+    // Descriptions are readable line comments, not sp_addextendedproperty calls.
+    expect(sql).toContain('-- Customer orders\nCREATE TABLE [orders]');
+    expect(sql).toContain('[status] NVARCHAR(255) NOT NULL, -- Order state');
+    expect(sql).not.toContain('EXEC');
+  });
+
+  it('declares one primary key and no identity column for a composite key', () => {
+    const entity = makeEntity('order_items', [
+      { name: 'order_id', type: 'BIGINT', is_pk: true, is_nullable: false },
+      { name: 'product_id', type: 'BIGINT', is_pk: true, is_nullable: false },
+    ]);
+
+    const sql = generateSQLServer(entity);
+    expect(sql).toContain('CONSTRAINT [PK_order_items] PRIMARY KEY ([order_id], [product_id])');
+    expect(sql.match(/PRIMARY KEY/g)).toHaveLength(1);
+    expect(sql).not.toContain('IDENTITY');
+  });
+
+  it('defers to an explicit primary key constraint instead of declaring a second one', () => {
+    const entity = makeEntity('tag_links', [
+      { id: 'tag_id', name: 'tag_id', type: 'BIGINT', is_nullable: false },
+      { id: 'post_id', name: 'post_id', type: 'BIGINT', is_nullable: false },
+    ]);
+    entity.constraints = [{ id: 'pk', entity_id: entity.id, kind: 'primary_key', name: 'tag_links_pk', column_ids: ['tag_id', 'post_id'] }];
+
+    const sql = generateSQLServer(entity);
+    expect(sql).toContain('ALTER TABLE [tag_links] ADD CONSTRAINT [tag_links_pk] PRIMARY KEY ([tag_id], [post_id]);');
+    expect(sql.match(/PRIMARY KEY/g)).toHaveLength(1);
+  });
+
+  it('keeps a multi-line description inside a single line comment', () => {
+    const entity = makeEntity('notes', [
+      { name: 'body', type: 'TEXT', comment: 'Free text.\nCan span lines.' },
+    ]);
+
+    const sql = generateSQLServer(entity);
+    expect(sql).toContain('-- Free text. Can span lines.');
+    expect(sql.split('\n').filter(line => line.includes('Can span lines'))).toHaveLength(1);
   });
 });
 

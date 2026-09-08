@@ -318,46 +318,75 @@ function sqlServerDefault(value: string | null): string | null {
   return value;
 }
 
-function sqlServerDescription(value: string): string {
-  return value.replace(/'/g, "''");
+/** Collapse to a single line so a description can never break out of a -- comment. */
+function sqlServerComment(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * True when tableMetadataSQL already emits an explicit PRIMARY KEY for this
+ * table, so the CREATE TABLE body must not declare a competing second one.
+ */
+function hasMetadataPrimaryKey(entity: Entity): boolean {
+  const inlinePrimary = new Set(entity.columns.filter(column => column.is_pk).map(column => column.name));
+  return (entity.constraints || []).some(constraint => {
+    if (constraint.kind !== 'primary_key') return false;
+    const columns = metadataColumns(entity, constraint.column_ids || []);
+    return columns.length > 0 && !(columns.length === 1 && inlinePrimary.has(columns[0]));
+  });
 }
 
 export function generateSQLServer(entity: Entity): string {
   const tableName = entity.name.toLowerCase();
   const table = quoteIdentifier(tableName, 'sqlserver');
-  const descriptions: string[] = [];
+  const primaryKeys = entity.columns.filter(column => column.is_pk);
+  // SQL Server allows one IDENTITY column per table, so auto-numbering is only
+  // safe for a single-column integer key — never for a composite one.
+  const identityColumn = primaryKeys.length === 1 ? primaryKeys[0] : null;
+  const definitions: Array<{ sql: string; comment?: string }> = [];
   const checks: string[] = [];
-  const columns = entity.columns.map(col => {
+
+  for (const col of entity.columns) {
     const type = col.type.toLowerCase() === 'enum'
       ? `NVARCHAR(${col.max_length || 255})`
       : mapType(col.type, 'sqlserver', col.max_length, col.numeric_precision, col.numeric_scale);
-    const nullable = col.is_nullable ? 'NULL' : 'NOT NULL';
-    const identity = col.is_pk && (type === 'INT' || type === 'BIGINT') ? ' IDENTITY(1,1)' : '';
-    const pk = col.is_pk ? ' PRIMARY KEY' : '';
+    const column = quoteIdentifier(col.name, 'sqlserver');
+    const identity = col === identityColumn && (type === 'INT' || type === 'BIGINT') ? ' IDENTITY(1,1)' : '';
     const defaultValue = sqlServerDefault(normalizeColumnDefault(col.default_value, Boolean(col.is_nullable)));
     const defaultClause = defaultValue ? ` DEFAULT ${defaultValue}` : '';
-    const unique = col.is_unique ? ' UNIQUE' : '';
-    const column = quoteIdentifier(col.name, 'sqlserver');
+    const nullable = col.is_nullable ? 'NULL' : 'NOT NULL';
+    // A primary key column is already unique; a second constraint only adds noise.
+    const unique = col.is_unique && !col.is_pk ? ' UNIQUE' : '';
 
     if (col.type.toLowerCase() === 'enum' && col.enum_values) {
       const values = col.enum_values.split(',').map(value => `N'${value.trim().replace(/'/g, "''")}'`).join(', ');
-      checks.push(`  CONSTRAINT ${quoteIdentifier(`${tableName}_${col.name}_check`, 'sqlserver')} CHECK (${column} IN (${values}))`);
+      checks.push(`CONSTRAINT ${quoteIdentifier(`${tableName}_${col.name}_check`, 'sqlserver')} CHECK (${column} IN (${values}))`);
     }
     if (col.type.toLowerCase() === 'json') {
-      checks.push(`  CONSTRAINT ${quoteIdentifier(`${tableName}_${col.name}_json_check`, 'sqlserver')} CHECK (${column} IS NULL OR ISJSON(${column}) = 1)`);
+      checks.push(`CONSTRAINT ${quoteIdentifier(`${tableName}_${col.name}_json_check`, 'sqlserver')} CHECK (${column} IS NULL OR ISJSON(${column}) = 1)`);
     }
-    if (col.comment) {
-      descriptions.push(`EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'${sqlServerDescription(col.comment)}', @level0type=N'SCHEMA', @level0name=N'dbo', @level1type=N'TABLE', @level1name=N'${sqlServerDescription(tableName)}', @level2type=N'COLUMN', @level2name=N'${sqlServerDescription(col.name)}';`);
-    }
-    return `  ${column} ${type}${identity}${defaultClause} ${nullable}${unique}${pk}`;
-  });
 
-  const definitions = [...columns, ...checks].join(',\n');
-  const create = `CREATE TABLE ${table} (\n${definitions}\n);`;
-  if (entity.comment) {
-    descriptions.unshift(`EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'${sqlServerDescription(entity.comment)}', @level0type=N'SCHEMA', @level0name=N'dbo', @level1type=N'TABLE', @level1name=N'${sqlServerDescription(tableName)}';`);
+    definitions.push({
+      sql: `${column} ${type}${identity}${defaultClause} ${nullable}${unique}`,
+      comment: col.comment ? sqlServerComment(col.comment) : undefined,
+    });
   }
-  return [create, descriptions.join('\n'), tableMetadataSQL(entity, 'sqlserver')].filter(Boolean).join('\n\n');
+
+  if (primaryKeys.length > 0 && !hasMetadataPrimaryKey(entity)) {
+    const keyColumns = primaryKeys.map(column => quoteIdentifier(column.name, 'sqlserver')).join(', ');
+    definitions.push({ sql: `CONSTRAINT ${quoteIdentifier(`PK_${tableName}`, 'sqlserver')} PRIMARY KEY (${keyColumns})` });
+  }
+  checks.forEach(check => definitions.push({ sql: check }));
+
+  const body = definitions.map((definition, index) => {
+    const separator = index < definitions.length - 1 ? ',' : '';
+    const comment = definition.comment ? ` -- ${definition.comment}` : '';
+    return `  ${definition.sql}${separator}${comment}`;
+  }).join('\n');
+
+  const header = entity.comment ? `-- ${sqlServerComment(entity.comment)}\n` : '';
+  const create = `${header}CREATE TABLE ${table} (\n${body}\n);`;
+  return [create, tableMetadataSQL(entity, 'sqlserver')].filter(Boolean).join('\n\n');
 }
 
 export function generateLaravelMigration(entity: Entity, fkConstraints?: ForeignKeyConstraint[]): string {
