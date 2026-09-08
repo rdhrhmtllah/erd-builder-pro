@@ -45,6 +45,7 @@ import { applyClearSelection, applySelectAllTables, selectionKeyOf } from '@/lib
 import { CANVAS_GESTURES } from '@/lib/canvas-gestures';
 import { useCanvasPinchZoom } from '@/hooks/useCanvasPinchZoom';
 import { useSchemaSnapshot } from '@/hooks/useSchemaSnapshot';
+import { flashErdColumn, takePendingErdFocus } from '@/lib/erd-focus-flash';
 import { ErdPerspectivePanel, type ErdPerspective } from '@/components/diagram/ErdPerspectivePanel';
 import { PerspectiveSectionNode } from '@/components/diagram/PerspectiveSectionNode';
 import { layoutErdPerspective } from '../../../shared/erd-perspectives';
@@ -402,6 +403,19 @@ const ERDViewComponent = ({
   }, [activeFileUid, handlePanelChange]);
 
   useCanvasPinchZoom(canvasRef, 0.1, 2.5);
+
+  // A table or column opened from global search lands here once the diagram has
+  // loaded; the target is consumed so a later reload does not jump again.
+  React.useEffect(() => {
+    if (isLoading || nodes.length === 0) return;
+    const focus = takePendingErdFocus();
+    if (!focus || !nodes.some(node => node.id === focus.nodeId)) return;
+    requestAnimationFrame(() => {
+      void fitView({ nodes: [{ id: focus.nodeId }], duration: 260, padding: 1.2, minZoom: 0.2, maxZoom: 1.2 });
+      if (focus.columnId) flashErdColumn(focus.columnId, 420);
+    });
+  }, [isLoading, nodes, fitView]);
+
 
   React.useEffect(() => {
     const container = canvasRef.current;

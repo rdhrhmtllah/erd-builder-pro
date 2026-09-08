@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
 import { buildJumpResults, type JumpResult } from '@/lib/erd-jump-search';
+import { flashErdColumn } from '@/lib/erd-focus-flash';
 
 interface JumpToNodeProps {
   nodes: Node[];
@@ -53,24 +54,6 @@ export function JumpToNode({ nodes, className, label = 'Symbol' }: JumpToNodePro
     [nodes, search],
   );
 
-  /**
-   * React Flow only mounts visible nodes, so the row exists after the jump has
-   * brought its table on screen — flash it there rather than before moving.
-   */
-  const flashColumn = (columnId: string) => {
-    window.setTimeout(() => {
-      const selector = typeof CSS !== 'undefined' && CSS.escape
-        ? `[data-erd-column-id="${CSS.escape(columnId)}"]`
-        : `[data-erd-column-id="${columnId}"]`;
-      const row = document.querySelector<HTMLElement>(selector);
-      if (!row) return;
-      row.classList.remove('erd-column-flash');
-      void row.offsetWidth; // restart the animation when jumping twice in a row
-      row.classList.add('erd-column-flash');
-      window.setTimeout(() => row.classList.remove('erd-column-flash'), 2100);
-    }, 180);
-  };
-
   const handleJump = (result: JumpResult) => {
     setOpen(false);
     setSearch('');
@@ -85,7 +68,7 @@ export function JumpToNode({ nodes, className, label = 'Symbol' }: JumpToNodePro
         minZoom: 1.2,
         maxZoom: 1.2
       });
-      if (result.columnId) flashColumn(result.columnId);
+      if (result.columnId) flashErdColumn(result.columnId);
     }, 100);
   };
 

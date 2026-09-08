@@ -52,7 +52,15 @@ export async function searchDocuments(userId: string, query: string) {
     OR: [{ projectId: null }, { project: { isDeleted: false } }],
   } as any;
 
-  const [projects, diagrams, notes, drawings, flowcharts, dbClients] = await Promise.all([
+  // Tables and columns hang off a diagram, so they inherit its ownership rules
+  // and stay out of production-database diagrams like every other result here.
+  const diagramOwnership = {
+    ...base,
+    AND: [{ OR: [{ sourceType: null }, { sourceType: { not: "production_db" } }] }],
+  } as any;
+  const diagramRef = { id: true, uid: true, name: true, updatedAt: true, project: { select: projectSelect } } as const;
+
+  const [projects, diagrams, notes, drawings, flowcharts, dbClients, tables, columns] = await Promise.all([
     prisma.project.findMany({
       where: { userId, isDeleted: false, name: contains },
       orderBy: { updatedAt: "desc" },
@@ -87,6 +95,16 @@ export async function searchDocuments(userId: string, query: string) {
       where: { ...base, name: contains }, orderBy: { updatedAt: "desc" }, take: 5,
       select: { id: true, uid: true, name: true, project: { select: projectSelect }, updatedAt: true },
     }) : Promise.resolve([]),
+    prisma.entity.findMany({
+      where: { name: contains, diagram: { ...diagramOwnership } },
+      take: 8,
+      select: { id: true, name: true, diagram: { select: diagramRef } },
+    }),
+    prisma.column.findMany({
+      where: { name: contains, entity: { diagram: { ...diagramOwnership } } },
+      take: 8,
+      select: { id: true, name: true, type: true, entity: { select: { id: true, name: true, diagram: { select: diagramRef } } } },
+    }),
   ]);
 
   return [
@@ -101,9 +119,33 @@ export async function searchDocuments(userId: string, query: string) {
     ...(drawings || []).map((item: any) => ({ ...item, type: "drawings", name: item.title, workspace: item.project })),
     ...(flowcharts || []).map((item: any) => ({ ...item, type: "flowchart", name: item.title, workspace: item.project })),
     ...(dbClients || []).map((item: any) => ({ ...item, type: "db-client", name: item.name, workspace: item.project })),
+    ...(tables || []).map((item: any) => ({
+      type: "table",
+      id: item.id,
+      name: item.name,
+      nodeId: item.id,
+      uid: item.diagram?.uid ?? String(item.diagram?.id ?? ""),
+      diagramName: item.diagram?.name,
+      workspace: item.diagram?.project,
+      updatedAt: item.diagram?.updatedAt,
+    })),
+    ...(columns || []).map((item: any) => ({
+      type: "column",
+      id: item.id,
+      name: item.name,
+      columnType: item.type,
+      columnId: item.id,
+      nodeId: item.entity?.id,
+      tableName: item.entity?.name,
+      uid: item.entity?.diagram?.uid ?? String(item.entity?.diagram?.id ?? ""),
+      diagramName: item.entity?.diagram?.name,
+      workspace: item.entity?.diagram?.project,
+      updatedAt: item.entity?.diagram?.updatedAt,
+    })),
   ]
+    .filter((item: any) => item.type !== "table" && item.type !== "column" ? true : Boolean(item.uid && item.nodeId))
     .sort((a: any, b: any) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
-    .slice(0, 20);
+    .slice(0, 24);
 }
 
 export async function listMentionFiles(userId: string) {

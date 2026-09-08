@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { setPendingErdFocus } from '@/lib/erd-focus-flash';
 import type { Node, Edge } from '@xyflow/react';
 import type { Entity } from '@/types';
 import { Sparkles, Database, PanelRightClose, Pencil } from 'lucide-react';
@@ -286,6 +287,16 @@ function AppLayoutInner() {
     setGlobalSearchQuery('');
     if (result.type === 'workspace') {
       handleViewChange('erd', true, result.uid ?? result.id);
+      return;
+    }
+    // A table or column result carries the diagram it lives in, plus what to
+    // focus once the canvas has loaded it.
+    if (result.type === 'table' || result.type === 'column') {
+      const nodeId = result.node_id ?? result.nodeId;
+      if (result.uid && nodeId) {
+        setPendingErdFocus({ nodeId, columnId: result.column_id ?? result.columnId });
+        navigate(`/diagrams/${result.uid}`);
+      }
       return;
     }
     const id = result.uid ?? result.id;

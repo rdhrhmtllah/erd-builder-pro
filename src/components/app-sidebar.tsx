@@ -4,6 +4,8 @@ import {
   Database,
   DatabaseZap,
   Cable,
+  Table2,
+  Columns3,
   PenTool,
   Search,
   Network,
@@ -136,6 +138,7 @@ export const AppSidebar = React.memo(({
     { value: 'all', label: 'All' },
     { value: 'workspace', label: 'Workspaces' },
     { value: 'erd', label: 'ERD Builder' },
+    { value: 'schema', label: 'Tables & Columns' },
     ...(showDbClient ? [{ value: 'db-client', label: 'DB Client' }] : []),
     { value: 'notes', label: 'Notes' },
     { value: 'flowchart', label: 'Flowcharts' },
@@ -143,7 +146,13 @@ export const AppSidebar = React.memo(({
   ];
   const visibleSearchResults = searchFilter === 'all'
     ? globalSearchResults
-    : globalSearchResults.filter((result: any) => result.type === searchFilter);
+    : searchFilter === 'schema'
+      ? globalSearchResults.filter((result: any) => result.type === 'table' || result.type === 'column')
+      : globalSearchResults.filter((result: any) => result.type === searchFilter);
+  const [activeResultIndex, setActiveResultIndex] = useState(0);
+
+  // Keep the highlight on a row that still exists as the query narrows.
+  useEffect(() => { setActiveResultIndex(0); }, [searchQuery, searchFilter]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -385,7 +394,24 @@ export const AppSidebar = React.memo(({
               ref={searchInputRef}
               value={searchQuery}
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search"
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                  event.preventDefault();
+                  if (visibleSearchResults.length === 0) return;
+                  const step = event.key === 'ArrowDown' ? 1 : -1;
+                  setActiveResultIndex(current =>
+                    (current + step + visibleSearchResults.length) % visibleSearchResults.length);
+                  return;
+                }
+                if (event.key === 'Enter') {
+                  const result = visibleSearchResults[activeResultIndex];
+                  if (!result) return;
+                  event.preventDefault();
+                  onGlobalSearchResultSelect(result);
+                  setIsSearchOpen(false);
+                }
+              }}
+              placeholder="Search files, tables, and columns"
               aria-label="Global search"
               className="h-9 min-w-0 flex-1 bg-transparent text-lg outline-none placeholder:text-muted-foreground/70"
             />
@@ -415,16 +441,19 @@ export const AppSidebar = React.memo(({
               ) : visibleSearchResults.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">No results found.</p>
               ) : (
-                visibleSearchResults.map((result: any) => (
+                visibleSearchResults.map((result: any, index: number) => (
                   <button
-                    key={`${result.type}-${result.uid ?? result.id}`}
+                    key={`${result.type}-${result.id ?? result.uid}-${index}`}
                     type="button"
+                    onMouseEnter={() => setActiveResultIndex(index)}
                     onClick={() => { onGlobalSearchResultSelect(result); setIsSearchOpen(false); }}
-                    className="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-accent"
+                    className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-accent ${index === activeResultIndex ? 'bg-accent' : ''}`}
                   >
                     <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
                       {result.type === 'workspace' ? <Folder className="size-4 text-muted-foreground" />
                         : result.type === 'erd' ? <Database className="size-4 text-muted-foreground" />
+                          : result.type === 'table' ? <Table2 className="size-4 text-muted-foreground" />
+                          : result.type === 'column' ? <Columns3 className="size-4 text-muted-foreground" />
                           : result.type === 'db-client' ? <Cable className="size-4 text-muted-foreground" />
                         : result.type === 'notes' ? <FileText className="size-4 text-muted-foreground" />
                             : result.type === 'flowchart' ? <Network className="size-4 text-muted-foreground" />
@@ -433,10 +462,17 @@ export const AppSidebar = React.memo(({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{result.name || '(Untitled)'}</p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {result.type === 'workspace' ? 'Workspace' : result.type === 'erd' ? 'ERD Builder' : result.type === 'db-client' ? 'DB Client' : result.type === 'flowchart' ? 'Flowchart' : result.type === 'notes' ? 'Note' : 'Drawing'}
+                        {result.type === 'table' ? `Table · ${result.diagram_name ?? result.diagramName ?? 'ERD'}`
+                          : result.type === 'column' ? `Column in ${result.table_name ?? result.tableName ?? 'table'} · ${result.diagram_name ?? result.diagramName ?? 'ERD'}`
+                          : result.type === 'workspace' ? 'Workspace' : result.type === 'erd' ? 'ERD Builder' : result.type === 'db-client' ? 'DB Client' : result.type === 'flowchart' ? 'Flowchart' : result.type === 'notes' ? 'Note' : 'Drawing'}
                         {result.workspace?.name && ` · ${result.workspace.name}`}
                       </p>
                     </div>
+                    {(result.column_type ?? result.columnType) && (
+                      <span className="shrink-0 rounded border border-border/60 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">
+                        {result.column_type ?? result.columnType}
+                      </span>
+                    )}
                     <ArrowUpRight className="size-4 shrink-0 text-muted-foreground/40 group-hover:text-primary" />
                   </button>
                 ))
