@@ -33,6 +33,7 @@ import { AddSymbolModal } from '../flowchart/AddSymbolModal';
 import { SymbolPropertiesModal } from '../flowchart/SymbolPropertiesModal';
 import { ConnectorPropertiesModal } from '../flowchart/ConnectorPropertiesModal';
 import { JumpToNode } from '../JumpToNode';
+import { CANVAS_GESTURES } from '@/lib/canvas-gestures';
 import { useAIAction } from '@/contexts/AIActionContext';
 import { toast } from 'sonner';
 import { applyToFlowchartContent, previewFlowchartContent, applyInsertBetween, applyReplaceAll, clearParseCache, FlowchartApplyResult } from '@/components/ai/actions/flowchartActions';
@@ -834,6 +835,7 @@ export const FlowchartView = React.memo(({
           elementsSelectable={!isReadOnly}
           minZoom={0.1}
           maxZoom={2.5}
+          {...CANVAS_GESTURES}
           onMove={(e, v) => setViewport(v)}
         >
           <Controls className="bg-background/95 border-border shadow-md" showInteractive={!isReadOnly} />

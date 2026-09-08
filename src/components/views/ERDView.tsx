@@ -42,6 +42,7 @@ import { ErdTemplatePanel } from '@/components/diagram/ErdTemplatePanel';
 import { ErdToolbar, type ErdPanelId } from '@/components/diagram/ErdToolbar';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 import { applyClearSelection, applySelectAllTables, selectionKeyOf } from '@/lib/erd-selection';
+import { CANVAS_GESTURES } from '@/lib/canvas-gestures';
 import { ErdPerspectivePanel, type ErdPerspective } from '@/components/diagram/ErdPerspectivePanel';
 import { PerspectiveSectionNode } from '@/components/diagram/PerspectiveSectionNode';
 import { layoutErdPerspective } from '../../../shared/erd-perspectives';
@@ -279,7 +280,7 @@ const ERDViewComponent = ({
 }: ERDViewProps) => {
 
   const { registerContentHandler, setSelectionText, setActionContextData, setRightPanelMode } = useAIAction();
-  const { getViewport, setViewport } = useReactFlow();
+  const { getViewport, setViewport, fitView } = useReactFlow();
   const bgColor = resolvedTheme === 'dark' ? '#222' : '#ccc';
   const isProductionDb = isDbClient;
   const isPublicView = Boolean(isReadOnly && !isProductionDb);
@@ -414,16 +415,25 @@ const ERDViewComponent = ({
   React.useEffect(() => {
     if (pendingDiff) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'a') return;
+      if (!(event.ctrlKey || event.metaKey)) return;
       const target = event.target as HTMLElement | null;
-      // Never hijack Ctrl+A while the user is editing text.
+      // Never hijack shortcuts while the user is editing text.
       if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName || '')) return;
-      event.preventDefault();
-      selectAllTables();
+      const key = event.key.toLowerCase();
+      if (key === 'a') {
+        event.preventDefault();
+        selectAllTables();
+        return;
+      }
+      // Panning freely needs a cheap way back to the whole diagram.
+      if (key === '0') {
+        event.preventDefault();
+        void fitView({ duration: 220, padding: 0.2, minZoom: 0.1, maxZoom: 1.25 });
+      }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [pendingDiff, selectAllTables]);
+  }, [pendingDiff, selectAllTables, fitView]);
 
   // Subject Areas are focused, non-destructive views: their compact layout is
   // calculated only for the tables in the selected area and never overwrites
@@ -1205,6 +1215,7 @@ const ERDViewComponent = ({
           onMoveEnd={activePerspective ? persistPerspectiveViewport : onMoveEnd}
           minZoom={0.1}
           maxZoom={2.5}
+          {...CANVAS_GESTURES}
           defaultEdgeOptions={defaultEdgeOptions}
           connectionLineType={ConnectionLineType.SmoothStep}
           connectionLineStyle={defaultEdgeOptions.style}
