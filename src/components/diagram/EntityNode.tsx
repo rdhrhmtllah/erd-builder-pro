@@ -11,6 +11,8 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { CopyQuerySubMenu, copyToClipboard } from './CopyQuerySubMenu';
+import { buildCopyText, type CopyKind, type QueryOptions } from '@/lib/erd-query-builder';
 import { useEntityNodeRuntime } from '@/contexts/EntityNodeRuntimeContext';
 import { governanceFrom } from '../../../shared/erd-governance';
 
@@ -26,6 +28,11 @@ import {
   AlertDialogTitle,
   AlertDialogBody,
 } from "@/components/ui/alert-dialog";
+
+const COPY_LABELS: Record<CopyKind, string> = {
+  select: 'SELECT', insert: 'INSERT', update: 'UPDATE', delete: 'DELETE',
+  columns: 'Column list', ddl: 'CREATE TABLE',
+};
 
 type EntityNodeProps = NodeProps<Node<Entity>>;
 
@@ -150,6 +157,10 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
     duplicateEntity(id);
   };
 
+  const handleCopy = (kind: CopyKind, options: QueryOptions) => {
+    void copyToClipboard(buildCopyText(kind, data, options), `${data.name} · ${COPY_LABELS[kind]}`);
+  };
+
   const confirmDelete = () => {
     window.dispatchEvent(new CustomEvent('deleteEntity', { detail: id }));
     setShowDeleteConfirm(false);
@@ -263,6 +274,8 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
                   <Copy className="w-4 h-4 mr-2" />
                   Duplicate
                 </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-border" />
+                <CopyQuerySubMenu label="Copy query" onCopy={handleCopy} />
                 <DropdownMenuSeparator className="bg-border" />
                 <DropdownMenuItem onClick={handleDeleteClick} className="cursor-pointer text-destructive focus:text-destructive hover:bg-destructive/10 focus:bg-destructive/10">
                   <Trash2 className="w-4 h-4 mr-2" />

@@ -12,9 +12,9 @@ export interface ForeignKeyConstraint {
   constraintName?: string | null;
 }
 
-type SQLDialect = 'mysql' | 'postgresql' | 'sqlserver';
+export type SQLDialect = 'mysql' | 'postgresql' | 'sqlserver';
 
-function quoteIdentifier(value: string, dialect: SQLDialect): string {
+export function quoteIdentifier(value: string, dialect: SQLDialect): string {
   if (dialect === 'sqlserver') return `[${value.replace(/]/g, ']]')}]`;
   const quote = dialect === 'mysql' ? '`' : '"';
   return `${quote}${value.replace(new RegExp(quote, 'g'), `${quote}${quote}`)}${quote}`;

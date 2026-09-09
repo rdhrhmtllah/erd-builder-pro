@@ -42,6 +42,14 @@ import { ErdTemplatePanel } from '@/components/diagram/ErdTemplatePanel';
 import { ErdToolbar, type ErdPanelId } from '@/components/diagram/ErdToolbar';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 import { applyClearSelection, applySelectAllTables, selectionKeyOf } from '@/lib/erd-selection';
+import { buildMultiCopyText, type CopyKind, type QueryOptions } from '@/lib/erd-query-builder';
+import { copyToClipboard } from '@/components/diagram/CopyQuerySubMenu';
+import { edgeToRelationship } from '@/lib/diagram-payload';
+
+const COPY_KIND_LABELS: Record<CopyKind, string> = {
+  select: 'SELECT', insert: 'INSERT', update: 'UPDATE', delete: 'DELETE',
+  columns: 'Column list', ddl: 'CREATE TABLE',
+};
 import { CANVAS_GESTURES } from '@/lib/canvas-gestures';
 import { useCanvasPinchZoom } from '@/hooks/useCanvasPinchZoom';
 import { useSchemaSnapshot } from '@/hooks/useSchemaSnapshot';
@@ -738,6 +746,22 @@ const ERDViewComponent = ({
   const takeSnapshotRef = React.useRef(takeSnapshot);
   takeSnapshotRef.current = takeSnapshot;
 
+  // Reads through refs so the callback stays stable: it is passed to a memoised
+  // toolbar that must not re-render on every drag frame.
+  const handleCopySelection = React.useCallback((kind: CopyKind, options: QueryOptions) => {
+    const entities = nodesRef.current.map(node => node.data as Entity);
+    const byId = new Map(entities.map(entity => [entity.id, entity]));
+    const selected = allSelectedIdsRef.current
+      .map(id => byId.get(id))
+      .filter((entity): entity is Entity => Boolean(entity));
+
+    if (selected.length === 0) return;
+    const relationships = edgesRef.current.map(edgeToRelationship);
+    const text = buildMultiCopyText(kind, selected, entities, relationships, options);
+    const what = selected.length === 1 ? selected[0].name : `${selected.length} tables`;
+    void copyToClipboard(text, `${what} · ${COPY_KIND_LABELS[kind]}`);
+  }, []);
+
   const handleGovernanceUpdate = useCallback((tableId: string, columnId: string | null, metadata: ErdGovernanceMetadata) => {
     takeSnapshotRef.current?.(nodesRef.current, edgesRef.current);
     const nextNodes = nodesRef.current.map(node => {
@@ -1059,6 +1083,7 @@ const ERDViewComponent = ({
             canRedo={canRedo}
             onSelectAll={selectAllTables}
             onClearSelection={clearSelection}
+            onCopySelection={handleCopySelection}
             onAddTable={addEntity}
             onImportSQL={onImportSQL}
             onOpenDbml={() => setRightPanelMode('dbml')}

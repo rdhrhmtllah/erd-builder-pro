@@ -11,6 +11,8 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { JumpToNode } from '../JumpToNode';
+import { CopyQuerySubMenu } from './CopyQuerySubMenu';
+import type { CopyKind, QueryOptions } from '@/lib/erd-query-builder';
 import { healthScoreTone } from './ErdSchemaHealthPanel';
 import { cn } from '@/lib/utils';
 
@@ -61,6 +63,7 @@ type Props = {
   canRedo?: boolean;
   onSelectAll: () => void;
   onClearSelection: () => void;
+  onCopySelection: (kind: CopyKind, options: QueryOptions) => void;
   onAddTable: () => void;
   onImportSQL?: () => void;
   onOpenDbml: () => void;
@@ -89,6 +92,7 @@ export function ErdToolbar({
   canRedo,
   onSelectAll,
   onClearSelection,
+  onCopySelection,
   onAddTable,
   onImportSQL,
   onOpenDbml,
@@ -242,6 +246,11 @@ export function ErdToolbar({
               </div>
               {selectedCount > 0 && <span className="shrink-0 rounded border border-border/60 px-1.5 py-0.5 text-[9px] font-bold">{selectedCount}</span>}
             </DropdownMenuItem>
+            <CopyQuerySubMenu
+              label={selectedCount > 1 ? `Copy query · ${selectedCount} tables` : 'Copy query'}
+              onCopy={onCopySelection}
+              disabled={selectedCount === 0}
+            />
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
 
