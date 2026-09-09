@@ -2,6 +2,7 @@ import React from 'react';
 import { toast } from 'sonner';
 import { ClipboardCopy, Columns3, FileCode2, Table2 } from 'lucide-react';
 import {
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -124,7 +125,9 @@ export function CopyQuerySubMenu({ label, onCopy, disabled }: CopyQuerySubMenuPr
             <span className="text-sm">Placeholder</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="w-48">
-            <DropdownMenuLabel className="text-[10px] text-muted-foreground">Used by INSERT, UPDATE, DELETE</DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-[10px] text-muted-foreground">Used by INSERT, UPDATE, DELETE</DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuRadioGroup
               value={prefs.placeholders}
               onValueChange={(value: any) => setQueryPrefs({ ...prefs, placeholders: value })}
