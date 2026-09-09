@@ -57,6 +57,8 @@ import {
   canvasModeForKey, canvasModeProps, DEFAULT_CANVAS_MODE, type CanvasMode,
 } from '@/lib/canvas-interaction-mode';
 import { CanvasModeToggle } from '@/components/diagram/CanvasModeToggle';
+import { ErdScopeBanner } from '@/components/diagram/ErdScopeBanner';
+import { describeErdViewScope } from '@/lib/erd-view-scope';
 import { useCanvasPinchZoom } from '@/hooks/useCanvasPinchZoom';
 import { useSchemaSnapshot } from '@/hooks/useSchemaSnapshot';
 import { clearPendingErdFocus, flashErdColumn, peekPendingErdFocus } from '@/lib/erd-focus-flash';
@@ -456,6 +458,21 @@ const ERDViewComponent = ({
   const selectAllTables = useCallback(() => {
     setNodes(current => applySelectAllTables(current, subjectAreaVisibility?.visibleNodeIds));
   }, [setNodes, subjectAreaVisibility]);
+
+  const viewScope = React.useMemo(() => describeErdViewScope({
+    totalTableCount: nodes.length,
+    visibleTableIds: subjectAreaVisibility?.visibleNodeIds ?? null,
+    areaName: activeSubjectArea?.name,
+    perspectiveName: activePerspective?.name,
+  }), [nodes.length, subjectAreaVisibility, activeSubjectArea?.name, activePerspective?.name]);
+
+  // Leaves any open side panel alone: the narrowed view is what the user wants
+  // out of, not the place they were working.
+  const showAllTables = useCallback(() => {
+    setActiveSubjectArea(null);
+    setActivePerspective(null);
+    void fitView({ duration: 260, padding: 0.2, minZoom: 0.1, maxZoom: 1.25 });
+  }, [fitView]);
 
   const clearSelection = useCallback(() => {
     setNodes(current => applyClearSelection(current));
@@ -1077,6 +1094,14 @@ const ERDViewComponent = ({
           <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-lg pointer-events-auto text-sm text-amber-700 dark:text-amber-400 shadow-lg">
             <EyeOff className="h-4 w-4 shrink-0" />
             <span>Read-only — imported from production database. Switch to desktop app to modify.</span>
+          </div>
+        </div>
+      )}
+
+      {viewScope.isScoped && (
+        <div className="absolute top-[76px] inset-x-0 z-10 flex justify-center pointer-events-none">
+          <div className="pointer-events-auto">
+            <ErdScopeBanner scope={viewScope} onShowAll={showAllTables} />
           </div>
         </div>
       )}
