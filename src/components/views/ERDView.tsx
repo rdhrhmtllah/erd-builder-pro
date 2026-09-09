@@ -3,6 +3,8 @@ import {
   ReactFlow, 
   Background, 
   Controls, 
+  Panel,
+
   BackgroundVariant,
   OnConnect,
   OnNodesChange,
@@ -51,6 +53,10 @@ const COPY_KIND_LABELS: Record<CopyKind, string> = {
   columns: 'Column list', ddl: 'CREATE TABLE',
 };
 import { CANVAS_GESTURES } from '@/lib/canvas-gestures';
+import {
+  canvasModeForKey, canvasModeProps, DEFAULT_CANVAS_MODE, type CanvasMode,
+} from '@/lib/canvas-interaction-mode';
+import { CanvasModeToggle } from '@/components/diagram/CanvasModeToggle';
 import { useCanvasPinchZoom } from '@/hooks/useCanvasPinchZoom';
 import { useSchemaSnapshot } from '@/hooks/useSchemaSnapshot';
 import { clearPendingErdFocus, flashErdColumn, peekPendingErdFocus } from '@/lib/erd-focus-flash';
@@ -337,6 +343,7 @@ const ERDViewComponent = ({
     }
   }, []);
   const canvasRef = React.useRef<HTMLDivElement>(null);
+  const [canvasMode, setCanvasMode] = React.useState<CanvasMode>(DEFAULT_CANVAS_MODE);
   const lowDetailRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -458,10 +465,21 @@ const ERDViewComponent = ({
   React.useEffect(() => {
     if (pendingDiff) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) return;
       const target = event.target as HTMLElement | null;
       // Never hijack shortcuts while the user is editing text.
       if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName || '')) return;
+
+      // V and H switch drag mode, but only unmodified: Ctrl/Cmd+V is paste.
+      if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+        const mode = canvasModeForKey(event.key);
+        if (mode) {
+          event.preventDefault();
+          setCanvasMode(mode);
+          return;
+        }
+      }
+
+      if (!(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       if (key === 'a') {
         event.preventDefault();
@@ -1277,10 +1295,11 @@ const ERDViewComponent = ({
           nodesDraggable={!pendingDiff && (!isReadOnly || isProductionDb)}
           nodesConnectable={!pendingDiff && (!isReadOnly || (isProductionDb && isReconnecting))}
           elementsSelectable={(!isReadOnly || activePanel === 'explorer') && !pendingDiff}
-          // Ctrl/Cmd-click adds one table; Shift-drag rubber-bands a whole group.
+          // Ctrl/Cmd-click adds one table; Shift-drag rubber-bands a whole group
+          // whichever mode is active, and holding Space pans.
           multiSelectionKeyCode={['Meta', 'Control']}
           selectionKeyCode="Shift"
-          selectionOnDrag={false}
+          {...canvasModeProps(canvasMode)}
           onNodeDragStop={activePerspective ? persistPerspectivePosition : onNodeDragStop}
           onMoveEnd={activePerspective ? persistPerspectiveViewport : onMoveEnd}
           minZoom={0.1}
@@ -1294,6 +1313,9 @@ const ERDViewComponent = ({
 
           <Background variant={BackgroundVariant.Lines} gap={50} size={1} color={bgColor} />
           <Controls position="bottom-left" showInteractive={false} />
+          <Panel position="bottom-left" className="!mb-[104px] !pointer-events-auto">
+            <CanvasModeToggle mode={canvasMode} onChange={setCanvasMode} />
+          </Panel>
           </ReactFlow>
         </EntityNodeRuntimeProvider>
       </div>
