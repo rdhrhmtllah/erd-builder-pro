@@ -9,6 +9,7 @@ import {
   DialogBody
 } from "@/components/ui/dialog";
 import { apiFetch } from "@/lib/api";
+import { shareLinkState, type ShareSettings } from "@/lib/share-link-state";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -74,6 +75,36 @@ export function ShareModal({
   
   const shareUrl = `${window.location.origin}/view/${urlType}/${documentUid}`;
 
+  const savedDurationDays = React.useMemo(() => {
+    if (!initialSettings?.expiry_date) return '';
+    const days = Math.ceil((new Date(initialSettings.expiry_date).getTime() - Date.now()) / 86_400_000);
+    return days > 0 ? String(days) : '';
+  }, [initialSettings?.expiry_date]);
+
+  const [savedSettings, setSavedSettings] = React.useState<ShareSettings>({
+    isPublic: Boolean(initialSettings?.is_public),
+    token: initialSettings?.share_token || '',
+    durationDays: savedDurationDays,
+  });
+
+  // The parent refreshes projects, not the document list, so the acknowledged
+  // state has to come from this modal's own save. This only re-seeds it when the
+  // document being shared changes.
+  React.useEffect(() => {
+    setSavedSettings({
+      isPublic: Boolean(initialSettings?.is_public),
+      token: initialSettings?.share_token || '',
+      durationDays: savedDurationDays,
+    });
+  }, [documentUid, initialSettings?.is_public, initialSettings?.share_token, savedDurationDays]);
+
+  const draftSettings: ShareSettings = { isPublic: Boolean(isPublic), token, durationDays };
+  // A public-view visitor already holds a link that works; only the owner's
+  // unsaved edits can produce one that does not.
+  const linkState = isPublicView
+    ? { canCopy: true as const, notice: null }
+    : shareLinkState(savedSettings, draftSettings);
+
   const handleCopy = () => {
     navigator.clipboard.writeText(shareUrl);
     setIsCopied(true);
@@ -111,9 +142,10 @@ export function ShareModal({
 
       if (!res.ok) throw new Error("Failed to save settings");
 
-      toast.success("Sharing settings updated!");
+      setSavedSettings(draftSettings);
+      toast.success(isPublic ? "Published — the link is ready to copy" : "Sharing settings updated!");
       if (onSettingsSaved) onSettingsSaved();
-      onOpenChange(false);
+      if (!isPublic) onOpenChange(false);
     } catch (err: any) {
       toast.error(err.message || "Something went wrong");
     } finally {
@@ -168,11 +200,14 @@ export function ShareModal({
                   size="icon" 
                   variant="outline"
                   className="shrink-0 cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors"
-                  disabled={!isPublic && !isPublicView}
+                  disabled={!linkState.canCopy}
                 >
                   {isCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                 </Button>
               </div>
+              {linkState.notice && (
+                <p className="text-[11px] font-medium text-amber-600 dark:text-amber-500">{linkState.notice}</p>
+              )}
             </div>
 
             {!isPublicView && (

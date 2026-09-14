@@ -1,6 +1,7 @@
 import { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { supabase } from "../../lib/config.js";
 import { handleError } from "../../lib/utils.js";
+import { resolveViewerId } from "../../lib/public-viewer.js";
 import { resolveOwnedProjectId } from "../../lib/security.js";
 import { prisma } from "../../lib/prisma.js";
 import * as fcService from "./service.js";
@@ -119,12 +120,8 @@ export async function getPublic(req: ExpressRequest, res: ExpressResponse): Prom
       res.status(403).json({ error: "This document is private" }); return;
     }
 
-    let isOwner = false;
-    const sessionToken = req.cookies.token;
-    if (sessionToken) {
-      const { data: { user } } = await supabase.auth.getUser(sessionToken);
-      if (user && user.id === flowchart.userId) isOwner = true;
-    }
+    const viewerId = await resolveViewerId(req);
+    const isOwner = viewerId !== null && viewerId === flowchart.userId;
 
     if (!isOwner) {
       if (flowchart.expiryDate && new Date(flowchart.expiryDate) < new Date()) {

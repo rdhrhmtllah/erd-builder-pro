@@ -1,6 +1,7 @@
 import { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { supabase, s3Client, R2_BUCKET_NAME } from "../../lib/config.js";
 import { handleError } from "../../lib/utils.js";
+import { resolveViewerId } from "../../lib/public-viewer.js";
 import { resolveOwnedProjectId } from "../../lib/security.js";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { logger } from "../../lib/logger.js";
@@ -139,12 +140,8 @@ export async function getPublic(req: ExpressRequest, res: ExpressResponse): Prom
       res.status(403).json({ error: "This document is private" }); return;
     }
 
-    let isOwner = false;
-    const sessionToken = req.cookies.token;
-    if (sessionToken) {
-      const { data: { user } } = await supabase.auth.getUser(sessionToken);
-      if (user && user.id === drawing.userId) isOwner = true;
-    }
+    const viewerId = await resolveViewerId(req);
+    const isOwner = viewerId !== null && viewerId === drawing.userId;
 
     if (!isOwner) {
       if (drawing.expiryDate && new Date(drawing.expiryDate) < new Date()) {
