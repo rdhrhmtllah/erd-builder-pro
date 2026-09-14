@@ -9,6 +9,7 @@ import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
 import { isDesktopMode, useLocalAuth } from "./lib/config.js";
 import { setDbReady, setDbError } from "./lib/db-state.js";
+import { staticCacheControl } from "./lib/static-cache.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const isProd = process.env.NODE_ENV === "production";
@@ -189,7 +190,13 @@ if (isProd) {
   const distPath = path.join(process.cwd(), "dist");
   if (fs.existsSync(distPath)) {
     console.log(`Serving static files from: ${distPath}`);
-    app.use(express.static(distPath, { index: false }));
+    app.use(express.static(distPath, {
+      index: false,
+      setHeaders: (res, filePath) => {
+        const urlPath = "/" + path.relative(distPath, filePath).split(path.sep).join("/");
+        res.setHeader("Cache-Control", staticCacheControl(urlPath));
+      },
+    }));
     app.get(/^(?!\/api(?:\/|$)).*$/, (req, res, next) => {
       // Only serve index.html for HTML requests (not API calls)
       if (req.path.startsWith("/api/")) return next();

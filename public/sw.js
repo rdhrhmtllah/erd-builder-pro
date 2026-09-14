@@ -1,7 +1,9 @@
-const CACHE_NAME = 'erd-builder-cache-v1.4'; // Bump: refreshed app icons
+// Bumped to v2: the old cache held an app shell pointing at bundles that later
+// deploys deleted, which stranded the page on a spinner. Renaming the cache makes
+// activate() drop it.
+const CACHE_NAME = 'erd-builder-cache-v2';
+const SHELL_URL = '/index.html';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
   '/favicon.png',
   '/manifest.webmanifest',
   '/icons/icon-180x180-any.png',
@@ -11,66 +13,82 @@ const ASSETS_TO_CACHE = [
   '/icons/icon-512x512-maskable.png',
 ];
 
-// Install Event: Precaching core assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return Promise.allSettled(
-        ASSETS_TO_CACHE.map(asset => cache.add(asset))
-      );
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.allSettled(ASSETS_TO_CACHE.map((asset) => cache.add(asset)))
+    )
   );
   self.skipWaiting();
 });
 
-// Activate Event: Clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            return caches.delete(cache);
-          }
-        })
-      );
-    })
+    caches.keys()
+      .then((names) => Promise.all(
+        names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
+      ))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch Event
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  if (event.request.url.includes('/api/')) return;
-  if (!event.request.url.startsWith(self.location.origin)) return;
-
-  // STRATEGY: Network-First with Offline Fallback for Navigation (SPA Support)
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .catch(() => {
-          // If network fails (offline), provide index.html from cache
-          // This allows React Router to handle the route client-side
-          return caches.match('/index.html') || caches.match('/');
-        })
+/**
+ * The offline shell, refreshed on every successful navigation.
+ *
+ * The shell names hashed bundles, and every deploy deletes the previous ones, so
+ * a shell that is never refreshed eventually points at files that 404 — the page
+ * then loads nothing and spins forever. Keeping it current means the cached copy
+ * is only ever one navigation behind.
+ */
+async function navigateWithShellFallback(request) {
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(SHELL_URL, response.clone());
+    }
+    return response;
+  } catch (networkError) {
+    const cached = await caches.match(SHELL_URL);
+    // respondWith rejects anything that is not a Response, which surfaces as
+    // "Failed to convert value to 'Response'" and kills the navigation outright.
+    return cached || new Response(
+      '<!doctype html><meta charset="utf-8"><title>Offline</title>'
+      + '<body style="font:14px system-ui;padding:2rem">'
+      + '<h1>You are offline</h1><p>Reconnect and reload to continue.</p>',
+      { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
     );
+  }
+}
+
+async function cacheFirstWithRevalidate(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+
+  const fromNetwork = fetch(request)
+    .then((response) => {
+      if (response && response.status === 200 && response.type === 'basic') {
+        cache.put(request, response.clone());
+      }
+      return response;
+    })
+    .catch(() => cached);
+
+  const response = cached || (await fromNetwork);
+  // Same guard as above: a failed fetch with nothing cached must still be a Response.
+  return response || Response.error();
+}
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  if (request.method !== 'GET') return;
+  if (!request.url.startsWith(self.location.origin)) return;
+  if (new URL(request.url).pathname.startsWith('/api/')) return;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(navigateWithShellFallback(request));
     return;
   }
 
-  // STRATEGY: Stale-While-Revalidate for other assets (images, fonts, etc)
-  event.respondWith(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.match(event.request).then((cachedResponse) => {
-        const fetchedResponse = fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            cache.put(event.request, networkResponse.clone());
-          }
-          return networkResponse;
-        }).catch(() => cachedResponse);
-
-        return cachedResponse || fetchedResponse;
-      });
-    })
-  );
+  event.respondWith(cacheFirstWithRevalidate(request));
 });

@@ -48,6 +48,15 @@ if ('serviceWorker' in navigator) {
       registrations.forEach(r => r.unregister());
     });
   } else {
+    // A worker that takes over mid-session leaves the page running code built
+    // against bundles the new deploy has deleted, which shows as a spinner that
+    // never resolves. Reload once, the moment control changes.
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading) return;
+      reloading = true;
+      window.location.reload();
+    });
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     });
