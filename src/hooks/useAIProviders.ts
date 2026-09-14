@@ -4,7 +4,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { AIProvider, UserAIConfig, AIModel } from '@/types';
 import { toast } from 'sonner';
 
-export const useAIProviders = () => {
+/** `enabled` keeps the settings dialog's data off every other page load. */
+export const useAIProviders = (enabled: boolean = true) => {
   const { user, isGuest } = useAuth();
   const userRef = useRef(user);
   userRef.current = user;
@@ -44,7 +45,7 @@ export const useAIProviders = () => {
     }
   }, [isGuest]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { if (enabled) fetchData(); }, [enabled, fetchData]);
 
   const handleSaveConfig = async (providerCode: string) => {
     const config = configs[providerCode];

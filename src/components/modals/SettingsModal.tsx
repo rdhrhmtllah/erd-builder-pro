@@ -116,7 +116,7 @@ export function SettingsModal() {
     handleTestConnection,
     updateProviderLocal,
     updateConfigLocal,
-  } = useAIProviders();
+  } = useAIProviders(isSettingsOpen);
 
   const { isGuest } = useAuth();
 
@@ -132,7 +132,7 @@ export function SettingsModal() {
     startEditingModel,
     cancelEdit,
     refresh: refreshModels,
-  } = useAIModels();
+  } = useAIModels(isSettingsOpen);
 
   const {
     prompts,
@@ -140,7 +140,7 @@ export function SettingsModal() {
     handleSavePrompt,
     handleDeletePrompt,
     togglePromptDefault,
-  } = useAIPrompts();
+  } = useAIPrompts(isSettingsOpen);
 
   const navGroups = React.useMemo(() => {
     if (isGuest) {

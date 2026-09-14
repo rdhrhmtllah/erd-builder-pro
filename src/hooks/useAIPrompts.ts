@@ -4,7 +4,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { AISystemPrompt } from '@/types';
 import { toast } from 'sonner';
 
-export const useAIPrompts = () => {
+/** `enabled` keeps the settings dialog's data off every other page load. */
+export const useAIPrompts = (enabled: boolean = true) => {
   const { user, isGuest } = useAuth();
   const userRef = useRef(user);
   userRef.current = user;
@@ -24,7 +25,7 @@ export const useAIPrompts = () => {
 
   useEffect(() => {
     setIsLoading(false);
-    fetchPromptsData();
+    if (enabled) fetchPromptsData();
   }, [fetchPromptsData]);
 
   const handleSavePrompt = async (formData: Partial<AISystemPrompt>, editingId: string | null) => {

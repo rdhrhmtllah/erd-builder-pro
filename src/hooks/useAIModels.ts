@@ -4,7 +4,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { AIModel } from '@/types';
 import { toast } from 'sonner';
 
-export const useAIModels = () => {
+/** `enabled` keeps the settings dialog's data off every other page load. */
+export const useAIModels = (enabled: boolean = true) => {
   const { user, isGuest } = useAuth();
   const userRef = useRef(user);
   userRef.current = user;
@@ -35,7 +36,7 @@ export const useAIModels = () => {
 
   useEffect(() => {
     setIsLoading(false);
-    fetchModelsData();
+    if (enabled) fetchModelsData();
   }, [fetchModelsData]);
 
   const handleAddModel = async () => {
