@@ -8,7 +8,7 @@ import { canvasLayout, dbSchemaToCanvas } from '@/lib/db-client-schema';
 import { getDbClientCache, getSchemaCache, setDbClientCache, setSchemaCache } from '@/hooks/useDataViewerHelpers';
 import { useImageExporter } from '@/hooks/useImageExporter';
 import { useWorkspace } from '@/providers/WorkspaceProvider';
-import { ERDView } from '@/components/views/ERDView';
+import { LazyErdView } from './LazyErdView';
 import { ProjectFileTabs } from '@/components/ProjectFileTabs';
 import { DataViewer } from '@/components/db-connect/DataViewer';
 import { DataQueryView } from '@/components/db-connect/DataQueryView';
@@ -166,7 +166,7 @@ export function DbClientEditorRoute() {
       ) : null}
       {mountedModesRef.current.has('erd') ? (
         <div className={mode === 'erd' ? 'contents' : 'hidden'}>
-          <ERDView
+          <LazyErdView
             nodes={nodes} edges={edges} setNodes={setNodes} setEdges={setEdges}
             onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={() => {}}
             onNodeClick={() => {}} onPaneClick={() => {}} onMove={handleCanvasMove}

@@ -5,7 +5,7 @@ import { useReactFlow } from '@xyflow/react';
 import { Database } from 'lucide-react';
 import { autoLayoutERD, syncERDEdgeHandles } from '@/lib/autoLayoutERD';
 
-import { ERDView } from '@/components/views/ERDView';
+import { LazyErdView } from './LazyErdView';
 import { DataViewer } from '@/components/db-connect/DataViewer';
 import { DataViewerModeToolbar, type DataViewerMode } from '@/components/db-connect/DataViewerModeToolbar';
 import { DataQueryView } from '@/components/db-connect/DataQueryView';
@@ -183,7 +183,7 @@ export function DiagramEditorRoute() {
           openNonce={queryOpenNonce}
         />
       ) : (
-        <ERDView
+        <LazyErdView
           key={isPublicView ? publicData?.id : activeDiagramId}
           isLoading={isERDItemLoading}
           nodes={nodes} edges={edges} setNodes={ctx.setNodes} setEdges={ctx.setEdges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
