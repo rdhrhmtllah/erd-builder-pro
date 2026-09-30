@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyDBMLMetadata, dbmlToERD, erdToDBML, findMatchingCanvasEdge, normalizeDBMLIndexSyntax, removeEmptyDBMLIndexes } from '../dbml-converter';
+import { erdToDBML, findMatchingCanvasEdge, normalizeDBMLIndexSyntax, removeEmptyDBMLIndexes } from '../dbml-converter';
+import { applyDBMLMetadata, dbmlToERD } from '../dbml-parser';
 import { dedupeDBMLEnumBlocks, normalizeDBMLTypeName, parseDBMLColumn, parseDBMLRef } from '../dbml-utils';
 
 describe('dbmlToERD', () => {

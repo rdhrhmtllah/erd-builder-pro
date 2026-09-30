@@ -1,7 +1,7 @@
 import { Node, Edge } from '@xyflow/react';
 import { Entity, Column } from '@/types';
 import { parseSQLToERD, parseSqlDdl } from '@/lib/sqlParser';
-import { dbmlToERD } from '@/lib/dbml-converter';
+import { dbmlToERD } from '@/lib/dbml-parser';
 import { COLUMN_TYPES } from '@/lib/utils';
 import { parseTypeModifiers, supportsColumnLength, supportsNumericPrecision } from '@/lib/column-metadata';
 import { extractDBML } from '../chatUtils';

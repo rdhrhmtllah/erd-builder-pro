@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useEffect, useCallback } from 'react';
+import { lazy, memo, Suspense, useRef, useState, useEffect, useCallback } from 'react';
 import { MessageSquare, Plus, Bot, User, Loader2, Copy, Check, ChevronDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -7,11 +7,13 @@ import { useWorkspace } from '@/providers/WorkspaceProvider';
 import { Button } from '@/components/ui/button';
 import { CodeBlock } from './CodeBlock';
 import { formatTime } from './chatUtils';
-import { ErdFromSqlDialog } from './ErdFromSqlDialog';
 import { FlowchartFromJsonDialog } from './FlowchartFromJsonDialog';
 import { NoteFromTextDialog } from './NoteFromTextDialog';
 import { AssistantMessageActions } from './AssistantMessageActions';
 import { UserMessageBody } from './UserMessageBody';
+
+// Previewing SQL as an ERD parses DBML with @dbml/core; keep it off the boot path.
+const ErdFromSqlDialog = lazy(() => import('./ErdFromSqlDialog').then(m => ({ default: m.ErdFromSqlDialog })));
 
 interface MentionFile {
   name: string;
@@ -355,16 +357,18 @@ export const ChatMessages = memo(function ChatMessages({
 
       {/* ERD from SQL dialog */}
       {erdDialogSchema && (
-        <ErdFromSqlDialog
-          schema={erdDialogSchema}
-          onClose={() => setErdDialogSchema(null)}
-          diagrams={diagrams}
-          targetProjectId={targetProjectId}
-          erdDefaultName={erdDefaultName}
-          handleSidebarDiagramCreate={handleSidebarDiagramCreate}
-          handleDiagramSelect={handleDiagramSelect}
-          triggerPendingErdDiff={triggerPendingErdDiff}
-        />
+        <Suspense fallback={null}>
+          <ErdFromSqlDialog
+            schema={erdDialogSchema}
+            onClose={() => setErdDialogSchema(null)}
+            diagrams={diagrams}
+            targetProjectId={targetProjectId}
+            erdDefaultName={erdDefaultName}
+            handleSidebarDiagramCreate={handleSidebarDiagramCreate}
+            handleDiagramSelect={handleDiagramSelect}
+            triggerPendingErdDiff={triggerPendingErdDiff}
+          />
+        </Suspense>
       )}
 
       {/* Flowchart from JSON dialog */}

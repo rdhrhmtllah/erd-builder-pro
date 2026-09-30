@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Loader2, Database, Plus, AlertTriangle } from 'lucide-react';
 import type { Node, Edge } from '@xyflow/react';
 import { parseSQLToERD } from '@/lib/sqlParser';
-import { dbmlToERD } from '@/lib/dbml-converter';
+import { dbmlToERD } from '@/lib/dbml-parser';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
 import { Entity } from '@/types';

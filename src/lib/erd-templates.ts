@@ -1,6 +1,6 @@
 import type { Edge, Node } from '@xyflow/react';
 import type { Entity } from '@/types';
-import { dbmlToERD } from './dbml-converter';
+import { dbmlToERD } from './dbml-parser';
 
 export type ErdTemplate = {
   id: string;

@@ -19,7 +19,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Copy, Check, Download, Trash2, Table, FileCode, Database, FileText } from 'lucide-react';
 import { Entity } from '@/types';
-import { dbmlToERD, erdToDBML } from '@/lib/dbml-converter';
+import { dbmlToERD } from '@/lib/dbml-parser';
+import { erdToDBML } from '@/lib/dbml-converter';
 import {
   generateMySQL,
   generatePostgreSQL,

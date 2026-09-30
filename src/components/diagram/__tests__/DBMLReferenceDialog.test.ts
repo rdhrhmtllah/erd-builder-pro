@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DBML_REFERENCE } from '../DBMLReferenceDialog';
-import { dbmlToERD } from '@/lib/dbml-converter';
+import { dbmlToERD } from '@/lib/dbml-parser';
 
 describe('DBML reference', () => {
   it('stays valid for the editor parser', () => {

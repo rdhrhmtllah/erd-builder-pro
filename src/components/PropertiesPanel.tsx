@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import { useState, useEffect, useRef, type PointerEvent } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, type PointerEvent } from 'react';
 import { ArrowLeft, Plus, Trash2, Key, Check, X, Type, GripVertical, Wand2, MoreHorizontal, Clock3 } from 'lucide-react';
 import { Entity, Column } from '../types';
 import { cn } from '../lib/utils';
@@ -12,9 +12,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ColumnTypeSelect } from './ColumnTypeSelect';
-import TableCodePanel from './diagram/TableCodePanel';
 import { normalizeColumnDefault, supportsColumnLength, supportsNumericPrecision } from '@/lib/column-metadata';
 import { reorderColumns } from '@/lib/reorder-columns';
+
+// The code tabs parse DBML with @dbml/core; keep it off the boot path.
+const TableCodePanel = lazy(() => import('./diagram/TableCodePanel'));
 
 const THEME_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 const DEFAULT_VARCHAR_LENGTH = 255;
@@ -326,14 +328,16 @@ export default function PropertiesPanel({
       </div>
 
       {activeEditorTab !== 'properties' ? (
-        <TableCodePanel
-          entity={editingEntity}
-          mode={activeEditorTab}
-          onUpdateEntity={(updated) => {
-            setEditingEntity(updated);
-            onUpdateEntity(updated);
-          }}
-        />
+        <Suspense fallback={null}>
+          <TableCodePanel
+            entity={editingEntity}
+            mode={activeEditorTab}
+            onUpdateEntity={(updated) => {
+              setEditingEntity(updated);
+              onUpdateEntity(updated);
+            }}
+          />
+        </Suspense>
       ) : (
       <>
       <div className="shrink-0 bg-background pt-6 px-6 pb-4 border-b border-border/50 shadow-sm z-10">
