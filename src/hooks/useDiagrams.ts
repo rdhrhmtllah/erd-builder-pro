@@ -6,7 +6,7 @@ import { localPersistence } from '../lib/localPersistence';
 import { edgeToRelationship } from '../lib/diagram-payload';
 import { apiFetch } from '../lib/api';
 import { getCachedDiagramVersion } from '../lib/diagramVersioning';
-import { applyDBMLMetadata, dbmlToERD, erdToDBML } from '../lib/dbml-converter';
+import { resolveDiagramDbmlForSave, readDraftSchemaFingerprint } from '../lib/diagram-dbml-save';
 
 function normalizeDiagramRecord(diagram: any): Diagram {
   if (!diagram) return diagram;
@@ -20,74 +20,6 @@ function normalizeDiagramRecord(diagram: any): Diagram {
     created_at: diagram.created_at ?? diagram.createdAt,
     updated_at: diagram.updated_at ?? diagram.updatedAt,
   };
-}
-
-function schemaFingerprint(nodes: Node<Entity>[], edges: Edge[]): string {
-  const tableById = new Map(nodes.map(n => [n.id, n]));
-  const columnName = (nodeId: string, handle?: string | null) => {
-    const node = tableById.get(nodeId);
-    const colId = handle?.replace(/^col-/, '').replace(/-(source|target)(-(l|r))?$/, '');
-    return node?.data.columns.find(c => c.id === colId)?.name ?? '';
-  };
-  return JSON.stringify({
-    nodes: nodes.map(n => ({
-      name: n.data.name,
-      columns: (n.data.columns || []).map(c => ({
-        name: c.name,
-        type: c.type,
-        is_pk: c.is_pk,
-        is_nullable: c.is_nullable,
-        default_value: c.default_value,
-        is_unique: c.is_unique,
-        comment: c.comment,
-        enum_name: c.enum_name,
-        enum_values: c.enum_values,
-      })).sort((a, b) => a.name.localeCompare(b.name)),
-      comment: n.data.comment || '',
-      constraints: (n.data.constraints || []).map(constraint => ({
-        kind: constraint.kind,
-        name: constraint.name || '',
-        columns: (constraint.column_ids || []).map(id => n.data.columns.find(column => column.id === id)?.name || id).sort(),
-        expression: constraint.expression || '',
-      })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
-      indexes: (n.data.indexes || []).map(index => ({
-        name: index.name,
-        is_unique: Boolean(index.is_unique),
-        algorithm: index.algorithm || '',
-        columns: (index.column_ids || []).map(id => n.data.columns.find(column => column.id === id)?.name || id).sort(),
-      })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
-    })).sort((a, b) => a.name.localeCompare(b.name)),
-    edges: edges.map(e => ({
-      source: tableById.get(e.source)?.data.name,
-      target: tableById.get(e.target)?.data.name,
-      sourceColumn: columnName(e.source, e.sourceHandle),
-      targetColumn: columnName(e.target, e.targetHandle),
-      on_delete: (e.data as any)?.on_delete,
-      on_update: (e.data as any)?.on_update,
-      constraint_name: (e.data as any)?.constraint_name,
-      source_cardinality: (e.data as any)?.source_cardinality,
-      target_cardinality: (e.data as any)?.target_cardinality,
-    })).sort((a, b) => `${a.source}.${a.sourceColumn}>${a.target}.${a.targetColumn}`.localeCompare(`${b.source}.${b.sourceColumn}>${b.target}.${b.targetColumn}`)),
-  });
-}
-
-function readDraftSchemaFingerprint(data: any): string | null {
-  try {
-    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-    return parsed?.schema_fingerprint ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function dbmlMatchesCanvas(dbml: string | null | undefined, nodes: Node<Entity>[], edges: Edge[]): boolean {
-  if (!dbml?.trim()) return true;
-  try {
-    const parsed = dbmlToERD(dbml);
-    return schemaFingerprint(parsed.nodes, parsed.edges) === schemaFingerprint(nodes, edges);
-  } catch {
-    return true;
-  }
 }
 
 export function useDiagrams(isAuthenticated: boolean | null, view: 'erd' | 'diagram' | string, isGuest: boolean = false) {
@@ -443,33 +375,21 @@ export function useDiagrams(isAuthenticated: boolean | null, view: 'erd' | 'diag
         .filter((value): value is string | number => value !== null && value !== undefined)
         .map(String);
       const cachedDbmlSource = dbmlKeys.map(key => dbmlSourceRef.current[key]).find(value => value !== undefined);
-      const nextSchemaFingerprint = schemaFingerprint(nodes, edges);
-      const previousSchemaFingerprint = readDraftSchemaFingerprint((currentDiagram as any)?.data);
-      const fallbackDbmlSource = cachedDbmlSource ?? currentDiagram?.dbml_source ?? currentDiagram?.dbmlSource ?? '';
-      const shouldRefreshDbmlFromCanvas = dbmlSource === undefined &&
-        !!fallbackDbmlSource &&
-        (
-          previousSchemaFingerprint !== null
-            ? previousSchemaFingerprint !== nextSchemaFingerprint
-            : !dbmlMatchesCanvas(fallbackDbmlSource, nodes, edges)
-        );
-      const nextDbmlSource = dbmlSource ?? (
-        shouldRefreshDbmlFromCanvas
-          ? erdToDBML(nodes, edges)
-          : fallbackDbmlSource
-      );
+      const {
+        nextDbmlSource,
+        persistedNodes,
+        nextSchemaFingerprint,
+        persistedSchemaFingerprint,
+      } = await resolveDiagramDbmlForSave({
+        nodes,
+        edges,
+        isProductionDb: Boolean(isProductionDb),
+        dbmlSource,
+        fallbackDbmlSource: cachedDbmlSource ?? currentDiagram?.dbml_source ?? currentDiagram?.dbmlSource ?? '',
+        previousSchemaFingerprint: readDraftSchemaFingerprint((currentDiagram as any)?.data),
+      });
       dbmlKeys.forEach(key => { dbmlSourceRef.current[key] = nextDbmlSource; });
 
-      const shouldApplyDbmlMetadata = !isProductionDb && !!nextDbmlSource.trim() && (
-        dbmlSource !== undefined ||
-        shouldRefreshDbmlFromCanvas ||
-        nodes.some(node => !Array.isArray(node.data.constraints) || !Array.isArray(node.data.indexes))
-      );
-      const persistedNodes = shouldApplyDbmlMetadata
-        ? applyDBMLMetadata(nodes, nextDbmlSource)
-        : nodes;
-      const persistedSchemaFingerprint = schemaFingerprint(persistedNodes, edges);
-      
       let data: string;
       if (isProductionDb) {
         // Production DB: save only positions (lightweight format)

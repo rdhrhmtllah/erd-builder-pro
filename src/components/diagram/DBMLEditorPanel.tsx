@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import { Database, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { dbmlToERD, erdToDBML } from '@/lib/dbml-converter';
+import { dbmlToERD } from '@/lib/dbml-parser';
+import { erdToDBML } from '@/lib/dbml-converter';
 import CodeMirror from '@uiw/react-codemirror';
 import { sql as sqlLang } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';

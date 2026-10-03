@@ -157,7 +157,13 @@ export async function listMentionFiles(userId: string) {
     OR: [{ projectId: null }, { project: { isDeleted: false } }],
   } as any;
 
-  const [diagrams, notes, drawings, flowcharts] = await Promise.all([
+  const diagramOwnership = {
+    ...base,
+    AND: [{ OR: [{ sourceType: null }, { sourceType: { not: "production_db" } }] }],
+  } as any;
+  const diagramRef = { id: true, uid: true, name: true, project: { select: projectSelect } } as const;
+
+  const [diagrams, notes, drawings, flowcharts, tables, columns] = await Promise.all([
     prisma.diagram.findMany({
       where: { ...base, AND: [{ OR: [{ sourceType: null }, { sourceType: { not: "production_db" } }] }] },
       orderBy: { name: "asc" },
@@ -178,6 +184,16 @@ export async function listMentionFiles(userId: string) {
       orderBy: { title: "asc" },
       select: { id: true, uid: true, title: true, project: { select: projectSelect } },
     }),
+    prisma.entity.findMany({
+      where: { diagram: { ...diagramOwnership } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, diagram: { select: diagramRef } },
+    }),
+    prisma.column.findMany({
+      where: { entity: { diagram: { ...diagramOwnership } } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, type: true, entity: { select: { id: true, name: true, diagram: { select: diagramRef } } } },
+    }),
   ]);
 
   return [
@@ -185,5 +201,23 @@ export async function listMentionFiles(userId: string) {
     ...(diagrams || []).map((file: any) => ({ ...file, type: "diagram", name: file.name, workspaceName: file.project?.name || null })),
     ...(flowcharts || []).map((file: any) => ({ ...file, type: "flowchart", name: file.title, workspaceName: file.project?.name || null })),
     ...(drawings || []).map((file: any) => ({ ...file, type: "drawing", name: file.title, workspaceName: file.project?.name || null })),
+    ...(tables || []).map((table: any) => ({
+      type: "table",
+      name: table.name,
+      uid: table.diagram?.uid ?? String(table.diagram?.id ?? ""),
+      nodeId: table.id,
+      diagramName: table.diagram?.name || null,
+      workspaceName: table.diagram?.project?.name || null,
+    })),
+    ...(columns || []).map((col: any) => ({
+      type: "column",
+      name: col.entity ? `${col.entity.name}.${col.name}` : col.name,
+      uid: col.entity?.diagram?.uid ?? String(col.entity?.diagram?.id ?? ""),
+      nodeId: col.entity?.id,
+      columnId: col.id,
+      tableName: col.entity?.name,
+      diagramName: col.entity?.diagram?.name || null,
+      workspaceName: col.entity?.diagram?.project?.name || null,
+    })),
   ];
 }

@@ -9,7 +9,8 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { Check, Copy, Download, FileCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Entity } from '@/types';
-import { dbmlToERD, erdToDBML } from '@/lib/dbml-converter';
+import { dbmlToERD } from '@/lib/dbml-parser';
+import { erdToDBML } from '@/lib/dbml-converter';
 import {
   generateGoravelMigration,
   generateGoravelModel,

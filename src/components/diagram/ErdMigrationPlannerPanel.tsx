@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { SearchableSelect } from '@/components/ui/select';
 import { apiFetch } from '@/lib/api';
 import type { Entity } from '@/types';
-import { dbmlToERD, erdToDBML } from '@/lib/dbml-converter';
+import { dbmlToERD } from '@/lib/dbml-parser';
+import { erdToDBML } from '@/lib/dbml-converter';
 import { canvasToMigrationSchema, historySnapshotToMigrationSchema } from '@/lib/erd-migration-adapter';
 import {
   planErdMigration,

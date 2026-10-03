@@ -63,22 +63,28 @@ function remapCol(handle: string | null | undefined, colMap: Map<string, string>
 import { AIActionProvider, useAIAction } from '@/contexts/AIActionContext';
 import { RightChatSidebar } from '@/components/ai/RightChatSidebar';
 import { AIChatPanel } from '@/components/ai/AIChatPanel';
-import { DBMLEditorPanel } from '@/components/diagram/DBMLEditorPanel';
 import { ERDTableListPanel } from '@/components/diagram/ERDTableListPanel';
 import PropertiesPanel from '@/components/PropertiesPanel';
-import { applyDBMLMetadata, dbmlToERD, erdToDBML, findMatchingCanvasEdge } from '@/lib/dbml-converter';
+import { erdToDBML, findMatchingCanvasEdge } from '@/lib/dbml-converter';
+import { loadDbmlParser, type DbmlParser } from '@/lib/load-dbml-parser';
 import { AIChatToggle } from '@/components/ai/AIChatToggle';
 import { getDbClientCache, setDbClientCache } from '@/hooks/useDataViewerHelpers';
 
+// The DBML editor pulls in @dbml/core; load it only when the panel opens.
+const DBMLEditorPanel = React.lazy(() => import('@/components/diagram/DBMLEditorPanel').then(m => ({ default: m.DBMLEditorPanel })));
+
 // ── Inner component that uses AIAction context ──
 
-function isValidDBMLSource(content: string): boolean {
-  if (!content.trim()) return false;
+/** Resolves to the loaded parser when `content` is valid DBML, otherwise null. */
+async function parserForValidDBML(content: string): Promise<DbmlParser | null> {
+  if (!content.trim()) return null;
+  const parser = await loadDbmlParser();
+  if (!parser) return null;
   try {
-    dbmlToERD(content);
-    return true;
+    parser.dbmlToERD(content);
+    return parser;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -361,7 +367,7 @@ function AppLayoutInner() {
       if (legacyDbml.trim()) {
         dbmlPersistTimerRef.current && clearTimeout(dbmlPersistTimerRef.current);
         dbmlPersistTimerRef.current = setTimeout(async () => {
-          if (!isValidDBMLSource(legacyDbml)) return;
+          if (!(await parserForValidDBML(legacyDbml))) return;
           await saveDiagram(nodes, edges, viewportRef?.current || { x: 0, y: 0, zoom: 1 }, { dbmlSource: legacyDbml });
           if (!isGuest) triggerDebouncedSync();
         }, 300);
@@ -377,8 +383,9 @@ function AppLayoutInner() {
     dbmlPersistTimerRef.current && clearTimeout(dbmlPersistTimerRef.current);
 
     const persist = async () => {
-      if (!isValidDBMLSource(content)) return;
-      const metadataNodes = applyDBMLMetadata(nodes, content);
+      const parser = await parserForValidDBML(content);
+      if (!parser) return;
+      const metadataNodes = parser.applyDBMLMetadata(nodes, content);
       setNodes(metadataNodes);
       await saveDiagram(metadataNodes, edges, viewportRef?.current || { x: 0, y: 0, zoom: 1 }, { dbmlSource: content });
       if (dbmlContentRef.current === content) dbmlDraftDirtyRef.current = false;
@@ -1017,17 +1024,19 @@ function AppLayoutInner() {
                   />
                 </div>
                 {rightPanelMode === 'dbml' && showDBMLPanel && (
-                  <DBMLEditorPanel
-                    value={dbmlContent}
-                    onChange={handleDBMLContentChange}
-                    onApply={handleDBMLApply}
-                    nodes={nodes}
-                    edges={edges}
-                    onSelectTable={(name) => {
-                      const node = nodes.find(n => n.data.name.toLowerCase() === name.toLowerCase());
-                      if (node) setSelectedNodeId(node.id);
-                    }}
-                  />
+                  <React.Suspense fallback={null}>
+                    <DBMLEditorPanel
+                      value={dbmlContent}
+                      onChange={handleDBMLContentChange}
+                      onApply={handleDBMLApply}
+                      nodes={nodes}
+                      edges={edges}
+                      onSelectTable={(name) => {
+                        const node = nodes.find(n => n.data.name.toLowerCase() === name.toLowerCase());
+                        if (node) setSelectedNodeId(node.id);
+                      }}
+                    />
+                  </React.Suspense>
                 )}
                 {rightPanelMode === 'properties' && !activeDiagramIsProductionDb && (
                   propertiesEntity ? (

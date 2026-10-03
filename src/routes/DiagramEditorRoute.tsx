@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useReactFlow } from '@xyflow/react';
 import { Database } from 'lucide-react';
 import { autoLayoutERD, syncERDEdgeHandles } from '@/lib/autoLayoutERD';
+import { setPendingErdFocus } from '@/lib/erd-focus-flash';
 
 import { LazyErdView } from './LazyErdView';
 import { DataViewer } from '@/components/db-connect/DataViewer';
@@ -72,6 +73,14 @@ export function DiagramEditorRoute() {
       }, { replace: true });
     }
   }, [isProductionDb, setSearchParams]);
+
+  useEffect(() => {
+    const focusNode = searchParams.get('focus');
+    if (focusNode) {
+      const col = searchParams.get('col') || undefined;
+      setPendingErdFocus({ nodeId: focusNode, columnId: col });
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const openQuery = (event: Event) => {
