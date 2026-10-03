@@ -100,6 +100,13 @@ const FileMention = Mention.extend({
       { tag: 'a[data-type="mention"]', priority: 1000 },
     ];
   },
+  renderHTML({ node, HTMLAttributes }) {
+    return [
+      'a',
+      mergeAttributes({ 'data-type': 'mention' }, this.options.HTMLAttributes, HTMLAttributes, { href: String(node.attrs.id ?? '') }),
+      `${node.attrs.mentionSuggestionChar || '@'}${node.attrs.label ?? node.attrs.id ?? ''}`,
+    ];
+  },
 });
 
 interface TiptapEditorProps {
@@ -346,11 +353,6 @@ export function TiptapEditor({ content, onChange, isReadOnly = false, disableAIS
       HTMLAttributes: {
         class: 'text-primary no-underline cursor-pointer font-medium bg-primary/10 rounded px-0.5',
       },
-      renderHTML: ({ options, node, suggestion }) => [
-        'a',
-        mergeAttributes(options.HTMLAttributes, { href: String(node.attrs.id ?? '') }),
-        `${suggestion?.char ?? '@'}${node.attrs.label ?? node.attrs.id ?? ''}`,
-      ],
       suggestion: {
         char: '@',
         allowSpaces: true,
@@ -379,7 +381,17 @@ export function TiptapEditor({ content, onChange, isReadOnly = false, disableAIS
         },
         render: () => {
           let renderer: ReactRenderer<FileMentionMenuRef> | null = null;
-          let unmount: (() => void) | null = null;
+          let container: HTMLDivElement | null = null;
+
+          const updatePosition = (props: any) => {
+            if (!container || !props.clientRect) return;
+            const rect = props.clientRect();
+            if (!rect) return;
+            container.style.position = 'fixed';
+            container.style.left = `${rect.left}px`;
+            container.style.top = `${rect.bottom + 4}px`;
+            container.style.zIndex = '99999';
+          };
 
           return {
             onStart: (props: any) => {
@@ -387,15 +399,32 @@ export function TiptapEditor({ content, onChange, isReadOnly = false, disableAIS
                 editor: props.editor,
                 props,
               });
-              unmount = props.mount(renderer.element);
+
+              container = document.createElement('div');
+              container.style.position = 'fixed';
+              container.style.pointerEvents = 'auto';
+              container.appendChild(renderer.element);
+              document.body.appendChild(container);
+
+              updatePosition(props);
             },
-            onUpdate: (props: any) => renderer?.updateProps(props),
-            onKeyDown: ({ event }: { event: KeyboardEvent }) => renderer?.ref?.onKeyDown(event) ?? false,
+            onUpdate: (props: any) => {
+              renderer?.updateProps(props);
+              updatePosition(props);
+            },
+            onKeyDown: ({ event }: { event: KeyboardEvent }) => {
+              if (event.key === 'Escape') {
+                return true;
+              }
+              return renderer?.ref?.onKeyDown(event) ?? false;
+            },
             onExit: () => {
-              unmount?.();
+              if (container && document.body.contains(container)) {
+                document.body.removeChild(container);
+              }
               renderer?.destroy();
               renderer = null;
-              unmount = null;
+              container = null;
             },
           };
         },
