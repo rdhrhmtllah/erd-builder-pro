@@ -168,13 +168,26 @@ export function TiptapEditor({ content, onChange, isReadOnly = false, disableAIS
         const response = await apiFetch('/api/search/files');
         const json = response.ok ? await response.json() : { data: [] };
         if (!cancelled) {
-          setLoadedMentionFiles(Array.isArray(json.data) ? json.data.map((file: any) => ({
-            name: file.name || 'Untitled',
-            type: file.type,
-            uid: String(file.uid ?? file.id),
-            href: `/${file.type === 'note' ? 'notes' : file.type === 'diagram' ? 'diagrams' : `${file.type}s`}/${file.uid ?? file.id}`,
-            workspaceName: file.workspaceName,
-          })) : []);
+          setLoadedMentionFiles(Array.isArray(json.data) ? json.data.map((file: any) => {
+            const uid = String(file.uid ?? file.id);
+            let href = `/${file.type === 'note' ? 'notes' : file.type === 'diagram' ? 'diagrams' : `${file.type}s`}/${uid}`;
+            if (file.type === 'table' && file.nodeId) {
+              href = `/diagrams/${uid}?focus=${encodeURIComponent(file.nodeId)}`;
+            } else if (file.type === 'column' && file.nodeId) {
+              href = `/diagrams/${uid}?focus=${encodeURIComponent(file.nodeId)}${file.columnId ? `&col=${encodeURIComponent(file.columnId)}` : ''}`;
+            }
+            return {
+              name: file.name || 'Untitled',
+              type: file.type,
+              uid,
+              href,
+              workspaceName: file.workspaceName,
+              nodeId: file.nodeId,
+              columnId: file.columnId,
+              tableName: file.tableName,
+              diagramName: file.diagramName,
+            };
+          }) : []);
         }
       } catch {
         if (!cancelled) setLoadedMentionFiles([]);

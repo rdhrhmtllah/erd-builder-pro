@@ -1,12 +1,16 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
-import { Database, FileText, Network, PenTool } from 'lucide-react';
+import { Columns3, Database, FileText, Network, PenTool, Table2 } from 'lucide-react';
 
 export interface FileMentionOption {
   name: string;
-  type: 'note' | 'diagram' | 'flowchart' | 'drawing';
+  type: 'note' | 'diagram' | 'flowchart' | 'drawing' | 'table' | 'column';
   uid: string;
   href: string;
   workspaceName?: string | null;
+  nodeId?: string;
+  columnId?: string;
+  tableName?: string;
+  diagramName?: string;
 }
 
 export interface FileMentionMenuProps {
@@ -19,11 +23,20 @@ export interface FileMentionMenuRef {
   onKeyDown: (event: KeyboardEvent) => boolean;
 }
 
-const icons = {
+const icons: Record<string, React.ComponentType<{ className?: string }>> = {
   note: FileText,
+  notes: FileText,
   diagram: Database,
+  diagrams: Database,
+  erd: Database,
   flowchart: Network,
+  flowcharts: Network,
   drawing: PenTool,
+  drawings: PenTool,
+  table: Table2,
+  column: Columns3,
+  'db-client': Database,
+  workspace: Database,
 };
 
 export const FileMentionMenu = forwardRef<FileMentionMenuRef, FileMentionMenuProps>(function FileMentionMenu(
@@ -69,10 +82,10 @@ export const FileMentionMenu = forwardRef<FileMentionMenuRef, FileMentionMenuPro
       className="z-9999 w-72 max-h-64 overflow-y-auto rounded-lg border border-border bg-popover/95 p-1 shadow-2xl backdrop-blur-xl"
     >
       {items.map((option, index) => {
-        const Icon = icons[option.type];
+        const Icon = icons[option.type] || FileText;
         return (
           <button
-            key={`${option.type}-${option.uid}`}
+            key={`${option.type}-${option.uid}-${option.nodeId || ''}-${option.columnId || ''}-${index}`}
             type="button"
             data-index={index}
             onPointerDown={(event) => event.preventDefault()}
@@ -85,7 +98,11 @@ export const FileMentionMenu = forwardRef<FileMentionMenuRef, FileMentionMenuPro
             <Icon className="size-4 shrink-0 text-muted-foreground" />
             <span className="min-w-0 truncate">
               <span className="block truncate">{option.name}</span>
-              {option.workspaceName && <span className="block truncate text-[11px] text-muted-foreground">{option.workspaceName}</span>}
+              {(option.diagramName || option.workspaceName) && (
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  {option.diagramName ? `${option.diagramName}${option.workspaceName ? ` • ${option.workspaceName}` : ''}` : option.workspaceName}
+                </span>
+              )}
             </span>
           </button>
         );

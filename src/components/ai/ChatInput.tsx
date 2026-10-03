@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Sparkles, Send, StopCircle, SquareTerminal, CircleHelp, Database, Lightbulb, StickyNote, LayoutPanelLeft, Wand2, FileText, Code, GitBranch, FileDown, File, AtSign, ChevronDown, SlidersHorizontal } from 'lucide-react';
+import { Sparkles, Send, StopCircle, SquareTerminal, CircleHelp, Database, Lightbulb, StickyNote, LayoutPanelLeft, Wand2, FileText, Code, GitBranch, FileDown, File, AtSign, ChevronDown, SlidersHorizontal, Table2, Columns3 } from 'lucide-react';
 import { AIAction, ViewType } from '@/components/ai/AIActions';
 import { Button } from '@/components/ui/button';
 
@@ -61,9 +61,18 @@ function getPlaceholder(actionId: string | null | undefined, hasProject: boolean
 
 const MENTION_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   note: FileText,
+  notes: FileText,
   diagram: Database,
+  diagrams: Database,
+  erd: Database,
   flowchart: GitBranch,
+  flowcharts: GitBranch,
   drawing: File,
+  drawings: File,
+  table: Table2,
+  column: Columns3,
+  'db-client': Database,
+  workspace: Database,
 };
 
 export interface ChatInputProps {
