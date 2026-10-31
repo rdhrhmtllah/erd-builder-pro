@@ -10,6 +10,7 @@ import { logger } from "./lib/logger.js";
 import { isDesktopMode, useLocalAuth } from "./lib/config.js";
 import { setDbReady, setDbError } from "./lib/db-state.js";
 import { staticCacheControl } from "./lib/static-cache.js";
+import { attachCollabWebSocket } from "./lib/collab/server.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const isProd = process.env.NODE_ENV === "production";
@@ -219,6 +220,10 @@ const HOST = process.env.HOST || (isDesktopMode() ? "127.0.0.1" : "0.0.0.0");
 const server = app.listen(PORT, HOST, () => {
   console.log(`Server running on http://${HOST}:${PORT} [${isProd ? "production" : "development"}]`);
 });
+
+// Live presence ("who else is on this canvas") rides the same port as the API.
+// It only claims /api/collab, so the SPA and every REST route are untouched.
+attachCollabWebSocket(server);
 
 server.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {

@@ -46,6 +46,10 @@ export default defineConfig(({mode}) => {
           // VITE_API_URL, this server-only value is never embedded in the bundle.
           target: env.ERD_DEV_PROXY_TARGET || env.VITE_API_URL || 'http://localhost:3000',
           changeOrigin: true,
+          // The presence relay is a WebSocket under /api; without this the dev
+          // server would answer the upgrade itself and presence would never
+          // connect while running `npm run dev`.
+          ws: true,
         },
       },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

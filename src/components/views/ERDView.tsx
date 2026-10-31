@@ -42,6 +42,8 @@ import { ErdSubjectAreaPanel } from '@/components/diagram/ErdSubjectAreaPanel';
 import { ErdOrganizerPanel } from '@/components/diagram/ErdOrganizerPanel';
 import { ErdTemplatePanel } from '@/components/diagram/ErdTemplatePanel';
 import { ErdToolbar, type ErdPanelId } from '@/components/diagram/ErdToolbar';
+import { PresenceOverlay, PresencePill } from '@/components/diagram/PresenceOverlay';
+import { usePresencePublisher } from '@/components/diagram/presence-context';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 import { applyClearSelection, applySelectAllTables, selectionKeyOf } from '@/lib/erd-selection';
 import { buildMultiCopyText, type CopyKind, type QueryOptions } from '@/lib/erd-query-builder';
@@ -299,7 +301,8 @@ const ERDViewComponent = ({
 }: ERDViewProps) => {
 
   const { registerContentHandler, setSelectionText, setActionContextData, setRightPanelMode } = useAIAction();
-  const { getViewport, setViewport, fitView } = useReactFlow();
+  const { getViewport, setViewport, fitView, screenToFlowPosition } = useReactFlow();
+  const { publishCursor, isWatching } = usePresencePublisher();
   const bgColor = resolvedTheme === 'dark' ? '#222' : '#ccc';
   const isProductionDb = isDbClient;
   const isPublicView = Boolean(isReadOnly && !isProductionDb);
@@ -420,6 +423,19 @@ const ERDViewComponent = ({
   }, [activeFileUid, handlePanelChange]);
 
   useCanvasPinchZoom(canvasRef, 0.1, 2.5);
+
+  // Presence: report the pointer in flow coordinates so the relay never has to
+  // know anything about this canvas's viewport. Nothing is converted at all
+  // while the room is empty, which keeps a solo canvas exactly as cheap as it
+  // was before presence existed.
+  const handleCanvasMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!isWatching()) return;
+      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      publishCursor(position.x, position.y);
+    },
+    [isWatching, publishCursor, screenToFlowPosition],
+  );
 
   // A table or column opened from global search lands here. The canvas renders
   // several times before the requested diagram's tables mount — often with the
@@ -1234,7 +1250,7 @@ const ERDViewComponent = ({
           <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
         </div>
       )}
-      <div ref={canvasRef} className="flex-1">
+      <div ref={canvasRef} className="relative flex-1" onMouseMove={handleCanvasMouseMove}>
         <EntityNodeRuntimeProvider value={entityNodeRuntime}>
           <ReactFlow
           className={cn(isLargeDiagram && 'erd-large-diagram')}
@@ -1343,6 +1359,10 @@ const ERDViewComponent = ({
           </Panel>
           </ReactFlow>
         </EntityNodeRuntimeProvider>
+        {/* Above the flow pane, outside it: cursors must never take part in the
+            diagram's layout, hit testing or export. */}
+        <PresenceOverlay />
+        <PresencePill />
       </div>
 
       {/* Floating Diff Merge Panel */}

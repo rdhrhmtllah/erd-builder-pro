@@ -1,5 +1,6 @@
 import app from "./index.js";
 import { backfillUids } from "./lib/startup-migration.js";
+import { attachCollabWebSocket } from "./lib/collab/server.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
@@ -14,9 +15,12 @@ const setupDev = async () => {
       appType: "spa",
     });
     app.use(vite.middlewares);
-    app.listen(PORT, "0.0.0.0", () => {
+    const server = app.listen(PORT, "0.0.0.0", () => {
       console.log(`Development server running on http://localhost:${PORT}`);
     });
+    // Vite's HMR socket upgrades on the same server; the relay only claims
+    // /api/collab and ignores every other path.
+    attachCollabWebSocket(server);
   } catch (e) {
     console.warn("Vite dev server failed to start:", e);
   }

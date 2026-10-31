@@ -2,6 +2,7 @@ import { Request as ExpressRequest, Response as ExpressResponse } from "express"
 import { supabase } from "../../lib/config.js";
 import { handleError } from "../../lib/utils.js";
 import { resolveViewerId } from "../../lib/public-viewer.js";
+import { evaluatePublicDocAccess } from "../../lib/public-doc-gate.js";
 import { resolveOwnedProjectId } from "../../lib/security.js";
 import { decrypt } from "../../lib/crypto.js";
 import { prisma } from "../../lib/prisma.js";
@@ -244,27 +245,17 @@ export async function getPublic(req: ExpressRequest, res: ExpressResponse): Prom
     const diagram = await diagService.getPublicDiagram(req.params.uid);
     if (!diagram) { res.status(404).json({ error: "Diagram not found" }); return; }
 
-    if (diagram.project?.isDeleted) {
-      res.status(404).json({ error: "Diagram not found (associated project deleted)" }); return;
-    }
-    if (diagram.isDeleted) {
-      res.status(404).json({ error: "Diagram not found" }); return;
-    }
-    if (!diagram.isPublic) {
-      res.status(403).json({ error: "This document is private" }); return;
-    }
-
-    const viewerId = await resolveViewerId(req);
-    const isOwner = viewerId !== null && viewerId === diagram.userId;
-
-    if (!isOwner) {
-      if (diagram.expiryDate && new Date(diagram.expiryDate) < new Date()) {
-        res.status(403).json({ error: "This share link has expired" }); return;
-      }
-      const providedToken = (req.headers["x-share-token"] as string) || (req.query.token as string);
-      if (diagram.shareToken && diagram.shareToken !== providedToken) {
-        res.status(401).json({ error: "Invalid access token", requiresToken: true }); return;
-      }
+    // The same decision the collaboration relay makes, so a link that renders
+    // is exactly a link that can be joined (see lib/public-doc-gate.ts).
+    const access = evaluatePublicDocAccess(diagram, {
+      viewerId: await resolveViewerId(req),
+      providedToken: (req.headers["x-share-token"] as string) || (req.query.token as string),
+    });
+    if (access.ok === false) {
+      res.status(access.status).json(
+        access.requiresToken ? { error: access.error, requiresToken: true } : { error: access.error },
+      );
+      return;
     }
 
     // Full diagram with entities for public view

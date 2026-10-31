@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { useWorkspace } from '@/providers/WorkspaceProvider';
+import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useReactFlow } from '@xyflow/react';
 import { Database } from 'lucide-react';
@@ -7,13 +8,31 @@ import { autoLayoutERD, syncERDEdgeHandles } from '@/lib/autoLayoutERD';
 import { setPendingErdFocus } from '@/lib/erd-focus-flash';
 
 import { LazyErdView } from './LazyErdView';
+import { ErdPresenceProvider } from '@/components/diagram/presence-context';
+import { GuestNameDialog } from '@/components/modals/GuestNameDialog';
+import {
+  hasSkippedPresence,
+  normalizeGuestName,
+  readGuestName,
+  readShareToken,
+  rememberGuestName,
+  rememberSkippedPresence,
+} from '@/lib/collab/presence';
 import { DataViewer } from '@/components/db-connect/DataViewer';
 import { DataViewerModeToolbar, type DataViewerMode } from '@/components/db-connect/DataViewerModeToolbar';
 import { DataQueryView } from '@/components/db-connect/DataQueryView';
 import { ProjectFileTabs } from '@/components/ProjectFileTabs';
 
+/** The name a signed-in user appears under, in the order the rest of the app uses. */
+function displayNameOf(user: any): string {
+  const name =
+    user?.name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0];
+  return typeof name === 'string' && name.trim() ? name : 'User';
+}
+
 export function DiagramEditorRoute() {
   const ctx = useWorkspace();
+  const { isAuthenticated, user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { fitView } = useReactFlow();
@@ -125,6 +144,37 @@ export function DiagramEditorRoute() {
     return raw != null ? Number(raw) : undefined;
   }, [isPublicView, publicData, activeDiagram]);
 
+  // ── Live presence ──
+  // The room is keyed by the diagram uid, so the owner and every visitor of a
+  // shared link land in the same one. Only a visitor without an account has to
+  // give a name: the owner opening their own share link is identified already.
+  const presenceUid = activeFileUid ?? null;
+  const anonymousVisitor = isPublicView && isAuthenticated === false;
+  const [guestName, setGuestName] = useState<string | null>(() => readGuestName(presenceUid));
+  const [presenceSkipped, setPresenceSkipped] = useState<boolean>(() => hasSkippedPresence(presenceUid));
+
+  useEffect(() => {
+    setGuestName(readGuestName(presenceUid));
+    setPresenceSkipped(hasSkippedPresence(presenceUid));
+  }, [presenceUid]);
+
+  const presenceName = anonymousVisitor ? guestName : displayNameOf(user);
+  const presenceEnabled = Boolean(presenceUid) && !isProductionDb;
+
+  const handleGuestJoin = useCallback(
+    (name: string) => {
+      if (!presenceUid) return;
+      rememberGuestName(presenceUid, name);
+      setGuestName(normalizeGuestName(name) || null);
+    },
+    [presenceUid],
+  );
+
+  const handleGuestSkip = useCallback(() => {
+    if (presenceUid) rememberSkippedPresence(presenceUid);
+    setPresenceSkipped(true);
+  }, [presenceUid]);
+
   if (!isPublicView && !activeDiagramId) {
     if (id && !processedUrlRef.current) {
       return (
@@ -192,43 +242,54 @@ export function DiagramEditorRoute() {
           openNonce={queryOpenNonce}
         />
       ) : (
-        <LazyErdView
-          key={isPublicView ? publicData?.id : activeDiagramId}
-          isLoading={isERDItemLoading}
-          nodes={nodes} edges={edges} setNodes={ctx.setNodes} setEdges={ctx.setEdges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
-          onNodeClick={handleNodeClick}
-          onNodeDoubleClick={handleNodeDoubleClick}
-          onEdgeClick={handleEdgeClick}
-          onPaneClick={handlePaneClick}
-          onMove={handleMove}
-          addEntity={addEntity}
-          onImportSQL={handleOpenImportModal}
-          onAutoLayout={handleAutoLayout}
-          handleExportSQL={handleWorkspaceExportSQL}
-          handleExportImage={handleWorkspaceExportImage}
-          isReadOnly={effectiveReadOnly}
-          isDbClient={isProductionDb}
-          sourceConnectionId={sourceConnectionId}
-          undo={undo}
-          redo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-          takeSnapshot={takeSnapshot}
-          selectedNodeId={selectedNodeId}
-          setSelectedNodeId={setSelectedNodeId}
-          duplicateEntity={duplicateEntity}
-          resolvedTheme={resolvedTheme}
-          activeFileUid={activeFileUid}
-          activeDocumentName={String(show?.name || 'ERD')}
-          onNodeDragStop={onNodeDragStop}
-          onMoveEnd={onMoveEnd}
-          saveDiagram={saveDiagram}
-          triggerDebouncedSync={triggerDebouncedSync}
-          pendingErdDiffTrigger={pendingErdDiffTrigger}
-          extractColumnIdFromHandle={extractColumnIdFromHandle}
-          getRelationKey={getRelationKey}
-          dedupeEdgesByRelation={dedupeEdgesByRelation}
-        />
+        <ErdPresenceProvider
+          diagramUid={presenceUid}
+          name={presenceName}
+          shareToken={readShareToken(presenceUid)}
+          enabled={presenceEnabled}
+        >
+          <LazyErdView
+            key={isPublicView ? publicData?.id : activeDiagramId}
+            isLoading={isERDItemLoading}
+            nodes={nodes} edges={edges} setNodes={ctx.setNodes} setEdges={ctx.setEdges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
+            onNodeClick={handleNodeClick}
+            onNodeDoubleClick={handleNodeDoubleClick}
+            onEdgeClick={handleEdgeClick}
+            onPaneClick={handlePaneClick}
+            onMove={handleMove}
+            addEntity={addEntity}
+            onImportSQL={handleOpenImportModal}
+            onAutoLayout={handleAutoLayout}
+            handleExportSQL={handleWorkspaceExportSQL}
+            handleExportImage={handleWorkspaceExportImage}
+            isReadOnly={effectiveReadOnly}
+            isDbClient={isProductionDb}
+            sourceConnectionId={sourceConnectionId}
+            undo={undo}
+            redo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            takeSnapshot={takeSnapshot}
+            selectedNodeId={selectedNodeId}
+            setSelectedNodeId={setSelectedNodeId}
+            duplicateEntity={duplicateEntity}
+            resolvedTheme={resolvedTheme}
+            activeFileUid={activeFileUid}
+            activeDocumentName={String(show?.name || 'ERD')}
+            onNodeDragStop={onNodeDragStop}
+            onMoveEnd={onMoveEnd}
+            saveDiagram={saveDiagram}
+            triggerDebouncedSync={triggerDebouncedSync}
+            pendingErdDiffTrigger={pendingErdDiffTrigger}
+            extractColumnIdFromHandle={extractColumnIdFromHandle}
+            getRelationKey={getRelationKey}
+            dedupeEdgesByRelation={dedupeEdgesByRelation}
+          />
+        </ErdPresenceProvider>
+      )}
+
+      {anonymousVisitor && !guestName && !presenceSkipped && (
+        <GuestNameDialog onJoin={handleGuestJoin} onSkip={handleGuestSkip} />
       )}
     </div>
   );
