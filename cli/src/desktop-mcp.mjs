@@ -20,31 +20,25 @@ export function desktopMcpCandidates({
 
   if (platform === 'darwin') {
     return [
-      '/Applications/ERD Builder Pro.app/Contents/MacOS/ERD Builder Pro',
-      path.join(home, 'Applications/ERD Builder Pro.app/Contents/MacOS/ERD Builder Pro'),
+      '/Applications/Creatool.app/Contents/MacOS/Creatool',
+      path.join(home, 'Applications/Creatool.app/Contents/MacOS/Creatool'),
     ];
   }
 
   if (platform === 'win32') {
     return [
-      env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs', 'ERD Builder Pro', 'ERD Builder Pro.exe'),
-      env.PROGRAMFILES && path.join(env.PROGRAMFILES, 'ERD Builder Pro', 'ERD Builder Pro.exe'),
+      env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs', 'Creatool', 'Creatool.exe'),
+      env.PROGRAMFILES && path.join(env.PROGRAMFILES, 'Creatool', 'Creatool.exe'),
     ].filter(Boolean);
   }
 
   if (platform === 'linux') {
     return [
-      '/usr/bin/ERD Builder Pro',
-      '/usr/local/bin/ERD Builder Pro',
-      path.join(home, '.local/bin/ERD Builder Pro'),
-      '/usr/bin/erd-builder-pro',
-      '/usr/local/bin/erd-builder-pro',
-      path.join(home, '.local/bin/erd-builder-pro'),
-      '/opt/ERD Builder Pro/ERD Builder Pro',
-      '/opt/ERD Builder Pro/erd-builder-pro',
-      '/opt/erd-builder-pro/erd-builder-pro',
-      path.join(home, 'Applications/ERD-Builder-Pro.AppImage'),
-      path.join(home, 'Applications/ERD Builder Pro.AppImage'),
+      '/usr/bin/Creatool',
+      '/usr/local/bin/Creatool',
+      path.join(home, '.local/bin/Creatool'),
+      '/opt/Creatool/Creatool',
+      path.join(home, 'Applications/Creatool.AppImage'),
     ];
   }
 
@@ -58,7 +52,7 @@ export function resolveDesktopMcpTarget(options = {}) {
   if (executable) return executable;
 
   throw new Error(
-    `Desktop app executable not found. Install ERD Builder Pro Desktop or set ERDBPRO_DESKTOP_MCP_TARGET. Checked: ${candidates.join(', ')}`,
+    `Desktop app executable not found. Install Creatool Desktop or set ERDBPRO_DESKTOP_MCP_TARGET. Checked: ${candidates.join(', ')}`,
   );
 }
 
@@ -81,7 +75,7 @@ export function resolveDesktopMcpRuntime(executable, options = {}) {
   const runtime = desktopMcpRuntimeCandidates(executable, options.platform).find(({ node, script }) => exists(node) && exists(script));
   if (runtime) return runtime;
 
-  throw new Error(`Desktop MCP backend bundle not found beside ${executable}. Reinstall ERD Builder Pro Desktop.`);
+  throw new Error(`Desktop MCP backend bundle not found beside ${executable}. Reinstall Creatool Desktop.`);
 }
 
 export function desktopDataDir({ platform = process.platform, env = process.env, home = os.homedir() } = {}) {

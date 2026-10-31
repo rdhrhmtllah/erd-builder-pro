@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * ERD Builder Pro — Offline Database Migration Script
+ * Creatool — Offline Database Migration Script
  *
  * Replaces `prisma db push` for desktop builds.
  * Uses better-sqlite3 directly to apply the pre-generated schema.sql

@@ -22,12 +22,12 @@ on run
     -- Set icon
     set button to statusItem's button
     button's setTitle:\"◈\"
-    button's setToolTip:\"ERD Builder Pro\"
+    button's setToolTip:\"Creatool\"
     
     -- Create menu
     set theMenu to current application's NSMenu's alloc()'s init()
     
-    set openItem to current application's NSMenuItem's alloc()'s initWithTitle:\"Open ERD Builder Pro\" action:\"openApp:\" keyEquivalent:\"o\"
+    set openItem to current application's NSMenuItem's alloc()'s initWithTitle:\"Open Creatool\" action:\"openApp:\" keyEquivalent:\"o\"
     openItem's setTarget:me
     theMenu's addItem:openItem
     
@@ -55,5 +55,5 @@ end quitApp:
 "
 
 # Keep running until killed
-echo "ERD Builder Pro menubar icon active (port $PORT). Ctrl+C to quit."
+echo "Creatool menubar icon active (port $PORT). Ctrl+C to quit."
 while true; do sleep 3600; done

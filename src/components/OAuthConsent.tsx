@@ -61,7 +61,7 @@ export function OAuthConsent() {
           <CardTitle>Authorize MCP access</CardTitle>
           <CardDescription>
             {details
-              ? `${details.client.name} requests ${canWrite ? "read and write" : "read-only"} access to your ERD Builder Pro Web App workspace.`
+              ? `${details.client.name} requests ${canWrite ? "read and write" : "read-only"} access to your Creatool Web App workspace.`
               : "Reviewing the authorization request…"}
           </CardDescription>
         </CardHeader>

@@ -1,4 +1,4 @@
-# Contributing to ERD Builder Pro
+# Contributing to Creatool
 
 ## Branching
 

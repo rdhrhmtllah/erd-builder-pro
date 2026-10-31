@@ -4,14 +4,15 @@ import { buildMcpClientConfigs } from '../mcp-client-config';
 describe('buildMcpClientConfigs', () => {
   it('uses the supplied runtime command in every client format', () => {
     const configs = buildMcpClientConfigs({
-      command: '/Applications/ERD Builder Pro.app/Contents/Resources/bin/erdbpro-mcp',
+      command: '/Applications/Creatool.app/Contents/Resources/bin/erdbpro-mcp',
       args: [],
       platform: 'darwin',
     });
 
     expect(configs).toHaveLength(5);
-    expect(configs.every((config) => config.content.includes('/Applications/ERD Builder Pro.app/Contents/Resources/bin/erdbpro-mcp'))).toBe(true);
-    expect(configs.find((config) => config.id === 'codex')?.content).toContain("'/Applications/ERD Builder Pro.app/Contents/Resources/bin/erdbpro-mcp'");
+    expect(configs.every((config) => config.content.includes('/Applications/Creatool.app/Contents/Resources/bin/erdbpro-mcp'))).toBe(true);
+    expect(configs.find((config) => config.id === 'codex')?.content)
+      .toBe('codex mcp add erdbpro -- /Applications/Creatool.app/Contents/Resources/bin/erdbpro-mcp');
     expect(configs.find((config) => config.id === 'jetbrains')?.content).not.toContain('"args"');
   });
 

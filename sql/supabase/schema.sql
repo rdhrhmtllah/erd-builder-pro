@@ -1,5 +1,5 @@
 -- ==========================================
--- SUPABASE SCHEMA — ERD Builder Pro
+-- SUPABASE SCHEMA — Creatool
 -- ==========================================
 -- Requires: auth.users (Supabase built-in)
 -- Run on Supabase SQL Editor or migration.

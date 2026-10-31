@@ -1,7 +1,7 @@
 {
   "name": "erdbpro",
   "version": "3.4.3",
-  "description": "ERD Builder Pro CLI — one command to start your database design workspace.",
+  "description": "Creatool CLI — one command to start your database design workspace.",
   "type": "module",
   "bin": {
     "erdbpro": "./bin/erdbpro.js"

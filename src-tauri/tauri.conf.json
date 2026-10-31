@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "ERD Builder Pro",
-  "mainBinaryName": "ERD Builder Pro",
+  "productName": "Creatool",
+  "mainBinaryName": "Creatool",
   "version": "3.4.3",
   "identifier": "com.erdbuilderpro.app",
   "build": {
@@ -13,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "ERD Builder Pro",
+        "title": "Creatool",
         "width": 1440,
         "height": 900,
         "minWidth": 1024,

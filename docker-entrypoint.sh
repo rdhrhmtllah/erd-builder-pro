@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-echo "=== ERD Builder Pro — Entrypoint ==="
+echo "=== Creatool — Entrypoint ==="
 
 # ── Detect database mode ──
 if [ -n "$SUPABASE_URL" ]; then

@@ -2,7 +2,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="public/img/ERD-Builder-Pro-Dark.svg" />
     <source media="(prefers-color-scheme: light)" srcset="public/img/ERD-Builder-Pro-Light.svg" />
-    <img width="400" alt="ERD Builder Pro" src="public/img/ERD-Builder-Pro-Light.svg" />
+    <img width="400" alt="Creatool" src="public/img/ERD-Builder-Pro-Light.svg" />
   </picture>
 </div>
 
@@ -14,14 +14,14 @@
 
 </div>
 
-**ERD Builder Pro** is a database design and documentation tool for developers. Build ERDs, flowcharts, notes, and drawings — all in one workspace.
+**Creatool** is a database design and documentation tool for developers. Build ERDs, flowcharts, notes, and drawings — all in one workspace.
 
 <div align="center">
-  <img width="1200" alt="ERD Builder Pro Dashboard" src="public/img/erd-intro.gif" />
+  <img width="1200" alt="Creatool Dashboard" src="public/img/erd-intro.gif" />
 </div>
 
 > [!WARNING]
-> **ERD Builder Pro** is under active development and not yet stable — features and config may still change. Give the repo a Star ⭐ and Watch 👀 it to get notified the moment a release lands.
+> **Creatool** is under active development and not yet stable — features and config may still change. Give the repo a Star ⭐ and Watch 👀 it to get notified the moment a release lands.
 
 ## 🚀 Key Features
 
@@ -143,7 +143,7 @@ This project is licensed under the **[PolyForm Noncommercial License 1.0.0](./LI
 The software is free to use, modify, and distribute for **non-commercial purposes only**. Any use for revenue-generating activities or within for-profit organizations is strictly prohibited under these terms.
 
 ### 💼 Commercial Licensing
-If you wish to use ERD Builder Pro for commercial purposes, business operations, or as part of a paid service, you must obtain a separate commercial license. Please contact the author for further information.
+If you wish to use Creatool for commercial purposes, business operations, or as part of a paid service, you must obtain a separate commercial license. Please contact the author for further information.
 
 ---
 

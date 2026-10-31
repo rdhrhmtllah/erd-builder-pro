@@ -148,7 +148,7 @@ change_word="changes"; [ "$total" = "1" ] && change_word="change"
 contributor_word="contributors"; [ "$contributor_total" = "1" ] && contributor_word="contributor"
 
 # ── Print release notes ──────────────────────────────────────────
-echo "# ERD Builder Pro v${VERSION}"
+echo "# Creatool v${VERSION}"
 echo ""
 echo "_${total} ${change_word} by ${contributor_total} ${contributor_word}_"
 echo ""

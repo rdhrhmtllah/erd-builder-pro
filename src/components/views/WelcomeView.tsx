@@ -16,7 +16,7 @@ export function WelcomeView() {
         </div>
 
         <h1 className="text-2xl font-bold text-foreground mb-3 tracking-tight">
-          Welcome to ERD Builder Pro
+          Welcome to Creatool
         </h1>
         
         <p className="text-muted-foreground text-sm leading-relaxed mb-8 px-4">

@@ -1,5 +1,5 @@
 name: Bug report
-description: Create a report to help us improve ERD Builder Pro
+description: Create a report to help us improve Creatool
 title: "[Bug]: "
 labels:
   - bug
@@ -133,5 +133,5 @@ body:
       options:
         - label: I have searched for existing issues before creating this report.
           required: true
-        - label: I am using the latest available version of ERD Builder Pro.
+        - label: I am using the latest available version of Creatool.
           required: false

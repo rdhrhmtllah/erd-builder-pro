@@ -127,7 +127,7 @@ export async function exportHandler(req: ExpressRequest, res: ExpressResponse): 
     res.json({
       version: "1.1",
       exported_at: new Date().toISOString(),
-      application: "ERD Builder Pro",
+      application: "Creatool",
       total_items: {
         projects: data.projects.length,
         notes: data.notes.length,

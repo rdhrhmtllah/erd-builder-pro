@@ -91,7 +91,7 @@ function blockNodes(content: string): ReactNode[] {
 }
 
 export function createNotePdfDocument({ note, options, content, pageSize, projectName }: { note: Note; options: ExportOptions; content: string; pageSize: PageSize; projectName?: string }): React.ReactElement<React.ComponentProps<typeof Document>> {
-  return <Document title={note.title} author="ERD Builder Pro"><Page size={pageSize.toUpperCase() as 'A4' | 'LETTER'} style={styles.page}>
+  return <Document title={note.title} author="Creatool"><Page size={pageSize.toUpperCase() as 'A4' | 'LETTER'} style={styles.page}>
     {options.includeTitle && <Text style={styles.title}>{note.title}</Text>}
     {options.includeMetadata && <Text style={styles.meta}>Project: {projectName || note.projects?.name || 'Untitled'} · Updated: {new Date(note.updated_at).toLocaleDateString()}</Text>}
     {blockNodes(content)}

@@ -31,7 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
             }
             if button.image == nil { button.title = "ERD" }
-            button.toolTip = "ERD Builder Pro"
+            button.toolTip = "Creatool"
         }
 
         let menu = NSMenu()
@@ -48,7 +48,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateMenuItem.isHidden = true
         menu.addItem(updateMenuItem)
 
-        let openItem = NSMenuItem(title: "Open ERD Builder Pro", action: #selector(openApp), keyEquivalent: "o")
+        let openItem = NSMenuItem(title: "Open Creatool", action: #selector(openApp), keyEquivalent: "o")
         openItem.target = self
         menu.addItem(openItem)
         menu.addItem(NSMenuItem.separator())
@@ -106,7 +106,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         // Show update instructions
         let alert = NSAlert()
-        alert.messageText = "Update ERD Builder Pro"
+        alert.messageText = "Update Creatool"
         alert.informativeText = "Run this command in your terminal:\n\nnpm install -g erdbpro@latest --prefer-online\n\nThen restart with: erdbpro start --force"
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")

@@ -1,6 +1,6 @@
 # erdbpro
 
-**ERD Builder Pro CLI — one command to start your database design workspace.**
+**Creatool CLI — one command to start your database design workspace.**
 
 ```bash
 npx erdbpro
@@ -32,7 +32,7 @@ After starting, you'll see an interactive menu you can navigate with arrow keys:
 
 ```
 ========================================
-  ERD Builder Pro (v2.5.2)
+  Creatool (v2.5.2)
   🚀 Server: http://localhost:3101
 ========================================
 

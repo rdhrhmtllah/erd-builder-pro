@@ -60,7 +60,7 @@ const erdPatchOperation = z.object({
 
 export function registerTools(server: McpServer) {
   server.registerTool("workspace_list_files", {
-    description: "List ERD Builder Pro projects, Notes, Flowcharts, and ERD diagrams owned by the local user. Drawings are intentionally excluded.",
+    description: "List Creatool projects, Notes, Flowcharts, and ERD diagrams owned by the local user. Drawings are intentionally excluded.",
     inputSchema: { project_uid: z.string().optional() }, annotations: readOnly,
   }, async ({ project_uid }) => jsonResult(await listWorkspaceFiles(await resolveMcpUserId(), project_uid)));
 

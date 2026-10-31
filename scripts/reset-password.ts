@@ -1,5 +1,5 @@
 /**
- * Reset admin password for self-hosted ERD Builder Pro.
+ * Reset admin password for self-hosted Creatool.
  * Usage: npx tsx scripts/reset-password.ts --email admin@local.dev --password newpass123
  */
 import { parseArgs } from "node:util";

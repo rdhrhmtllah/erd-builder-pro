@@ -10,7 +10,7 @@ import {
 } from '../src/desktop-mcp.mjs';
 
 test('resolves an explicit Desktop MCP target before platform defaults', () => {
-  const target = '/tmp/ERD Builder Pro';
+  const target = '/tmp/Creatool';
   assert.deepEqual(desktopMcpCandidates({ env: { ERDBPRO_DESKTOP_MCP_TARGET: target } }), [target]);
   assert.equal(resolveDesktopMcpTarget({
     env: { ERDBPRO_DESKTOP_MCP_TARGET: target },
@@ -20,26 +20,20 @@ test('resolves an explicit Desktop MCP target before platform defaults', () => {
 
 test('checks Linux package, local, and AppImage locations', () => {
   assert.deepEqual(desktopMcpCandidates({ platform: 'linux', env: {}, home: '/home/user' }), [
-    '/usr/bin/ERD Builder Pro',
-    '/usr/local/bin/ERD Builder Pro',
-    '/home/user/.local/bin/ERD Builder Pro',
-    '/usr/bin/erd-builder-pro',
-    '/usr/local/bin/erd-builder-pro',
-    '/home/user/.local/bin/erd-builder-pro',
-    '/opt/ERD Builder Pro/ERD Builder Pro',
-    '/opt/ERD Builder Pro/erd-builder-pro',
-    '/opt/erd-builder-pro/erd-builder-pro',
-    '/home/user/Applications/ERD-Builder-Pro.AppImage',
-    '/home/user/Applications/ERD Builder Pro.AppImage',
+    '/usr/bin/Creatool',
+    '/usr/local/bin/Creatool',
+    '/home/user/.local/bin/Creatool',
+    '/opt/Creatool/Creatool',
+    '/home/user/Applications/Creatool.AppImage',
   ]);
 });
 
 test('runs the packaged macOS MCP backend without launching the app binary', () => {
-  const executable = '/Applications/ERD Builder Pro.app/Contents/MacOS/ERD Builder Pro';
+  const executable = '/Applications/Creatool.app/Contents/MacOS/Creatool';
   const [runtime] = desktopMcpRuntimeCandidates(executable, 'darwin');
   assert.deepEqual(runtime, {
-    node: '/Applications/ERD Builder Pro.app/Contents/Resources/dist-server/node-bin/node',
-    script: '/Applications/ERD Builder Pro.app/Contents/Resources/dist-server/mcp.js',
+    node: '/Applications/Creatool.app/Contents/Resources/dist-server/node-bin/node',
+    script: '/Applications/Creatool.app/Contents/Resources/dist-server/mcp.js',
   });
   assert.deepEqual(resolveDesktopMcpRuntime(executable, {
     platform: 'darwin',

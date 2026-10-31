@@ -121,7 +121,7 @@ export function useUpdateCheck(onUpdateAvailable?: () => void, skipAutoCheck?: b
     try { const { getVersion } = await import('@tauri-apps/api/app'); currentVersion = await getVersion(); } catch { currentVersion = '0.0.0'; }
 
     let toastId: string | number | undefined;
-    if (isManual) toastId = toast.loading('Checking for updates...', { description: `ERD Builder Pro v${currentVersion}` });
+    if (isManual) toastId = toast.loading('Checking for updates...', { description: `Creatool v${currentVersion}` });
 
     updateLog('info', 'check_started', `current=${currentVersion} manual=${isManual}`);
 
@@ -156,7 +156,7 @@ export function useUpdateCheck(onUpdateAvailable?: () => void, skipAutoCheck?: b
 
       // No update available
       if (toastId) toast.dismiss(toastId);
-      if (isManual) toast.success("You're up to date", { description: `ERD Builder Pro v${currentVersion} is the latest version.` });
+      if (isManual) toast.success("You're up to date", { description: `Creatool v${currentVersion} is the latest version.` });
       updateLog('info', 'no_update', `current=${currentVersion}`);
       setHasUpdate(false); setLatestVersion(null); setUpdate(null);
     } catch (err: any) {

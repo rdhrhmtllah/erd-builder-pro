@@ -241,7 +241,7 @@ export const AppSidebar = React.memo(({
         <TeamSwitcher 
           teams={[
             {
-              name: "ERD Builder Pro",
+              name: "Creatool",
               logo: Database,
               plan: "Workspace",
             }

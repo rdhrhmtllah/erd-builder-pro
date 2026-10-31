@@ -50,7 +50,7 @@ export function KeymapTab() {
     <div className="p-4 md:p-6 space-y-6">
       <div>
         <h2 className="text-lg font-semibold">Keymap</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Keyboard shortcuts available in ERD Builder Pro.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Keyboard shortcuts available in Creatool.</p>
       </div>
 
       {sections.map(({ title, rows }) => (

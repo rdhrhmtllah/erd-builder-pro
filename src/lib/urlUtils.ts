@@ -1,5 +1,5 @@
 /**
- * URL utilities for the ERD Builder Pro app.
+ * URL utilities for the Creatool app.
  * Centralizes route matching logic used across multiple files.
  */
 

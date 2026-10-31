@@ -1,6 +1,6 @@
 #!/bin/bash
 # ---------------------------------------------------------------------------
-# ERD Builder Pro — Prepare x86_64 Native Modules for Cross-Compilation
+# Creatool — Prepare x86_64 Native Modules for Cross-Compilation
 #
 # After building the ARM64 DMG on a macos-latest (ARM64) runner, this script
 # replaces the ARM64 better-sqlite3 native addon with the x86_64 version so

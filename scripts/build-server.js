@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * ERD Builder Pro — Server Build Script
+ * Creatool — Server Build Script
  *
  * Compiles the Express server and local stdio MCP entrypoints into dist-server.
  *

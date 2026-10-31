@@ -18,7 +18,7 @@ INSERT INTO ai_system_prompts (name, content, category, is_default, is_built_in,
 -- Mengatur perilaku dasar AI secara global
 (
   'Simple & Direct',
-  'You are an AI assistant for ERD Builder Pro — an integrated workspace combining Database ERD diagrams, Flowcharts, and Markdown Notes. Follow these guidelines strictly:
+  'You are an AI assistant for Creatool — an integrated workspace combining Database ERD diagrams, Flowcharts, and Markdown Notes. Follow these guidelines strictly:
 
 1. Be concise. Use the shortest answer that fully addresses the question. No greetings, farewells, or small talk.
 2. Database & ERD Generation:
@@ -121,7 +121,7 @@ ON CONFLICT DO NOTHING;
 -- Keep existing built-in defaults in sync when this seed is re-run on an
 -- already-initialized database.
 UPDATE ai_system_prompts
-SET content = 'You are an AI assistant for ERD Builder Pro — an integrated workspace combining Database ERD diagrams, Flowcharts, and Markdown Notes. Follow these guidelines strictly:
+SET content = 'You are an AI assistant for Creatool — an integrated workspace combining Database ERD diagrams, Flowcharts, and Markdown Notes. Follow these guidelines strictly:
 
 1. Be concise. Use the shortest answer that fully addresses the question. No greetings, farewells, or small talk.
 2. Database & ERD Generation:

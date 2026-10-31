@@ -1,4 +1,4 @@
-# ERD Builder Pro — Agent Memory
+# Creatool — Agent Memory
 
 ## Project Overview
 

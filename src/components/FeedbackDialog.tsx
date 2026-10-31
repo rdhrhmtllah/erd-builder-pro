@@ -66,7 +66,7 @@ export function FeedbackDialog({
             <DialogHeader>
               <DialogTitle className="text-xl font-bold">Kirim Masukan</DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground">
-                Bantu kami membuat ERD Builder Pro jadi lebih baik. Saran Anda sangat berharga!
+                Bantu kami membuat Creatool jadi lebih baik. Saran Anda sangat berharga!
               </DialogDescription>
             </DialogHeader>
             <DialogBody className="space-y-5">

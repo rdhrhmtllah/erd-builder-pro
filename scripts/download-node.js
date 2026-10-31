@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * ERD Builder Pro — Download Node.js Binary
+ * Creatool — Download Node.js Binary
  *
  * Downloads the Node.js binary for the current platform and extracts
  * ONLY the `node` executable to dist-server/node-bin/. This binary

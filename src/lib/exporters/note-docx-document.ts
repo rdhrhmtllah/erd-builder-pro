@@ -110,5 +110,5 @@ export function createNoteDocxDocument(note: Note, options: ExportOptions, conte
   if (options.includeTitle) children.push(new Paragraph({ text: note.title, heading: HeadingLevel.TITLE }));
   if (options.includeMetadata) children.push(new Paragraph({ text: `Project: ${projectName || note.projects?.name || 'Untitled'} · Updated: ${new Date(note.updated_at).toLocaleDateString()}`, style: 'Caption', spacing: { after: 240 } }));
   children.push(...contentChildren(content));
-  return new Document({ creator: 'ERD Builder Pro', title: note.title, sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }] });
+  return new Document({ creator: 'Creatool', title: note.title, sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }] });
 }

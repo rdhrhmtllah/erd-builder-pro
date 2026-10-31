@@ -108,7 +108,7 @@ export function McpServerTab() {
           Connect AI Clients
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Detected mode: {runtime.mode === 'cli' ? 'CLI' : 'Desktop App'}. Use ERD Builder Pro as a local MCP Server (STDIO) with an external AI client. The launcher runs headlessly without opening another app window.
+          Detected mode: {runtime.mode === 'cli' ? 'CLI' : 'Desktop App'}. Use Creatool as a local MCP Server (STDIO) with an external AI client. The launcher runs headlessly without opening another app window.
         </p>
       </div>
 

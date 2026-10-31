@@ -74,7 +74,7 @@ async function seedAIProviders(): Promise<void> {
     }
 
     // ── Default system prompt ──
-    const defaultSystemPrompt = `You are an AI assistant for ERD Builder Pro — an integrated workspace combining Database ERD diagrams, Flowcharts, and Markdown Notes.
+    const defaultSystemPrompt = `You are an AI assistant for Creatool — an integrated workspace combining Database ERD diagrams, Flowcharts, and Markdown Notes.
 
 Key capabilities:
 - When creating or modifying ERD/database schemas, provide DBML in \`\`\`dbml blocks
@@ -222,7 +222,7 @@ const server = app.listen(PORT, HOST, () => {
 
 server.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`FATAL: Port ${PORT} is already in use. Is another instance of ERD Builder Pro running?`);
+    console.error(`FATAL: Port ${PORT} is already in use. Is another instance of Creatool running?`);
     process.exit(1);
   }
   console.error('Server error:', err.message);

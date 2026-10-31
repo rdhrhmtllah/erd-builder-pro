@@ -94,7 +94,7 @@ fn main() {
     match run() {
         Ok(code) => std::process::exit(code),
         Err(error) => {
-            eprintln!("ERD Builder Pro MCP: {error}");
+            eprintln!("Creatool MCP: {error}");
             std::process::exit(1);
         }
     }

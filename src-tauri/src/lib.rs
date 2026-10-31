@@ -105,7 +105,7 @@ pub fn run() {
                 let code = match run_mcp_stdio(app) {
                     Ok(code) => code,
                     Err(error) => {
-                        eprintln!("Failed to start ERD Builder Pro MCP: {}", error);
+                        eprintln!("Failed to start Creatool MCP: {}", error);
                         1
                     }
                 };
@@ -119,22 +119,22 @@ pub fn run() {
                 let handle = app.handle();
 
                 let about =
-                    MenuItemBuilder::with_id("about", "About ERD Builder Pro").build(handle)?;
+                    MenuItemBuilder::with_id("about", "About Creatool").build(handle)?;
                 let check_update =
                     MenuItemBuilder::with_id("check_update", "Check for Updates…")
                         .build(handle)?;
 
-                let app_submenu = SubmenuBuilder::new(handle, "ERD Builder Pro")
+                let app_submenu = SubmenuBuilder::new(handle, "Creatool")
                     .item(&about)
                     .item(&check_update)
                     .separator()
                     .item(&MenuItemBuilder::with_id("settings", "Settings…").accelerator("CmdOrCtrl+,").build(handle)?)
                     .separator()
-                    .item(&PredefinedMenuItem::hide(handle, Some("Hide ERD Builder Pro"))?)
+                    .item(&PredefinedMenuItem::hide(handle, Some("Hide Creatool"))?)
                     .item(&PredefinedMenuItem::hide_others(handle, Some("Hide Others"))?)
                     .item(&PredefinedMenuItem::show_all(handle, Some("Show All"))?)
                     .separator()
-                    .item(&PredefinedMenuItem::quit(handle, Some("Quit ERD Builder Pro"))?)
+                    .item(&PredefinedMenuItem::quit(handle, Some("Quit Creatool"))?)
                     .build()?;
 
                 let file_submenu = SubmenuBuilder::new(handle, "File")
@@ -404,7 +404,7 @@ fn start_backend_server(app: &tauri::App) -> Result<(), Box<dyn std::error::Erro
         log::info!("startup: {}", msg);
     }
 
-    startup_log(&log_dir, "=== ERD Builder Pro backend startup ===");
+    startup_log(&log_dir, "=== Creatool backend startup ===");
     startup_log(
         &log_dir,
         &format!("Log directory:       {}", log_dir.display()),

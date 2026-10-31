@@ -574,7 +574,7 @@ export function WorkspaceProvider({
       const hasSeenToast = sessionStorage.getItem('pwa-install-toast-shown');
       if (!hasSeenToast) {
         toast('✨ Enhance your experience', {
-          description: 'Install ERD Builder Pro as a desktop app for offline access and better performance.',
+          description: 'Install Creatool as a desktop app for offline access and better performance.',
           action: { label: 'Install', onClick: () => installApp() },
           duration: 10000,
         });

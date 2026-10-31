@@ -75,7 +75,7 @@ export function GuestExportDialog({
               <FileJson className="size-4 text-muted-foreground shrink-0 mt-0.5" />
               <div className="text-xs text-muted-foreground space-y-1">
                 <p>
-                  The export file can be imported into any ERD Builder Pro account via
+                  The export file can be imported into any Creatool account via
                   <strong> Settings → Guest Data Import</strong>.
                 </p>
               </div>

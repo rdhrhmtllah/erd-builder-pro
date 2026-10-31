@@ -221,7 +221,7 @@ export async function triggerCloudBackup(backupId: string, userId: string) {
           Authorization: `Bearer ${GITHUB_TOKEN}`,
           Accept: "application/vnd.github+json",
           "Content-Type": "application/json",
-          "User-Agent": "ERD-Builder-Pro",
+          "User-Agent": "Creatool",
         },
         body: JSON.stringify({
           event_type: "database-backup",

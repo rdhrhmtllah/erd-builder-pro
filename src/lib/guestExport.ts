@@ -142,7 +142,7 @@ export async function buildExportPayload(): Promise<GuestExportPayload> {
   return {
     version: '1.0',
     exported_at: new Date().toISOString(),
-    application: 'ERD Builder Pro',
+    application: 'Creatool',
     total_items,
     data: {
       projects,

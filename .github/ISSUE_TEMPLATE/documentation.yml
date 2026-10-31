@@ -8,7 +8,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Help us improve ERD Builder Pro's documentation.
+        Help us improve Creatool's documentation.
 
   - type: textarea
     id: issue

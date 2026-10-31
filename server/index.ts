@@ -324,7 +324,7 @@ app.get("/api/version/latest", async (_req, res) => {
       // GitHub — existing logic
       const response = await fetch(
         "https://api.github.com/repos/hadziqmtqn/erd-builder-pro/releases/latest",
-        { headers: { Accept: "application/vnd.github+json", "User-Agent": "erd-builder-pro" } }
+        { headers: { Accept: "application/vnd.github+json", "User-Agent": "creatool" } }
       );
 
       if (!response.ok) {

@@ -39,7 +39,7 @@ const PROPOSAL_TTL_MS = 10 * 60 * 1000;
 
 export function assertMcpInstallMode(mode = getInstallMode()) {
   if (mode !== "desktop" && mode !== "cli") {
-    throw new Error("MCP is available only in ERD Builder Pro Desktop and CLI installations");
+    throw new Error("MCP is available only in Creatool Desktop and CLI installations");
   }
 }
 
@@ -80,7 +80,7 @@ export async function resolveMcpUserId() {
   const desktopAdmin = users.find(user => user.email === "admin@local.dev");
   if (desktopAdmin) return String(desktopAdmin.id);
   if (users.length === 1) return String(users[0].id);
-  if (users.length === 0) throw new Error("No local user found. Open ERD Builder Pro once before starting MCP");
+  if (users.length === 0) throw new Error("No local user found. Open Creatool once before starting MCP");
   throw new Error("Multiple local users found. Set ERDBPRO_MCP_USER_ID explicitly");
 }
 

@@ -171,7 +171,7 @@ export function AboutDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm bg-background border-border/40 shadow-2xl">
-        <DialogTitle className="sr-only">About ERD Builder Pro</DialogTitle>
+        <DialogTitle className="sr-only">About Creatool</DialogTitle>
         <DialogDescription className="sr-only">
           Application information and credits.
         </DialogDescription>
@@ -181,7 +181,7 @@ export function AboutDialog({
           <div className="flex items-center justify-center">
             <img
               src="/favicon.png"
-              alt="ERD Builder Pro"
+              alt="Creatool"
               className="size-14"
             />
           </div>
@@ -189,7 +189,7 @@ export function AboutDialog({
           {/* App Name + Version */}
           <div className="text-center">
             <h3 className="text-lg font-semibold text-foreground">
-              ERD Builder Pro
+              Creatool
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               Version {appVersion}

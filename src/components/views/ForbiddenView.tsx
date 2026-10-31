@@ -170,7 +170,7 @@ export function ForbiddenView({
 
       <div className="mt-8 flex items-center gap-3 text-[10px] uppercase font-bold tracking-[0.2em] text-muted-foreground/50">
         <span className="w-8 h-[1px] bg-border" />
-        ERD Builder Security
+        Creatool Security
         <span className="w-8 h-[1px] bg-border" />
       </div>
     </div>

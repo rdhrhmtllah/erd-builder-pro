@@ -132,7 +132,7 @@ export function ChangelogView() {
             What's New
           </h2>
           <p className="text-sm text-muted-foreground">
-            Lacak pembaruan dan perubahan terbaru pada ERD Builder Pro.
+            Lacak pembaruan dan perubahan terbaru pada Creatool.
           </p>
         </div>
         <Button variant="outline" size="sm" render={<a href={`https://github.com/${GITHUB_REPO}/releases`} target="_blank" rel="noreferrer" />}>

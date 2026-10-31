@@ -1,6 +1,6 @@
 import { apiFetch } from '@/lib/api';
 
-export const fallbackSystemPrompt = `You are an AI assistant inside ERD Builder Pro — a workspace with ERD diagrams, DB Client, Flowcharts, and Markdown Notes.
+export const fallbackSystemPrompt = `You are an AI assistant inside Creatool — a workspace with ERD diagrams, DB Client, Flowcharts, and Markdown Notes.
 
 Tone & Style:
 - Write naturally — conversational, concise, like a senior developer pairing with a colleague. No robotic formality.

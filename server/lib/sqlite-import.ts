@@ -47,7 +47,7 @@ function assertApplicationDatabase(db: Database.Database): void {
     .all(...REQUIRED_APP_TABLES) as Array<{ name: string }>;
   const tables = new Set(rows.map((row) => row.name));
   if (REQUIRED_APP_TABLES.some((table) => !tables.has(table))) {
-    throw new Error("Not an ERD Builder Pro database");
+    throw new Error("Not an Creatool database");
   }
 }
 
@@ -93,7 +93,7 @@ export function normalizeSqliteImport(buffer: Buffer): Buffer {
       assertApplicationDatabase(db);
       return Buffer.from(payload);
     } catch {
-      throw new Error("The file is not a valid ERD Builder Pro SQLite database");
+      throw new Error("The file is not a valid Creatool SQLite database");
     } finally {
       db?.close();
       if (tempDir) rmSync(tempDir, { recursive: true, force: true });
@@ -115,7 +115,7 @@ export function normalizeSqliteImport(buffer: Buffer): Buffer {
     return normalized;
   } catch (error) {
     if (error instanceof Error && error.message.includes("Only SQLite")) throw error;
-    throw new Error("The file is not a valid ERD Builder Pro SQLite SQL dump");
+    throw new Error("The file is not a valid Creatool SQLite SQL dump");
   } finally {
     db?.close();
   }

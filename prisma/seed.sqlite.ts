@@ -123,7 +123,7 @@ async function main() {
   }
 
   // ── Default system prompt ──
-  const defaultSystemPrompt = `You are an AI assistant for ERD Builder Pro — an integrated workspace combining Database ERD diagrams, Flowcharts, and Markdown Notes.
+  const defaultSystemPrompt = `You are an AI assistant for Creatool — an integrated workspace combining Database ERD diagrams, Flowcharts, and Markdown Notes.
 
 Key capabilities:
 - When creating or modifying ERD/database schemas, provide DBML in \`\`\`dbml blocks

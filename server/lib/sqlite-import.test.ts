@@ -90,8 +90,8 @@ describe("normalizeSqliteImport", () => {
     ))).toThrow("Only SQLite SQL dumps are supported");
   });
 
-  it("rejects a valid SQLite file that is not an ERD Builder Pro database", () => {
+  it("rejects a valid SQLite file that is not an Creatool database", () => {
     expect(() => normalizeSqliteImport(Buffer.from("CREATE TABLE other (id INTEGER);")))
-      .toThrow("valid ERD Builder Pro SQLite SQL dump");
+      .toThrow("valid Creatool SQLite SQL dump");
   });
 });

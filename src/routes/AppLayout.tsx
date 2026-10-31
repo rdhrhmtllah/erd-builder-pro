@@ -507,26 +507,26 @@ function AppLayoutInner() {
   useEffect(() => {
     const pageTitle = (() => {
       // If there's an active file open, always use its name
-      if (activeFileName) return `${activeFileName} | ERD Builder Pro`;
+      if (activeFileName) return `${activeFileName} | Creatool`;
 
       // Derive title from route
       const path = location.pathname;
-      if (path === '/') return `Dashboard | ERD Builder Pro`;
-      if (path === '/trash') return `Trash | ERD Builder Pro`;
-      if (path === '/table/db-client') return `DB Client | ERD Builder Pro`;
+      if (path === '/') return `Dashboard | Creatool`;
+      if (path === '/trash') return `Trash | Creatool`;
+      if (path === '/table/db-client') return `DB Client | Creatool`;
       if (path.startsWith('/table/')) {
         const label = breadcrumbLabel || featureLabel || 'Tables';
-        return `${label} | ERD Builder Pro`;
+        return `${label} | Creatool`;
       }
       // Editor routes without a loaded file yet — show type label
-      if (path.startsWith('/notes/')) return `Notes | ERD Builder Pro`;
-      if (path.startsWith('/diagrams/')) return `${searchParams.get('feature') === 'db-client' ? 'DB Client' : 'Diagram'} | ERD Builder Pro`;
-      if (path.startsWith('/db-client/')) return `${breadcrumbLabel || 'DB Client'} | ERD Builder Pro`;
-      if (path.startsWith('/flowcharts/')) return `Flowchart | ERD Builder Pro`;
-      if (path.startsWith('/drawings/')) return `Drawing | ERD Builder Pro`;
+      if (path.startsWith('/notes/')) return `Notes | Creatool`;
+      if (path.startsWith('/diagrams/')) return `${searchParams.get('feature') === 'db-client' ? 'DB Client' : 'Diagram'} | Creatool`;
+      if (path.startsWith('/db-client/')) return `${breadcrumbLabel || 'DB Client'} | Creatool`;
+      if (path.startsWith('/flowcharts/')) return `Flowchart | Creatool`;
+      if (path.startsWith('/drawings/')) return `Drawing | Creatool`;
 
       // 404 / unknown routes
-      return `ERD Builder Pro`;
+      return `Creatool`;
     })();
     document.title = pageTitle;
   }, [activeFileName, featureLabel, breadcrumbLabel, location.pathname, searchParams]);

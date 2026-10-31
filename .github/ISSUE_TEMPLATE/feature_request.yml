@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest an idea for ERD Builder Pro
+description: Suggest an idea for Creatool
 title: "[Feature]: "
 labels:
   - enhancement
@@ -8,7 +8,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for helping improve ERD Builder Pro.
+        Thank you for helping improve Creatool.
 
   - type: textarea
     id: problem

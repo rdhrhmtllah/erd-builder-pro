@@ -42,7 +42,7 @@ function ensureDataDir() {
 function checkNodeVersion() {
   const major = parseInt(process.versions.node.split('.')[0], 10);
   if (major < 18) {
-    console.error('❌ ERD Builder Pro requires Node.js 18+.');
+    console.error('❌ Creatool requires Node.js 18+.');
     console.error(`   Current: ${process.versions.node}`);
     process.exit(1);
   }
@@ -285,7 +285,7 @@ function printUpdateStatus(info) {
 const program = new Command();
 program
   .name('erdbpro')
-  .description('ERD Builder Pro CLI — Database design workspace, one command away.')
+  .description('Creatool CLI — Database design workspace, one command away.')
   .version(VERSION);
 
 /**
@@ -331,7 +331,7 @@ async function showMenu(port, updateInfo) {
     process.stdout.write('\x1b[H\x1b[J');
 
     console.log('========================================');
-    console.log(`  ERD Builder Pro (v${VERSION})`);
+    console.log(`  Creatool (v${VERSION})`);
     console.log(`  🚀 Server: http://localhost:${port}`);
     console.log('========================================');
     console.log('');
@@ -426,7 +426,7 @@ async function showMenu(port, updateInfo) {
 
 program
   .command('start')
-  .description('Start ERD Builder Pro server')
+  .description('Start Creatool server')
   .option('-p, --port <number>', 'Port to listen on', String(DEFAULT_PORT))
   .option('-b, --background', 'Run server in background (detached)')
   .option('--open', 'Skip menu and open browser immediately')
