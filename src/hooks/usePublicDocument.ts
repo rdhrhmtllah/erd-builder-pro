@@ -3,6 +3,7 @@ import { Node, Edge, useReactFlow } from '@xyflow/react';
 import { toast } from 'sonner';
 import { Entity, AppView } from '../types';
 import { apiFetch } from '../lib/api';
+import { publicDocumentEndpoint } from '../lib/public-document-endpoint';
 
 export interface ForbiddenDoc {
   title: string;
@@ -23,7 +24,7 @@ export function usePublicDocument(
     setIsPublicLoading(true);
     setForbiddenDoc(null);
     try {
-      const endpoint = type === 'erd' ? 'files' : (type === 'flowchart' ? 'flowcharts' : type);
+      const endpoint = publicDocumentEndpoint(type);
       const headers: any = { 'Content-Type': 'application/json' };
       if (token) headers['x-share-token'] = token;
       
