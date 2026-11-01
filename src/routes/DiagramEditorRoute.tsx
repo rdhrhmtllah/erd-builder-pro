@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { useWorkspace } from '@/providers/WorkspaceProvider';
 import { useAuth } from '@/hooks/useAuth';
@@ -175,6 +176,20 @@ export function DiagramEditorRoute() {
     setPresenceSkipped(true);
   }, [presenceUid]);
 
+  const handleRemoteContentChange = useCallback((event: { version: number; editorName?: string }) => {
+    if (isPublicView && publicData?.uid) {
+      const token = readShareToken(publicData.uid);
+      void ctx.fetchPublicDocument("erd", publicData.uid, ctx.setNodes, ctx.setEdges, token || undefined, {
+        silent: true,
+        preserveViewport: true,
+      });
+      toast.info(`Synced changes from ${event.editorName || "collaborator"}`);
+    } else if (activeDiagramId) {
+      handleDiagramSelect(activeDiagramId);
+      toast.info(`Synced changes from ${event.editorName || "collaborator"}`);
+    }
+  }, [isPublicView, publicData?.uid, activeDiagramId, ctx.fetchPublicDocument, ctx.setNodes, ctx.setEdges, handleDiagramSelect]);
+
   if (!isPublicView && !activeDiagramId) {
     if (id && !processedUrlRef.current) {
       return (
@@ -192,7 +207,9 @@ export function DiagramEditorRoute() {
   }
 
   const show = isPublicView ? publicData : activeDiagram;
-  const effectiveReadOnly = isPublicView || isProductionDb;
+  const isPublicEditor = Boolean(isPublicView && publicData?.share_role === "edit");
+  const effectiveReadOnly = (!isPublicEditor && isPublicView) || isProductionDb;
+
   const dataViewerStateKey = `${show?.uid || show?.id || ''}:${sourceConnectionId || ''}`;
 
   if (!show && !isPublicView && !isERDItemLoading) {
@@ -247,6 +264,7 @@ export function DiagramEditorRoute() {
           name={presenceName}
           shareToken={readShareToken(presenceUid)}
           enabled={presenceEnabled}
+          onContentChange={handleRemoteContentChange}
         >
           <LazyErdView
             key={isPublicView ? publicData?.id : activeDiagramId}

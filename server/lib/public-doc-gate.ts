@@ -15,6 +15,7 @@ export interface PublicDocGateInput {
   userId?: string | null;
   expiryDate?: Date | string | null;
   shareToken?: string | null;
+  shareRole?: string | null;
   project?: { isDeleted?: boolean | null } | null;
 }
 
@@ -27,7 +28,7 @@ export type PublicDocGateCode = "not_found" | "private" | "expired" | "token_req
  * discriminated union on a boolean literal needs it.
  */
 export type PublicDocGateResult =
-  | { ok: true; isOwner: boolean }
+  | { ok: true; isOwner: boolean; role: "view" | "edit" }
   | { ok: false; status: 401 | 403 | 404; code: PublicDocGateCode; error: string; requiresToken?: boolean };
 
 /**
@@ -64,11 +65,11 @@ export function evaluatePublicDocAccess(
   const isOwner = viewerId !== null && viewerId === (doc.userId ?? null);
 
   if (!doc.isPublic) {
-    if (isOwner && options.ownerMaySeeUnpublished) return { ok: true, isOwner: true };
+    if (isOwner && options.ownerMaySeeUnpublished) return { ok: true, isOwner: true, role: "edit" };
     return { ok: false, status: 403, code: "private", error: "This document is private" };
   }
 
-  if (isOwner) return { ok: true, isOwner: true };
+  if (isOwner) return { ok: true, isOwner: true, role: "edit" };
 
   const now = options.now ?? new Date();
   if (doc.expiryDate && new Date(doc.expiryDate) < now) {
@@ -80,5 +81,6 @@ export function evaluatePublicDocAccess(
     return { ok: false, status: 401, code: "token_required", error: "Invalid access token", requiresToken: true };
   }
 
-  return { ok: true, isOwner: false };
+  const role: "view" | "edit" = doc.shareRole === "edit" ? "edit" : "view";
+  return { ok: true, isOwner: false, role };
 }

@@ -25,6 +25,7 @@ import { useSyncService } from '../hooks/useSyncService';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { useERDSession } from '../hooks/useERDSession';
+import { savePublicDiagram } from '../lib/public-diagram-sync';
 import { useSQLGenerator } from '../hooks/useSQLGenerator';
 import { useUpdateCheck } from '../hooks/useUpdateCheck';
 import { useVersionCheck } from '../hooks/useVersionCheck';
@@ -50,7 +51,7 @@ import { useFileOperations } from '../hooks/useFileOperations';
 import { useActiveItemGuard } from '../hooks/useActiveItemGuard';
 
 // Lib & Types
-import { getSharePathInfo } from '../lib/urlUtils';
+import { getSharePathInfo, matchSharePath } from '../lib/urlUtils';
 import { toast } from 'sonner';
 import { Entity, DraftType, AppView } from '../types';
 
@@ -74,6 +75,8 @@ function deriveViewFromPath(pathname: string): AppView {
   if (pathname.startsWith('/diagrams/')) return 'erd';
   if (pathname.startsWith('/drawings/')) return 'drawings';
   if (pathname.startsWith('/flowcharts/')) return 'flowchart';
+  const share = matchSharePath(pathname);
+  if (share) return share.type as AppView;
   return (localStorage.getItem('erd-builder-last-view') as AppView) || 'notes';
 }
 
@@ -229,6 +232,8 @@ export function WorkspaceProvider({
   // Use props instead of local hook
   const isPublicView = _isPublicView;
   const publicData = _publicData;
+  const isPublicEditor = Boolean(isPublicView && publicData?.share_role === "edit");
+  const effectiveERDReadOnly = Boolean(isPublicView && !isPublicEditor);
   const fetchPublicDocument = _fetchPublicDocument;
   const setIsPublicView = _setIsPublicView;
 
@@ -263,7 +268,7 @@ export function WorkspaceProvider({
     undo, redo, canUndo, canRedo, takeSnapshot, isItemLoading: isERDItemLoading, saveCounter,
     onNodeDragStop, onMoveEnd,
     extractColumnIdFromHandle, getRelationKey, dedupeEdgesByRelation,
-  } = useERDSession(isPublicView, isGuest, isAuthenticated, () => {}, erdOptions);
+  } = useERDSession(effectiveERDReadOnly, isGuest, isAuthenticated, () => {}, erdOptions);
 
   // Effective ID for realtime sync
   const effectiveDiagramId = isPublicView ? publicData?.id : activeDiagramId;
@@ -419,11 +424,41 @@ export function WorkspaceProvider({
     broadcastMessage, triggerDebouncedSync, isRefreshing, isFlowchartItemLoading,
   });
 
+  const currentVersionRef = useRef<number | undefined>(publicData?.version ?? publicData?._version);
+  useEffect(() => {
+    if (publicData?.version !== undefined || publicData?._version !== undefined) {
+      currentVersionRef.current = publicData?.version ?? publicData?._version;
+    }
+  }, [publicData?.version, publicData?._version]);
+
+  const effectiveSaveDiagram = useCallback(async (
+    targetNodes: Node<Entity>[],
+    targetEdges: Edge[],
+    targetViewport: Viewport,
+    options?: any,
+  ) => {
+    if (isPublicEditor && publicData?.uid) {
+      const savedToken = sessionStorage.getItem(`share_token_${publicData.uid}`);
+      const guestName = sessionStorage.getItem(`erd_guest_name_${publicData.uid}`) || "Guest";
+      const res = await savePublicDiagram(publicData.uid, targetNodes, targetEdges, targetViewport, {
+        token: savedToken,
+        editorName: guestName,
+        expectedVersion: currentVersionRef.current,
+        dbmlSource: options?.dbmlSource,
+      });
+      if (res.ok && res.version !== undefined) {
+        currentVersionRef.current = res.version;
+      }
+      return;
+    }
+    return saveDiagram(targetNodes, targetEdges, targetViewport, options);
+  }, [isPublicEditor, publicData?.uid, saveDiagram]);
+
   const { saveTimeoutRef, flushPendingSaves } = useAutoSave({
     saveCounter, isLocalSavingRef, isIncomingSyncRef, lastLoadedDiagramIdRef,
     lastSaveCallRef, lastDiagramLoadTimestampRef, isAuthenticated, isGuest,
-    view, isPublicView, activeDiagramId, nodes, edges, viewportRef,
-    saveDiagram, setIsLocalSaving, triggerDebouncedSync, broadcastMessage,
+    view, isPublicView: effectiveERDReadOnly, activeDiagramId: isPublicEditor ? (publicData?.id || publicData?.uid) : activeDiagramId, nodes, edges, viewportRef,
+    saveDiagram: effectiveSaveDiagram, setIsLocalSaving, triggerDebouncedSync, broadcastMessage,
     isRefreshing, isERDItemLoading, isDiagramsLoading,
     activeNoteUid, notes, saveNote,
     activeDrawingId, drawings, saveDrawing,
@@ -971,8 +1006,10 @@ export function WorkspaceProvider({
     sidebarView,
 
     isPublicView,
+    isPublicEditor,
     setIsPublicView,
     publicData,
+    fetchPublicDocument,
 
     diagrams, notes, drawings, flowcharts, projects, trashData, nodes, edges, setNodes, setEdges,
 
@@ -1065,7 +1102,7 @@ export function WorkspaceProvider({
 
     confirmPermanentDelete,
 
-    saveDiagram, saveNote, saveDrawing, saveFlowchart,
+    saveDiagram: effectiveSaveDiagram, saveNote, saveDrawing, saveFlowchart,
     updateDiagram, updateNote, updateDrawing, updateFlowchart,
     deleteDiagram, deleteNote, deleteDrawing, deleteFlowchart,
     moveDiagramToProject, moveNoteToProject, moveDrawingToProject, moveFlowchartToProject,
@@ -1084,7 +1121,7 @@ export function WorkspaceProvider({
     isWebOutdated, showOutdatedBadge,
   }), [
     user, isGuest, _handleLogout, view, sidebarView,
-    isPublicView, setIsPublicView, publicData,
+    isPublicView, isPublicEditor, setIsPublicView, publicData, fetchPublicDocument,
     diagrams, notes, drawings, flowcharts, projects, trashData, nodes, edges, setNodes, setEdges,
     activeDiagramId, setActiveDiagramId, activeNoteUid, setActiveNoteUid,
     activeDrawingId, setActiveDrawingId, activeFlowchartId, setActiveFlowchartId,
@@ -1142,7 +1179,7 @@ export function WorkspaceProvider({
     handleTrashNotePermanentDelete, handleTrashDrawingPermanentDelete,
     handleTrashFlowchartPermanentDelete, handleTrashDbClientPermanentDelete, fetchTrash, isTrashLoading,
     confirmPermanentDelete,
-    saveDiagram, saveNote, saveDrawing, saveFlowchart,
+    effectiveSaveDiagram, saveNote, saveDrawing, saveFlowchart,
     updateDiagram, updateNote, updateDrawing, updateFlowchart,
     deleteDiagram, deleteNote, deleteDrawing, deleteFlowchart,
     moveDiagramToProject, moveNoteToProject, moveDrawingToProject, moveFlowchartToProject,

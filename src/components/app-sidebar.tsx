@@ -38,7 +38,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  useSidebar,
 } from "@/components/ui/sidebar"
 import {
   Tooltip,
@@ -66,7 +65,6 @@ import { MoveToTrashAlert } from "@/components/modals/MoveToTrashAlert"
 import { isInstalledApp } from "@/lib/api"
 
 import { Project, AppView } from "../types"
-import { SponsorCarousel } from "@/components/SponsorCarousel"
 
 function getSearchShortcutLabel(): string {
   if (typeof navigator === "undefined") return "Ctrl+K";
@@ -124,9 +122,7 @@ export const AppSidebar = React.memo(({
   onOpenFeedback,
   ...props
 }: AppSidebarProps) => {
-  const { state } = useSidebar();
   const navigate = useNavigate();
-  const isCollapsed = state === "collapsed";
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [searchShortcutLabel] = useState(getSearchShortcutLabel);
   const searchShortcutKeys = searchShortcutLabel === '⌘K' ? ['⌘', 'K'] : ['Ctrl', 'K'];
@@ -363,8 +359,6 @@ export const AppSidebar = React.memo(({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        {/* Sponsor carousel — auto-rotate */}
-        <SponsorCarousel isCollapsed={isCollapsed} />
         <NavUser 
           user={user} 
           onLogout={onLogout}

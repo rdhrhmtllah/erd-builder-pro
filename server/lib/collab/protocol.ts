@@ -71,6 +71,7 @@ export type CollabServerMessage =
   | { t: "peer-join"; peer: CollabPeerState }
   | { t: "peer-leave"; id: string }
   | { t: "cursor"; id: string; x: number; y: number }
+  | { t: "content-change"; id: string; version: number; editorName?: string }
   | { t: "error"; code: CollabErrorCode; message: string };
 
 /** Human-readable text for a code the client shows to the visitor. */

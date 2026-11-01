@@ -8,6 +8,7 @@ import { decrypt } from "../../lib/crypto.js";
 import { prisma } from "../../lib/prisma.js";
 import * as diagService from "./service.js";
 import * as saveService from "./save-service.js";
+import { broadcastCollabEvent } from "../../lib/collab/server.js";
 import * as subjectAreaService from "./subject-area-service.js";
 import * as perspectiveService from "./perspective-service.js";
 import type { ConnectionInfo } from "../../lib/db-connectors/types.js";
@@ -109,12 +110,13 @@ export async function permanentDelete(req: ExpressRequest, res: ExpressResponse)
 export async function updateShare(req: ExpressRequest, res: ExpressResponse): Promise<void> {
   try {
     const { uid } = req.params;
-    const { is_public, share_token, expiry_date } = req.body;
+    const { is_public, share_token, share_role, expiry_date } = req.body;
     const userId = (req as any).user.id;
 
     const result = await diagService.updateDiagramShare(uid, userId, {
       isPublic: is_public,
       shareToken: share_token,
+      shareRole: share_role,
       expiryDate: expiry_date ? new Date(expiry_date) : null,
     });
     if (!result) { res.status(404).json({ error: "Diagram not found" }); return; }
@@ -282,7 +284,7 @@ export async function getPublic(req: ExpressRequest, res: ExpressResponse): Prom
       })
     );
 
-    res.json({ ...diagram, entities: entitiesWithColumns, relationships });
+    res.json({ ...diagram, share_role: access.role, entities: entitiesWithColumns, relationships });
   } catch (err: any) {
     handleError(res, err, "Failed to fetch public diagram");
   }
@@ -302,9 +304,61 @@ export async function save(req: ExpressRequest, res: ExpressResponse): Promise<v
       res.status(409).json(result);
       return;
     }
+    const clientId = (req.headers["x-collab-client-id"] as string) || "";
+    broadcastCollabEvent(identifier, {
+      t: "content-change",
+      id: clientId,
+      version: (result as any).version ?? 0,
+      editorName: (req as any).user?.name || "Owner",
+    }, clientId);
     res.json(result);
   } catch (err: any) {
     handleError(res, err, "Failed to save diagram");
+  }
+}
+
+export async function savePublic(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const { uid } = req.params;
+    const diagram = await diagService.getPublicDiagram(uid);
+    if (!diagram) { res.status(404).json({ error: "Diagram not found" }); return; }
+
+    const access = evaluatePublicDocAccess(diagram, {
+      viewerId: await resolveViewerId(req),
+      providedToken: (req.headers["x-share-token"] as string) || (req.query.token as string),
+    });
+    if (access.ok === false) {
+      res.status(access.status).json(
+        access.requiresToken ? { error: access.error, requiresToken: true } : { error: access.error },
+      );
+      return;
+    }
+
+    if (access.role !== "edit") {
+      res.status(403).json({ error: "This shared diagram is view-only. Editing is not permitted." });
+      return;
+    }
+
+    // Save as diagram owner so revision history and constraints remain intact
+    const result = await saveService.saveDiagram(uid, diagram.userId, req.body);
+    if (!result) { res.status(404).json({ error: "Diagram not found" }); return; }
+    if ((result as any).conflict) {
+      res.status(409).json(result);
+      return;
+    }
+
+    const clientId = (req.headers["x-collab-client-id"] as string) || "";
+    const editorName = (req.body.editorName as string) || "Guest";
+    broadcastCollabEvent(diagram.uid, {
+      t: "content-change",
+      id: clientId,
+      version: (result as any).version ?? 0,
+      editorName,
+    }, clientId);
+
+    res.json(result);
+  } catch (err: any) {
+    handleError(res, err, "Failed to save shared diagram");
   }
 }
 

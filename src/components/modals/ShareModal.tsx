@@ -28,6 +28,7 @@ interface ShareModalProps {
   initialSettings?: {
     is_public: boolean;
     share_token?: string;
+    share_role?: "view" | "edit";
     expiry_date?: string;
   };
   onSettingsSaved?: () => void;
@@ -48,6 +49,7 @@ export function ShareModal({
   const [isCopied, setIsCopied] = React.useState(false);
   const [isPublic, setIsPublic] = React.useState(initialSettings?.is_public || false);
   const [durationDays, setDurationDays] = React.useState<string>('');
+  const [shareRole, setShareRole] = React.useState<"view" | "edit">(initialSettings?.share_role || "view");
   const [isSaving, setIsSaving] = React.useState(false);
 
   // Initialize duration from expiry_date if available
@@ -59,6 +61,7 @@ export function ShareModal({
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       if (diffDays > 0) setDurationDays(diffDays.toString());
     }
+    setShareRole(initialSettings?.share_role || "view");
     setToken(initialSettings?.share_token || '');
     setIsPublic(initialSettings?.is_public || false);
   }, [initialSettings]);
@@ -136,6 +139,7 @@ export function ShareModal({
         body: JSON.stringify({
           is_public: isPublic,
           share_token: token,
+          share_role: shareRole,
           expiry_date
         })
       });
@@ -182,6 +186,34 @@ export function ShareModal({
                 checked={isPublic}
                 onCheckedChange={checked => setIsPublic(checked)}
               />
+            </div>
+          )}
+
+          {!isPublicView && isPublic && (
+            <div className="p-3 rounded-lg border bg-muted/20 space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">General Access</Label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShareRole("view")}
+                  className={`flex-1 flex flex-col items-start p-2.5 rounded-md border text-left transition-all cursor-pointer ${shareRole === "view" ? "border-primary bg-primary/10 text-foreground shadow-sm" : "border-border/60 hover:bg-muted/40 text-muted-foreground"}`}
+                >
+                  <span className="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                    👁️ Anyone with link: View
+                  </span>
+                  <span className="text-[10px] text-muted-foreground mt-0.5">Can view canvas and see changes live</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShareRole("edit")}
+                  className={`flex-1 flex flex-col items-start p-2.5 rounded-md border text-left transition-all cursor-pointer ${shareRole === "edit" ? "border-primary bg-primary/10 text-foreground shadow-sm" : "border-border/60 hover:bg-muted/40 text-muted-foreground"}`}
+                >
+                  <span className="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                    ✏️ Anyone with link: Edit
+                  </span>
+                  <span className="text-[10px] text-muted-foreground mt-0.5">Real-time collaboration like Excalidraw</span>
+                </button>
+              </div>
             </div>
           )}
 

@@ -15,7 +15,11 @@ interface SharePathInfo {
  */
 export function getSharePathInfo(): SharePathInfo | null {
   if (typeof window === 'undefined') return null;
-  const path = window.location.pathname;
+  return matchSharePath(window.location.pathname);
+}
+
+/** Pure form of getSharePathInfo, for callers that already hold a pathname. */
+export function matchSharePath(path: string): SharePathInfo | null {
   const match = path.match(/^\/(view|share)\/(diagram|note|drawing|flowchart|erd|notes|drawings)\/([^/]+)/);
   if (match) {
     const typeMap: Record<string, string> = {

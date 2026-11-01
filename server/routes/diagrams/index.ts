@@ -8,6 +8,8 @@ const router = Router();
 router.get("/", authenticate, ctrl.list);
 router.post("/", authenticate, validate(createDiagramSchema), ctrl.create);
 router.get("/public/:uid", ctrl.getPublic);
+router.post("/public/:uid/save", ctrl.savePublic);
+router.put("/public/:uid/save", ctrl.savePublic);
 router.put("/:uid/share", authenticate, ctrl.updateShare);
 router.put("/:uid/project", authenticate, ctrl.moveToProject);
 router.get("/:uid/subject-areas", authenticate, ctrl.listSubjectAreas);

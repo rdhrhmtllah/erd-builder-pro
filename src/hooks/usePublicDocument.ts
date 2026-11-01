@@ -20,9 +20,11 @@ export function usePublicDocument(
   const [forbiddenDoc, setForbiddenDoc] = useState<ForbiddenDoc | null>(null);
   const { setViewport, fitView } = useReactFlow();
 
-  const fetchPublicDocument = async (type: string, uid: string, setNodes?: any, setEdges?: any, token?: string): Promise<boolean> => {
-    setIsPublicLoading(true);
-    setForbiddenDoc(null);
+  const fetchPublicDocument = async (type: string, uid: string, setNodes?: any, setEdges?: any, token?: string, options?: { silent?: boolean; preserveViewport?: boolean }): Promise<boolean> => {
+    if (!options?.silent) {
+      setIsPublicLoading(true);
+      setForbiddenDoc(null);
+    }
     try {
       const endpoint = publicDocumentEndpoint(type);
       const headers: any = { 'Content-Type': 'application/json' };
@@ -105,8 +107,8 @@ export function usePublicDocument(
           };
         });
 
-        setNodes(flowNodes);
-        setEdges(flowEdges);
+        setNodes?.(flowNodes);
+        setEdges?.(flowEdges);
         const applyViewport = (duration: number = 0) => {
           if (data.viewport_x !== undefined && (data.viewport_x !== 0 || data.viewport_y !== 0)) {
             setViewport({ x: data.viewport_x, y: data.viewport_y, zoom: data.viewport_zoom || 1 }, { duration });
@@ -115,13 +117,15 @@ export function usePublicDocument(
           }
         };
 
-        setTimeout(() => applyViewport(0), 50);
-        setTimeout(() => applyViewport(0), 300);
+        if (!options?.preserveViewport) {
+          setTimeout(() => applyViewport(0), 50);
+          setTimeout(() => applyViewport(0), 300);
+        }
       } else if (type === 'flowchart') {
         try {
           const parsedData = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-          setNodes(parsedData.nodes || []);
-          setEdges(parsedData.edges || []);
+          setNodes?.(parsedData.nodes || []);
+          setEdges?.(parsedData.edges || []);
           
           const applyViewport = (duration: number = 0) => {
             if (data.viewport_x !== undefined && (data.viewport_x !== 0 || data.viewport_y !== 0)) {
@@ -137,8 +141,8 @@ export function usePublicDocument(
           console.error("Failed to parse flowchart data:", e);
         }
       } else {
-        setNodes([]);
-        setEdges([]);
+        setNodes?.([]);
+        setEdges?.([]);
       }
       return true;
     } catch (err: any) {
@@ -146,7 +150,9 @@ export function usePublicDocument(
       setTimeout(() => window.location.href = '/', 3000);
       return false;
     } finally {
-      setIsPublicLoading(false);
+      if (!options?.silent) {
+        setIsPublicLoading(false);
+      }
     }
   };
 

@@ -35,6 +35,7 @@ export interface ErdPresenceOptions {
   shareToken?: string | null;
   /** Set false for surfaces that are not a collaboration canvas (the DB client). */
   enabled?: boolean;
+  onContentChange?: (event: { version: number; editorName?: string }) => void;
 }
 
 export interface ErdPresence extends PresenceSnapshot {
@@ -48,7 +49,9 @@ export interface ErdPresence extends PresenceSnapshot {
 }
 
 export function useErdPresence(options: ErdPresenceOptions): ErdPresence {
-  const { diagramUid = null, name = null, shareToken = null, enabled = true } = options;
+  const { diagramUid = null, name = null, shareToken = null, enabled = true, onContentChange } = options;
+  const onContentChangeRef = useRef(onContentChange);
+  useEffect(() => { onContentChangeRef.current = onContentChange; }, [onContentChange]);
 
   const [state, setState] = useState<PresenceSnapshot>(emptyPresence);
 
@@ -119,6 +122,9 @@ export function useErdPresence(options: ErdPresenceOptions): ErdPresence {
         if (message.t === 'welcome') {
           attempts = 0;
           preferredColorRef.current = message.color;
+        }
+        if (message.t === 'content-change') {
+          onContentChangeRef.current?.({ version: message.version, editorName: message.editorName });
         }
         if (message.t === 'error' && FATAL_PRESENCE_CODES.has(message.code)) {
           // The relay drops the socket right after a refusal; do not come back.

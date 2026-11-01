@@ -31,6 +31,17 @@ import { NotFoundRoute } from './routes/NotFoundRoute';
 import { DashboardRoute } from './routes/DashboardRoute';
 import { OAuthConsent } from './components/OAuthConsent';
 
+/** Renders the editor for a share link's document type; unknown types are a 404. */
+function PublicDocumentRoute() {
+  switch (getSharePathInfo()?.type) {
+    case 'erd': return <DiagramEditorRoute />;
+    case 'notes': return <NoteEditorRoute />;
+    case 'drawings': return <DrawingEditorRoute />;
+    case 'flowchart': return <FlowchartEditorRoute />;
+    default: return <NotFoundRoute />;
+  }
+}
+
 function AppContent() {
   const { isAuthenticated, isGuest, handleLogin, handleGuestLogin, handleLogout } = useAuth();
   const navigate = useNavigate();
@@ -88,9 +99,13 @@ function AppContent() {
     return <AppInitialization type="init" />;
   }
 
-  if (isPublicLoading) {
-    return <AppInitialization type="public" />;
-  }
+  // The share link is fetched from inside WorkspaceProvider. Returning the loader
+  // here instead of the provider unmounted it, the remount fetched again, and the
+  // page looped between "Loading shared Document" and the 404 route forever.
+  // Overlay the loader so the provider stays mounted across the fetch.
+  const publicLoader = isPublicLoading ? (
+    <div className="fixed inset-0 z-[100]"><AppInitialization type="public" /></div>
+  ) : null;
 
   // Forbidden document
   if (forbiddenDoc) {
@@ -102,9 +117,13 @@ function AppContent() {
         documentUid={shareInfo?.uid}
         onSubmitToken={async (t: string) => {
           if (shareInfo) {
+            // Store first: a successful fetch remounts the provider, which re-reads the token.
+            sessionStorage.setItem(`share_token_${shareInfo.uid}`, t);
             const s = await fetchPublicDocument(shareInfo.type, shareInfo.uid, undefined, undefined, t);
-            if (s) sessionStorage.setItem(`share_token_${shareInfo.uid}`, t);
-            else throw new Error('Invalid token');
+            if (!s) {
+              sessionStorage.removeItem(`share_token_${shareInfo.uid}`);
+              throw new Error('Invalid token');
+            }
           }
         }}
         onReturn={() => (window.location.href = '/')}
@@ -149,6 +168,10 @@ function AppContent() {
           <Route path="drawings/:id" element={<DrawingEditorRoute />} />
           <Route path="flowcharts/:id" element={<FlowchartEditorRoute />} />
 
+          {/* Public share links: /view|share/:type/:uid (see getSharePathInfo) */}
+          <Route path="view/:type/:uid" element={<PublicDocumentRoute />} />
+          <Route path="share/:type/:uid" element={<PublicDocumentRoute />} />
+
           {/* Admin pages */}
           <Route path="trash" element={<AdminRoute />} />
 
@@ -161,6 +184,7 @@ function AppContent() {
       </Routes>
       <SettingsModal />
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+      {publicLoader}
     </WorkspaceProvider>
   );
 }

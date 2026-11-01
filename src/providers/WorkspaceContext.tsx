@@ -24,6 +24,8 @@ export interface WorkspaceContextValue {
 
   // Public
   isPublicView: boolean;
+  isPublicEditor: boolean;
+  fetchPublicDocument?: any;
   setIsPublicView: (v: boolean) => void;
   publicData: any;
 

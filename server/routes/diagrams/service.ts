@@ -61,7 +61,7 @@ export function uidWhereClause(uid: string, userId: string) {
 
 const LIST_SELECT = {
   id: true, uid: true, name: true, projectId: true,
-  isPublic: true, shareToken: true, expiryDate: true,
+  isPublic: true, shareToken: true, shareRole: true, expiryDate: true,
   createdAt: true, updatedAt: true, isDeleted: true, userId: true,
   sourceType: true, sourceConnectionId: true, dbmlSource: true,
   project: { select: { name: true, uid: true, id: true } },
@@ -381,7 +381,7 @@ export async function getPublicDiagram(uid: string) {
 
 export async function updateDiagramShare(
   uid: string, userId: string,
-  data: { isPublic: boolean; shareToken?: string | null; expiryDate?: Date | null }
+  data: { isPublic: boolean; shareToken?: string | null; shareRole?: string | null; expiryDate?: Date | null }
 ) {
   const current = await prisma?.diagram.findFirst({
     where: uidWhere(uid, userId),
@@ -392,6 +392,7 @@ export async function updateDiagramShare(
     isPublic: data.isPublic,
     shareToken: data.isPublic ? data.shareToken ?? null : null,
     expiryDate: data.isPublic ? data.expiryDate ?? null : null,
+    shareRole: data.isPublic ? (data.shareRole || "view") : "view",
   };
 
   if (data.isPublic) {

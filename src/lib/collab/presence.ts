@@ -36,6 +36,7 @@ export type CollabServerMessage =
   | { t: "peer-join"; peer: ServerPeerState }
   | { t: "peer-leave"; id: string }
   | { t: "cursor"; id: string; x: number; y: number }
+  | { t: "content-change"; id: string; version: number; editorName?: string }
   | { t: "error"; code: string; message: string };
 
 /** How often a moving pointer may reach the relay. */
@@ -149,6 +150,10 @@ export function parseCollabServerMessage(raw: unknown): CollabServerMessage | nu
       if (typeof message.id !== "string" || !message.id) return null;
       if (!isCoordinate(message.x) || !isCoordinate(message.y)) return null;
       return { t: "cursor", id: message.id, x: Math.round(message.x as number), y: Math.round(message.y as number) };
+    case "content-change":
+      return typeof message.version === "number"
+        ? { t: "content-change", id: String(message.id || ""), version: message.version, editorName: typeof message.editorName === "string" ? message.editorName : undefined }
+        : null;
     case "error":
       return typeof message.code === "string"
         ? { t: "error", code: message.code, message: typeof message.message === "string" ? message.message : "" }

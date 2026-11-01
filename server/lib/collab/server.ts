@@ -48,8 +48,17 @@ export interface CollabServerOptions {
  * `/api/collab`, so Vite's HMR socket and anything else that upgrades is left
  * exactly as it was.
  */
+
+let globalRooms: CollabRooms | null = null;
+
+export function broadcastCollabEvent(roomKey: string, message: CollabServerMessage, excludePeerId?: string): void {
+  if (!globalRooms) return;
+  globalRooms.broadcast(roomKey, excludePeerId ?? "__system__", message);
+}
+
 export function attachCollabWebSocket(server: HttpServer, options: CollabServerOptions = {}): void {
   const rooms = options.rooms ?? new CollabRooms();
+  globalRooms = rooms;
   const authorize = options.authorize ?? authorizeCollabRoom;
   const heartbeatMs = options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
   const burst = options.rate?.burst ?? COLLAB_RATE_BURST;
