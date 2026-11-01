@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 const MODES: { mode: CanvasMode; icon: typeof Hand; label: string; hint: string }[] = [
   { mode: 'select', icon: MousePointer2, label: 'Select', hint: 'Drag to select tables · V' },
-  { mode: 'pan', icon: Hand, label: 'Hand', hint: 'Drag to move the canvas · H' },
+  { mode: 'pan', icon: Hand, label: 'Hand', hint: 'Hand Tool: View only (tables & lines locked) · H' },
 ];
 
 interface CanvasModeToggleProps {

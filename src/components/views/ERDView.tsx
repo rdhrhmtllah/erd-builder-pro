@@ -387,7 +387,7 @@ const ERDViewComponent = ({
   const openEntityProperties = React.useCallback(() => setRightPanelMode('properties'), [setRightPanelMode]);
   const entityNodeRuntime = React.useMemo(() => ({
     isReadOnly,
-    hideHandles: isProductionDb,
+    hideHandles: isProductionDb || canvasMode === "pan",
     duplicateEntity,
     setSelectedNodeId,
     openProperties: openEntityProperties,
@@ -1423,9 +1423,9 @@ const ERDViewComponent = ({
           colorMode={resolvedTheme}
           onlyRenderVisibleElements={true}
           // Production DB ERD stays read-only for schema edits, but table positions are editable.
-          nodesDraggable={!pendingDiff && (!isReadOnly || isProductionDb)}
-          nodesConnectable={!pendingDiff && (!isReadOnly || (isProductionDb && isReconnecting))}
-          elementsSelectable={(!isReadOnly || activePanel === 'explorer') && !pendingDiff}
+          nodesDraggable={canvasMode !== "pan" && !pendingDiff && (!isReadOnly || isProductionDb)}
+          nodesConnectable={canvasMode !== "pan" && !pendingDiff && (!isReadOnly || (isProductionDb && isReconnecting))}
+          elementsSelectable={canvasMode !== "pan" && (!isReadOnly || activePanel === 'explorer') && !pendingDiff}
           // Ctrl/Cmd-click adds one table; Shift-drag rubber-bands a whole group
           // whichever mode is active, and holding Space pans.
           multiSelectionKeyCode={['Meta', 'Control']}
