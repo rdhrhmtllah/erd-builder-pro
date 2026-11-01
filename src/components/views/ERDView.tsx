@@ -15,6 +15,7 @@ import {
   ConnectionLineType,
   BaseEdge,
   getSmoothStepPath,
+  getBezierPath,
   useReactFlow,
   addEdge,
   reconnectEdge,
@@ -122,47 +123,24 @@ const ReadableRelationEdge = React.memo((props: EdgeProps) => {
   const layoutPoints = Array.isArray(data?.layoutPoints)
     ? data.layoutPoints.filter((point: any) => Number.isFinite(point?.x) && Number.isFinite(point?.y))
     : [];
-  const smoothStep = getSmoothStepPath({
+  // Fluid, natural Bézier curves: eliminates all rigid 90-degree sharp angles and unnecessary zig-zag elbows
+  const [bezierPath, labelCenterX, labelCenterY] = getBezierPath({
     sourceX,
     sourceY,
+    sourcePosition,
     targetX,
     targetY,
-    sourcePosition,
     targetPosition,
-    borderRadius: 18,
-    offset: 32,
-    stepPosition: 0.5,
+    curvature: 0.32,
   });
-  const smoothCenter = { x: smoothStep[1] ?? (sourceX + targetX) / 2, y: smoothStep[2] ?? (sourceY + targetY) / 2 };
 
-  const path = layoutPoints.length
-    ? [`M ${sourceX} ${sourceY}`, ...layoutPoints.map((point: any) => `L ${point.x} ${point.y}`), `L ${targetX} ${targetY}`].join(' ')
-    : routeY === null && routeX === null
-    ? smoothStep[0]
-    : routeY !== null ? (() => {
-      const direction = sourceX <= targetX ? 1 : -1;
-      const sourceLaneX = sourceX + direction * 24;
-      const targetLaneX = targetX - direction * 24;
-      // A dedicated outer lane prevents long-rank relationships from being
-      // routed through every table in the intervening rank.
-      return [
-        `M ${sourceX} ${sourceY}`,
-        `L ${sourceLaneX} ${sourceY}`,
-        `L ${sourceLaneX} ${routeY}`,
-        `L ${targetLaneX} ${routeY}`,
-        `L ${targetLaneX} ${targetY}`,
-        `L ${targetX} ${targetY}`,
-      ].join(' ');
-    })() : [
-      `M ${sourceX} ${sourceY}`,
-      `L ${routeX} ${sourceY}`,
-      `L ${routeX} ${targetY}`,
-      `L ${targetX} ${targetY}`,
-    ].join(' ');
+  const path = bezierPath;
+  const smoothCenter = { x: labelCenterX, y: labelCenterY };
   const semantics = inferRelationshipSemantics({ data, label: props.label, type: props.type });
-  const horizontalDirection = sourceX <= targetX ? 1 : -1;
-  const sourceLabelX = sourceX + horizontalDirection * 34;
-  const targetLabelX = targetX - horizontalDirection * 34;
+  const sourceOffset = sourcePosition === Position.Left ? -16 : 16;
+  const targetOffset = targetPosition === Position.Right ? 16 : -16;
+  const sourceLabelX = sourceX + sourceOffset;
+  const targetLabelX = targetX + targetOffset;
 
   return (
     <>
@@ -1518,7 +1496,7 @@ const ERDViewComponent = ({
           maxZoom={2.5}
           {...CANVAS_GESTURES}
           defaultEdgeOptions={defaultEdgeOptions}
-          connectionLineType={ConnectionLineType.SmoothStep}
+          connectionLineType={ConnectionLineType.Bezier}
           connectionLineStyle={defaultEdgeOptions.style}
           deleteKeyCode={null}
         >
