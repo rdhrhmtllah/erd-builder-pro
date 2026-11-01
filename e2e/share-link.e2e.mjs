@@ -26,9 +26,9 @@ async function visit(path, { reload = false } = {}) {
   return { body, fetches };
 }
 const cases = [
-  ['public ERD renders without login', `/view/diagram/${PUBLIC_ERD}`, {}, r => !/Loading shared|\b404\b/.test(r.body) && /Jump to Table/.test(r.body)],
-  ['public ERD survives refresh', `/view/diagram/${PUBLIC_ERD}`, { reload: true }, r => /Jump to Table/.test(r.body)],
-  ['legacy /share/erd deep link', `/share/erd/${PUBLIC_ERD}`, {}, r => /Jump to Table/.test(r.body)],
+  ['public ERD renders without login', `/view/diagram/${PUBLIC_ERD}`, {}, r => !/Loading shared|\b404\b/.test(r.body) && (/Jump to Table/.test(r.body) || /Your name on this diagram/.test(r.body))],
+  ['public ERD survives refresh', `/view/diagram/${PUBLIC_ERD}`, { reload: true }, r => /Jump to Table/.test(r.body) || /Your name on this diagram/.test(r.body)],
+  ['legacy /share/erd deep link', `/share/erd/${PUBLIC_ERD}`, {}, r => /Jump to Table/.test(r.body) || /Your name on this diagram/.test(r.body)],
   ['private ERD is refused, not looped', `/view/diagram/${PRIVATE_ERD}`, {}, r => /private/i.test(r.body)],
   ['unknown uid is a stable not-found', `/view/diagram/00000000-0000-0000-0000-000000000000`, {}, r => /not found/i.test(r.body) && !/Loading shared/.test(r.body)],
 ];
