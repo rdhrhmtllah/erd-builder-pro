@@ -122,20 +122,23 @@ const ReadableRelationEdge = React.memo((props: EdgeProps) => {
   const layoutPoints = Array.isArray(data?.layoutPoints)
     ? data.layoutPoints.filter((point: any) => Number.isFinite(point?.x) && Number.isFinite(point?.y))
     : [];
+  const smoothStep = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    borderRadius: 18,
+    offset: 32,
+    stepPosition: 0.5,
+  });
+  const smoothCenter = { x: smoothStep[1] ?? (sourceX + targetX) / 2, y: smoothStep[2] ?? (sourceY + targetY) / 2 };
+
   const path = layoutPoints.length
     ? [`M ${sourceX} ${sourceY}`, ...layoutPoints.map((point: any) => `L ${point.x} ${point.y}`), `L ${targetX} ${targetY}`].join(' ')
     : routeY === null && routeX === null
-    ? getSmoothStepPath({
-      sourceX,
-      sourceY,
-      targetX,
-      targetY,
-      sourcePosition,
-      targetPosition,
-      borderRadius: 18,
-      offset: 32,
-      stepPosition: 0.5,
-    })[0]
+    ? smoothStep[0]
     : routeY !== null ? (() => {
       const direction = sourceX <= targetX ? 1 : -1;
       const sourceLaneX = sourceX + direction * 24;
@@ -206,8 +209,8 @@ const ReadableRelationEdge = React.memo((props: EdgeProps) => {
           sourceSymbol={semantics.sourceSymbol}
           targetSymbol={semantics.targetSymbol}
           currentType={semantics.type}
-          centerX={(sourceX + targetX) / 2}
-          centerY={(sourceY + targetY) / 2}
+          centerX={smoothCenter.x}
+          centerY={smoothCenter.y}
           isReadOnly={(data as any)?.isReadOnly}
           onUpdateCardinality={(data as any)?.onUpdateCardinality}
           onFlip={(data as any)?.onFlip}
@@ -1489,7 +1492,10 @@ const ERDViewComponent = ({
           onNodeClick={onNodeClick}
           onNodeDoubleClick={onNodeDoubleClick}
           onEdgeClick={onEdgeClick}
-          onPaneClick={onPaneClick}
+          onPaneClick={() => {
+            onPaneClick?.();
+            window.dispatchEvent(new CustomEvent('clear-column-selection'));
+          }}
           onMove={handleMoveLocal}
           colorMode={resolvedTheme}
           onlyRenderVisibleElements={true}

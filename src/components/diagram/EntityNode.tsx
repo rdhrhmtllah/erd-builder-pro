@@ -85,35 +85,31 @@ const EntityColumnRow = memo(({ col, entityId, borderColor, typeColor, hideHandl
   }, [col.color, isSelected]);
 
   const handleRowClick = (e: React.MouseEvent) => {
-    // Click selects/toggles column with Ctrl/Cmd or Shift
+    // In Hand Tool (Pan) mode or read-only mode, column selection is completely disabled!
+    if (hideHandles || isReadOnly) return;
+
+    e.stopPropagation();
     if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) {
-      e.stopPropagation();
       toggleColumnSelection(entityId, col.id, true);
     } else {
-      // Normal click can select column
-      e.stopPropagation();
       toggleColumnSelection(entityId, col.id, false);
     }
   };
 
   return (
     <div
-      className={cn("erd-column-row group relative px-3 py-2 flex items-center justify-between transition-colors border-b last:border-b-0 cursor-pointer", rowBgClass)}
+      className={cn("erd-column-row group relative px-3 py-2 flex items-center justify-between transition-colors border-b last:border-b-0", (hideHandles || isReadOnly) ? "cursor-default" : "cursor-pointer", rowBgClass)}
       style={customColorStyle}
       data-erd-column-id={col.id}
       title={col.comment || undefined}
       onClick={handleRowClick}
       onDoubleClick={onDoubleClick}
     >
-      {hideHandles ? <>
-        {col._is_ref && <Handle type="target" position={Position.Left} id={`col-${col.id}-target`} className={readOnlyHandleClass} style={leftStyle} />}
-        {col._is_fk && <Handle type="source" position={Position.Right} id={`col-${col.id}-source`} className={readOnlyHandleClass} style={rightStyle} />}
-      </> : <>
-        <Handle type="target" position={Position.Left} id={`col-${col.id}-target`} className={handleBaseClass} style={leftStyle} />
-        <Handle type="source" position={Position.Left} id={`col-${col.id}-source-l`} className={handleBaseClass} style={leftStyle} />
-        <Handle type="source" position={Position.Right} id={`col-${col.id}-source`} className={handleBaseClass} style={rightStyle} />
-        <Handle type="target" position={Position.Right} id={`col-${col.id}-target-r`} className={handleBaseClass} style={rightStyle} />
-      </>}
+      {/* Handles must ALWAYS remain in the DOM so React Flow edges never disappear or lose connection */}
+      <Handle type="target" position={Position.Left} id={`col-${col.id}-target`} className={hideHandles ? readOnlyHandleClass : handleBaseClass} style={leftStyle} />
+      <Handle type="source" position={Position.Left} id={`col-${col.id}-source-l`} className={hideHandles ? readOnlyHandleClass : handleBaseClass} style={leftStyle} />
+      <Handle type="source" position={Position.Right} id={`col-${col.id}-source`} className={hideHandles ? readOnlyHandleClass : handleBaseClass} style={rightStyle} />
+      <Handle type="target" position={Position.Right} id={`col-${col.id}-target-r`} className={hideHandles ? readOnlyHandleClass : handleBaseClass} style={rightStyle} />
 
       <div className="flex items-center gap-2">
         {col.color && (

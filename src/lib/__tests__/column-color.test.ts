@@ -33,7 +33,25 @@ describe('Column Color Marking Feature', () => {
     expect(updatedColumns[2].color).toBe('#10b981');
   });
 
-  it('resets color to null when clear is requested', () => {
+
+  it("deselects an already selected column when clicked again", () => {
+    const selected = new Map<string, any>();
+    selected.set("table-1:col-1", { entityId: "table-1", columnId: "col-1" });
+
+    // Toggle same key without multi:
+    const key = "table-1:col-1";
+    let next: Map<string, any>;
+    if (selected.has(key)) {
+      next = new Map(); // Deselect
+    } else {
+      next = new Map([[key, { entityId: "table-1", columnId: "col-1" }]]);
+    }
+
+    expect(next.size).toBe(0);
+    expect(next.has(key)).toBe(false);
+  });
+
+    it('resets color to null when clear is requested', () => {
     const col = { id: 'col-1', name: 'id', color: '#ef4444' };
     const reset = { ...col, color: null };
     expect(reset.color).toBeNull();

@@ -44,18 +44,38 @@ export function ColumnColorProvider({
   const toggleColumnSelection = useCallback((entityId: string, columnId: string, multi: boolean) => {
     const key = `${entityId}:${columnId}`;
     setSelectedColumns((prev) => {
-      const next = new Map(multi ? prev : []);
-      if (prev.has(key) && multi) {
-        next.delete(key);
-      } else {
-        next.set(key, { entityId, columnId });
+      // If already selected, deselect it!
+      if (prev.has(key)) {
+        if (multi) {
+          const next = new Map(prev);
+          next.delete(key);
+          return next;
+        } else {
+          // Clicking an already selected column without Ctrl/Shift deselects it!
+          return new Map();
+        }
       }
+      const next = new Map(multi ? prev : []);
+      next.set(key, { entityId, columnId });
       return next;
     });
   }, []);
 
   const clearColumnSelection = useCallback(() => {
     setSelectedColumns(new Map());
+  }, []);
+
+  useEffect(() => {
+    const handleClear = () => setSelectedColumns(new Map());
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedColumns(new Map());
+    };
+    window.addEventListener('clear-column-selection', handleClear);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('clear-column-selection', handleClear);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   const applyColorToSelectedColumns = useCallback(
