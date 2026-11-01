@@ -134,7 +134,34 @@ export const MainHeader = React.memo(({
         )}
         <Breadcrumb className="min-w-0 flex items-center">
           <BreadcrumbList className="flex-nowrap items-center">
-            {!isPublicView && (() => {
+            {isPublicView ? (
+              <div className="flex items-center gap-2.5 min-w-0">
+                <a
+                  href="/"
+                  className="flex items-center gap-1.5 font-bold text-sm tracking-tight text-foreground hover:opacity-85 transition-opacity shrink-0"
+                >
+                  <span className="size-6 rounded-lg bg-primary flex items-center justify-center text-primary-foreground text-xs shadow-xs">
+                    ✦
+                  </span>
+                  <span className="hidden xs:inline">Creatool</span>
+                </a>
+                <span className="text-muted-foreground/40 font-light select-none">/</span>
+                <BreadcrumbItem className="min-w-0 flex items-center gap-2">
+                  <BreadcrumbPage className="font-semibold text-sm text-foreground truncate max-w-45 sm:max-w-75 md:max-w-100">
+                    {activeFileName || "Shared Document"}
+                  </BreadcrumbPage>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border select-none shrink-0 ${
+                      initialShareSettings?.is_public
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                        : "bg-muted text-muted-foreground border-border"
+                    }`}
+                  >
+                    Public
+                  </span>
+                </BreadcrumbItem>
+              </div>
+            ) : (() => {
               const path = location.pathname;
               if (path === '/') {
                 return (
@@ -259,7 +286,7 @@ export const MainHeader = React.memo(({
       </div>
 
       <div className="px-2 sm:px-4 flex items-center gap-1 sm:gap-4">
-        {!!location.pathname.match(/^\/(notes|diagrams|drawings|flowcharts)\/[^/]+$/) && (
+        {(isPublicView || !!location.pathname.match(/^\/(notes|diagrams|drawings|flowcharts|view|share)\/[^/]+(\/[^/]+)?$/)) && (
           <div className="flex items-center gap-1 sm:gap-4">
             {!isPublicView && (
               <div className="hidden sm:flex items-center gap-1.5 shrink-0">
