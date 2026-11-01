@@ -153,7 +153,8 @@ export async function getPublic(req: ExpressRequest, res: ExpressResponse): Prom
       }
     }
 
-    res.json(drawing);
+    const role = (!isOwner && drawing.shareRole !== "edit") ? "view" : "edit";
+    res.json({ ...drawing, share_role: role });
   } catch (err: any) {
     handleError(res, err, "Failed to fetch public drawing");
   }
@@ -162,17 +163,56 @@ export async function getPublic(req: ExpressRequest, res: ExpressResponse): Prom
 export async function updateShare(req: ExpressRequest, res: ExpressResponse): Promise<void> {
   try {
     const { uid } = req.params;
-    const { is_public, share_token, expiry_date } = req.body;
+    const { is_public, share_token, share_role, expiry_date } = req.body;
     const userId = (req as any).user.id;
 
     const result = await drawingsService.updateDrawingShare(uid, userId, {
       isPublic: is_public,
       shareToken: share_token,
+      shareRole: share_role,
       expiryDate: expiry_date ? new Date(expiry_date) : null,
     });
     if (!result) { res.status(404).json({ error: "Drawing not found" }); return; }
     res.json(result);
   } catch (err: any) {
     handleError(res, err, "Failed to update share settings");
+  }
+}
+
+
+export async function savePublic(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  try {
+    const { uid } = req.params;
+    const drawing = await drawingsService.getPublicDrawing(uid);
+    if (!drawing || drawing.isDeleted || drawing.project?.isDeleted || !drawing.isPublic) {
+      res.status(404).json({ error: "Drawing not found" }); return;
+    }
+
+    const viewerId = await resolveViewerId(req);
+    const isOwner = viewerId !== null && viewerId === drawing.userId;
+
+    if (!isOwner) {
+      if (drawing.expiryDate && new Date(drawing.expiryDate) < new Date()) {
+        res.status(403).json({ error: "This share link has expired" }); return;
+      }
+      const providedToken = (req.headers["x-share-token"] as string) || (req.query.token as string);
+      if (drawing.shareToken && drawing.shareToken !== providedToken) {
+        res.status(401).json({ error: "Invalid access token", requiresToken: true }); return;
+      }
+      if (drawing.shareRole !== "edit") {
+        res.status(403).json({ error: "This shared drawing is view-only. Editing is not permitted." }); return;
+      }
+    }
+
+    const { data, title } = req.body;
+    const result = await drawingsService.updateDrawing(uid, drawing.userId ?? "", {
+      title,
+      drawingData: data,
+    });
+    if (!result) { res.status(404).json({ error: "Drawing not found" }); return; }
+
+    res.json(result);
+  } catch (err: any) {
+    handleError(res, err, "Failed to save shared drawing");
   }
 }

@@ -251,6 +251,7 @@ model Drawing {
   version    Int?      @default(0) @map("_version")
   isPublic   Boolean?  @default(false) @map("is_public")
   shareToken String?   @map("share_token")
+  shareRole  String?   @default("view") @map("share_role")
   expiryDate DateTime? @map("expiry_date")
   publishedAt DateTime? @map("published_at")
   user       User?     @relation(fields: [userId], references: [id], onUpdate: NoAction)

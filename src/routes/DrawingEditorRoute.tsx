@@ -12,10 +12,28 @@ export function DrawingEditorRoute() {
 
   const {
     activeDrawing, activeDrawingId, saveDrawing, handleDrawingChange, deleteDrawing,
-    isPublicView, isLoading, isDrawingItemLoading, handleDrawingSelect,
+    isPublicView, publicData, isLoading, isDrawingItemLoading, handleDrawingSelect,
   } = ctx;
 
   // Safety net: URL has id but context hasn't synced yet
+  const effectiveDrawingSave = React.useCallback(async (drawing: any) => {
+    if (isPublicView && publicData?.uid && publicData?.share_role === "edit") {
+      const savedToken = sessionStorage.getItem(`share_token_${publicData.uid}`);
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (savedToken) headers["x-share-token"] = savedToken;
+      await fetch(`/api/drawings/public/${publicData.uid}/save`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          title: drawing.title || publicData.title || "Drawing",
+          data: typeof drawing.data === "string" ? drawing.data : JSON.stringify(drawing.data),
+        }),
+      });
+      return true;
+    }
+    return saveDrawing(drawing);
+  }, [isPublicView, publicData?.uid, publicData?.share_role, publicData?.title, saveDrawing]);
+
   const processedUrlRef = useRef(false);
   useEffect(() => {
     if (isPublicView || !id) return;
@@ -78,12 +96,12 @@ export function DrawingEditorRoute() {
     }>
       <DrawingsView
         isLoading={isDrawingItemLoading}
-        activeDrawingId={isPublicView ? null : activeDrawingId}
+        activeDrawingId={isPublicView ? (publicData?.uid || publicData?.id) : activeDrawingId}
         activeDrawing={activeDrawing}
-        saveDrawing={saveDrawing}
+        saveDrawing={effectiveDrawingSave}
         handleDrawingChange={handleDrawingChange}
         deleteDrawing={deleteDrawing}
-        isReadOnly={isPublicView}
+        isReadOnly={Boolean(isPublicView && publicData?.share_role !== "edit")}
       />
     </Suspense>
     </div>

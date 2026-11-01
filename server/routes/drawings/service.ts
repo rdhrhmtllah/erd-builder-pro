@@ -200,7 +200,7 @@ export async function getPublicDrawing(uid: string) {
 
 export async function updateDrawingShare(
   uid: string, userId: string,
-  data: { isPublic: boolean; shareToken?: string | null; expiryDate?: Date | null }
+  data: { isPublic: boolean; shareToken?: string | null; shareRole?: string | null; expiryDate?: Date | null }
 ) {
   const current = await prisma?.drawing.findFirst({
     where: uidWhere(uid, userId),
@@ -211,6 +211,7 @@ export async function updateDrawingShare(
     isPublic: data.isPublic,
     shareToken: data.isPublic ? data.shareToken ?? null : null,
     expiryDate: data.isPublic ? data.expiryDate ?? null : null,
+    shareRole: data.isPublic ? (data.shareRole || "view") : "view",
   };
 
   if (data.isPublic) {

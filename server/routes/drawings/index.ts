@@ -8,6 +8,8 @@ const router = Router();
 router.get("/", authenticate, ctrl.list);
 router.post("/", authenticate, validate(createDrawingSchema), ctrl.create);
 router.get("/public/:uid", ctrl.getPublic);
+router.post("/public/:uid/save", ctrl.savePublic);
+router.put("/public/:uid/save", ctrl.savePublic);
 router.put("/:uid/share", authenticate, ctrl.updateShare);
 router.get("/:uid", authenticate, ctrl.get);
 router.put("/:uid", authenticate, ctrl.update);
