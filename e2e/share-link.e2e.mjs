@@ -14,6 +14,11 @@ async function visit(path, { reload = false } = {}) {
   let fetches = 0;
   page.on('request', r => { if (/\/api\/\w+\/public\//.test(r.url())) fetches++; });
   await page.goto(BASE + path);
+  // If guest join dialog appears on public view, click Skip or Join
+  const joinBtn = page.locator("button:has-text('Skip'), button:has-text('Join')").first();
+  if (await joinBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await joinBtn.click();
+  }
   if (reload) { await page.waitForTimeout(4000); await page.reload(); }
   await page.waitForTimeout(12000); // past the old 3-5 s loop period
   const body = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
