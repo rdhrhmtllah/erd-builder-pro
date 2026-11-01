@@ -14,6 +14,8 @@ import type { PresenceSnapshot } from '@/lib/collab/presence';
 
 interface PresencePublisher {
   publishCursor: (x: number, y: number) => void;
+  publishChat: (text: string) => void;
+  publishViewport: (x: number, y: number, zoom: number) => void;
   isWatching: () => boolean;
 }
 
@@ -22,7 +24,7 @@ interface PresenceState extends PresenceSnapshot {
   joined: boolean;
 }
 
-const NOOP_PUBLISHER: PresencePublisher = { publishCursor: () => {}, isWatching: () => false };
+const NOOP_PUBLISHER: PresencePublisher = { publishCursor: () => {}, publishChat: () => {}, publishViewport: () => {}, isWatching: () => false };
 
 const PresenceStateContext = createContext<PresenceState | null>(null);
 const PresencePublisherContext = createContext<PresencePublisher>(NOOP_PUBLISHER);
@@ -34,8 +36,13 @@ export function ErdPresenceProvider({
   const presence = useErdPresence(options);
 
   const publisher = useMemo<PresencePublisher>(
-    () => ({ publishCursor: presence.publishCursor, isWatching: presence.isWatching }),
-    [presence.publishCursor, presence.isWatching],
+    () => ({
+      publishCursor: presence.publishCursor,
+      publishChat: presence.publishChat,
+      publishViewport: presence.publishViewport,
+      isWatching: presence.isWatching,
+    }),
+    [presence.publishCursor, presence.publishChat, presence.publishViewport, presence.isWatching],
   );
 
   const state = useMemo<PresenceState>(

@@ -42,7 +42,7 @@ import { ErdSubjectAreaPanel } from '@/components/diagram/ErdSubjectAreaPanel';
 import { ErdOrganizerPanel } from '@/components/diagram/ErdOrganizerPanel';
 import { ErdTemplatePanel } from '@/components/diagram/ErdTemplatePanel';
 import { ErdToolbar, type ErdPanelId } from '@/components/diagram/ErdToolbar';
-import { PresenceOverlay, PresencePill } from '@/components/diagram/PresenceOverlay';
+import { PresenceOverlay } from '@/components/diagram/PresenceOverlay';
 import { usePresencePublisher } from '@/components/diagram/presence-context';
 import { getSubjectAreaVisibility, type ErdSubjectArea } from '@/lib/erd-subject-areas';
 import { applyClearSelection, applySelectAllTables, selectionKeyOf } from '@/lib/erd-selection';
@@ -302,7 +302,7 @@ const ERDViewComponent = ({
 
   const { registerContentHandler, setSelectionText, setActionContextData, setRightPanelMode } = useAIAction();
   const { getViewport, setViewport, fitView, screenToFlowPosition } = useReactFlow();
-  const { publishCursor, isWatching } = usePresencePublisher();
+  const { publishCursor, publishViewport, isWatching } = usePresencePublisher();
   const bgColor = resolvedTheme === 'dark' ? '#222' : '#ccc';
   const isProductionDb = isDbClient;
   const isPublicView = Boolean(isReadOnly && !isProductionDb);
@@ -1342,7 +1342,11 @@ const ERDViewComponent = ({
           selectionKeyCode="Shift"
           {...canvasModeProps(canvasMode)}
           onNodeDragStop={activePerspective ? persistPerspectivePosition : onNodeDragStop}
-          onMoveEnd={activePerspective ? persistPerspectiveViewport : onMoveEnd}
+          onMoveEnd={(_e, v) => {
+            if (activePerspective) persistPerspectiveViewport(_e, v);
+            else onMoveEnd?.(_e, v);
+            if (isWatching()) publishViewport(v.x, v.y, v.zoom);
+          }}
           minZoom={0.1}
           maxZoom={2.5}
           {...CANVAS_GESTURES}
@@ -1362,7 +1366,6 @@ const ERDViewComponent = ({
         {/* Above the flow pane, outside it: cursors must never take part in the
             diagram's layout, hit testing or export. */}
         <PresenceOverlay />
-        <PresencePill />
       </div>
 
       {/* Floating Diff Merge Panel */}

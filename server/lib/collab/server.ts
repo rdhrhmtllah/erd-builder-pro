@@ -197,10 +197,21 @@ export function attachCollabWebSocket(server: HttpServer, options: CollabServerO
         return;
       }
 
-      // A cursor that belongs to no peer is unattributable; drop it.
+      // A cursor/action that belongs to no peer is unattributable; drop it.
       if (!peer) return;
-      if (!rooms.moveCursor(roomKey, peer.id, message.x, message.y)) return;
-      rooms.broadcast(roomKey, peer.id, { t: "cursor", id: peer.id, x: message.x, y: message.y });
+      if (message.t === "cursor") {
+        if (!rooms.moveCursor(roomKey, peer.id, message.x, message.y)) return;
+        rooms.broadcast(roomKey, peer.id, { t: "cursor", id: peer.id, x: message.x, y: message.y });
+        return;
+      }
+      if (message.t === "cursor-chat") {
+        rooms.broadcast(roomKey, peer.id, { t: "cursor-chat", id: peer.id, text: message.text });
+        return;
+      }
+      if (message.t === "viewport") {
+        rooms.broadcast(roomKey, peer.id, { t: "viewport", id: peer.id, x: message.x, y: message.y, zoom: message.zoom });
+        return;
+      }
     }
 
     ws.on("message", (data, isBinary) => {

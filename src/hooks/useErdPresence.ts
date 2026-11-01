@@ -41,6 +41,10 @@ export interface ErdPresenceOptions {
 export interface ErdPresence extends PresenceSnapshot {
   /** Report a pointer position in flow coordinates; throttled internally. */
   publishCursor: (x: number, y: number) => void;
+  /** Send ephemeral chat text on cursor */
+  publishChat: (text: string) => void;
+  /** Broadcast viewport to followers when presenting */
+  publishViewport: (x: number, y: number, zoom: number) => void;
   /**
    * Whether anyone else is in the room. Lets the canvas skip even converting a
    * pointer position when nobody is watching, which is the common case.
@@ -210,7 +214,25 @@ export function useErdPresence(options: ErdPresenceOptions): ErdPresence {
     watchedByRef.current = state.peers.length;
   }, [state.peers]);
 
-  const isWatching = useCallback(() => watchedByRef.current > 0, []);
+  const publishChat = useCallback((text: string) => {
+    const socket = socketRef.current;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ t: "cursor-chat", text }));
+    }
+  }, []);
 
-  return { ...state, publishCursor, isWatching };
+  const lastViewportSentRef = useRef<number>(0);
+  const publishViewport = useCallback((x: number, y: number, zoom: number) => {
+    const now = Date.now();
+    if (now - lastViewportSentRef.current < 80) return; // limit viewport broadcasts to ~12fps
+    lastViewportSentRef.current = now;
+    const socket = socketRef.current;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ t: "viewport", x, y, zoom }));
+    }
+  }, []);
+
+    const isWatching = useCallback(() => watchedByRef.current > 0, []);
+
+  return { ...state, publishCursor, publishChat, publishViewport, isWatching };
 }

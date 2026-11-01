@@ -54,6 +54,8 @@ export interface CollabPeerState {
 export type CollabClientMessage =
   | { t: "hello"; name: string; color?: string }
   | { t: "cursor"; x: number; y: number }
+  | { t: "cursor-chat"; text: string }
+  | { t: "viewport"; x: number; y: number; zoom: number }
   | { t: "ping" };
 
 export type CollabErrorCode =
@@ -71,6 +73,8 @@ export type CollabServerMessage =
   | { t: "peer-join"; peer: CollabPeerState }
   | { t: "peer-leave"; id: string }
   | { t: "cursor"; id: string; x: number; y: number }
+  | { t: "cursor-chat"; id: string; text: string }
+  | { t: "viewport"; id: string; x: number; y: number; zoom: number }
   | { t: "content-change"; id: string; version: number; editorName?: string }
   | { t: "error"; code: CollabErrorCode; message: string };
 
@@ -146,6 +150,16 @@ export function parseClientMessage(raw: string): CollabClientMessage | null {
     case "cursor": {
       const cursor = normalizeCursor(message.x, message.y);
       return cursor === null ? null : { t: "cursor", ...cursor };
+    }
+    case "cursor-chat": {
+      if (typeof message.text !== "string") return null;
+      const text = message.text.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 100);
+      return { t: "cursor-chat", text };
+    }
+    case "viewport": {
+      if (typeof message.x !== "number" || typeof message.y !== "number" || typeof message.zoom !== "number") return null;
+      if (!Number.isFinite(message.x) || !Number.isFinite(message.y) || !Number.isFinite(message.zoom)) return null;
+      return { t: "viewport", x: Math.round(message.x), y: Math.round(message.y), zoom: Number(message.zoom.toFixed(3)) };
     }
     case "ping":
       return { t: "ping" };

@@ -18,6 +18,10 @@ export interface PresencePeer {
   /** Flow coordinates of their last cursor, or null before they moved. */
   x: number | null;
   y: number | null;
+  /** Temporary ephemeral chat bubble on the cursor */
+  chatText?: string | null;
+  /** Presenter viewport coordinates if broadcasting */
+  viewport?: { x: number; y: number; zoom: number };
 }
 
 export type PresenceStatus = "idle" | "connecting" | "open" | "closed" | "denied" | "error";
@@ -36,6 +40,8 @@ export type CollabServerMessage =
   | { t: "peer-join"; peer: ServerPeerState }
   | { t: "peer-leave"; id: string }
   | { t: "cursor"; id: string; x: number; y: number }
+  | { t: "cursor-chat"; id: string; text: string }
+  | { t: "viewport"; id: string; x: number; y: number; zoom: number }
   | { t: "content-change"; id: string; version: number; editorName?: string }
   | { t: "error"; code: string; message: string };
 
@@ -150,6 +156,13 @@ export function parseCollabServerMessage(raw: unknown): CollabServerMessage | nu
       if (typeof message.id !== "string" || !message.id) return null;
       if (!isCoordinate(message.x) || !isCoordinate(message.y)) return null;
       return { t: "cursor", id: message.id, x: Math.round(message.x as number), y: Math.round(message.y as number) };
+    case "cursor-chat":
+      if (typeof message.id !== "string" || !message.id || typeof message.text !== "string") return null;
+      return { t: "cursor-chat", id: message.id, text: message.text.slice(0, 100) };
+    case "viewport":
+      if (typeof message.id !== "string" || !message.id) return null;
+      if (typeof message.x !== "number" || typeof message.y !== "number" || typeof message.zoom !== "number") return null;
+      return { t: "viewport", id: message.id, x: message.x, y: message.y, zoom: message.zoom };
     case "content-change":
       return typeof message.version === "number"
         ? { t: "content-change", id: String(message.id || ""), version: message.version, editorName: typeof message.editorName === "string" ? message.editorName : undefined }
@@ -208,11 +221,22 @@ export function nextPresenceState(current: PresenceSnapshot, message: CollabServ
     case 'peer-leave':
       return { ...current, peers: current.peers.filter((peer) => peer.id !== message.id) };
     case 'cursor':
-      // A cursor from a peer whose join we never saw has no name to draw.
       if (!current.peers.some((peer) => peer.id === message.id)) return current;
       return {
         ...current,
         peers: current.peers.map((peer) => (peer.id === message.id ? { ...peer, x: message.x, y: message.y } : peer)),
+      };
+    case 'cursor-chat':
+      if (!current.peers.some((peer) => peer.id === message.id)) return current;
+      return {
+        ...current,
+        peers: current.peers.map((peer) => (peer.id === message.id ? { ...peer, chatText: message.text || null } : peer)),
+      };
+    case 'viewport':
+      if (!current.peers.some((peer) => peer.id === message.id)) return current;
+      return {
+        ...current,
+        peers: current.peers.map((peer) => (peer.id === message.id ? { ...peer, viewport: { x: message.x, y: message.y, zoom: message.zoom } } : peer)),
       };
     case 'error': {
       const fatal = FATAL_PRESENCE_CODES.has(message.code);
