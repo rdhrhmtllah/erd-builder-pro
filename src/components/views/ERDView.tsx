@@ -357,6 +357,7 @@ const ERDViewComponent = ({
   const bgColor = resolvedTheme === 'dark' ? '#222' : '#ccc';
   const isProductionDb = isDbClient;
   const isPublicView = Boolean(isReadOnly && !isProductionDb);
+  const [canvasMode, setCanvasMode] = React.useState<CanvasMode>(DEFAULT_CANVAS_MODE);
   const handleUpdateEntitySampleData = React.useCallback((entityId: string, sampleData: Record<string, any>[]) => {
     if (isReadOnly) return;
     takeSnapshot?.(nodesRef.current, edgesRef.current);
@@ -443,7 +444,6 @@ const ERDViewComponent = ({
     }
   }, []);
   const canvasRef = React.useRef<HTMLDivElement>(null);
-  const [canvasMode, setCanvasMode] = React.useState<CanvasMode>(DEFAULT_CANVAS_MODE);
   const lowDetailRef = React.useRef(false);
 
   React.useEffect(() => {
