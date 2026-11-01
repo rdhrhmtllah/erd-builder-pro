@@ -296,10 +296,10 @@ export function ErdToolbar({
 
       {!isReadOnly && (
         <div className="flex items-center gap-0.5 ml-auto">
-          <Button variant="ghost" size="icon" onClick={onUndo} disabled={!canUndo} className="h-8 w-8 text-muted-foreground hover:text-foreground disabled:opacity-30" title="Undo (Ctrl+Z)">
+          <Button variant="ghost" size="icon" onClick={onUndo} disabled={!canUndo} className="h-9 w-9 shrink-0 touch-manipulation text-muted-foreground hover:text-foreground disabled:opacity-30" title="Undo (Ctrl+Z)">
             <Undo2 className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onRedo} disabled={!canRedo} className="h-8 w-8 text-muted-foreground hover:text-foreground disabled:opacity-30" title="Redo (Ctrl+Y)">
+          <Button variant="ghost" size="icon" onClick={onRedo} disabled={!canRedo} className="h-9 w-9 shrink-0 touch-manipulation text-muted-foreground hover:text-foreground disabled:opacity-30" title="Redo (Ctrl+Y)">
             <Redo2 className="w-4 h-4" />
           </Button>
         </div>

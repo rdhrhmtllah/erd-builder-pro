@@ -51,7 +51,7 @@ interface ColumnRowProps {
   tableClassification?: string;
 }
 
-const handleBaseClass = '!w-2 !h-2 !border-none cursor-crosshair opacity-0 transition-opacity duration-150 group-hover:!opacity-100 group-focus-within:!opacity-100';
+const handleBaseClass = '!w-3 !h-3 sm:!w-2 sm:!h-2 !border-none cursor-crosshair opacity-75 sm:opacity-0 transition-opacity duration-150 group-hover:!opacity-100 group-focus-within:!opacity-100 touch-none';
 const readOnlyHandleClass = '!w-2 !h-2 !border-none !opacity-0 !pointer-events-none';
 
 const EntityColumnRow = memo(({ col, entityId, borderColor, typeColor, hideHandles, onDoubleClick, tableClassification }: ColumnRowProps) => {
