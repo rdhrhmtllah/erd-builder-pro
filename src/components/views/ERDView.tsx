@@ -342,6 +342,27 @@ const ERDViewComponent = ({
   const bgColor = resolvedTheme === 'dark' ? '#222' : '#ccc';
   const isProductionDb = isDbClient;
   const isPublicView = Boolean(isReadOnly && !isProductionDb);
+  const handleUpdateEntityComment = React.useCallback((entityId: string, comment: string | null) => {
+    if (isReadOnly) return;
+    takeSnapshot?.(nodesRef.current, edgesRef.current);
+    const nextNodes = nodesRef.current.map((node) => {
+      if (node.id !== entityId) return node;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          comment: comment || null,
+        },
+      };
+    });
+    setNodes(nextNodes);
+    if (saveDiagram) {
+      void saveDiagram(nextNodes, edgesRef.current, getViewport())
+        .then(() => triggerDebouncedSync?.())
+        .catch(err => console.error("Error saving table comment:", err));
+    }
+  }, [isReadOnly, takeSnapshot, setNodes, saveDiagram, triggerDebouncedSync, getViewport]);
+
   const openEntityProperties = React.useCallback(() => setRightPanelMode('properties'), [setRightPanelMode]);
   const entityNodeRuntime = React.useMemo(() => ({
     isReadOnly,
@@ -349,7 +370,8 @@ const ERDViewComponent = ({
     duplicateEntity,
     setSelectedNodeId,
     openProperties: openEntityProperties,
-  }), [isReadOnly, isProductionDb, duplicateEntity, setSelectedNodeId, openEntityProperties]);
+    updateEntityComment: handleUpdateEntityComment,
+  }), [isReadOnly, isProductionDb, duplicateEntity, setSelectedNodeId, openEntityProperties, handleUpdateEntityComment]);
   const isLargeDiagram = React.useMemo(() => nodes.length >= LARGE_ERD_TABLE_THRESHOLD
     || edges.length >= LARGE_ERD_EDGE_THRESHOLD
     || nodes.reduce((total, node) => total + (node.data.columns?.length || 0), 0) >= LARGE_ERD_COLUMN_THRESHOLD,

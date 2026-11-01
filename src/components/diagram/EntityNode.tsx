@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useMemo, CSSProperties } from 'react';
 import { Handle, Position, NodeProps, Node, useUpdateNodeInternals } from '@xyflow/react';
-import { MoreHorizontal, Pencil, Trash2, Database, AlertTriangle, Copy, MessageSquare, Shield } from 'lucide-react';
+import { MoreHorizontal, Pencil, Check, Trash2, Database, AlertTriangle, Copy, MessageSquare, Shield } from 'lucide-react';
 import { Entity } from '../../types';
 import { cn } from '../../lib/utils';
 import { formatColumnType } from '../../lib/column-metadata';
@@ -158,6 +158,23 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
   const isReadOnly = workspaceReadOnly || !!data.isDiffMode || !!(data as any).isReadOnly;
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isEditingComment, setIsEditingComment] = useState(false);
+  const [commentDraft, setCommentDraft] = useState(data.comment || "");
+  const { updateEntityComment } = useEntityNodeRuntime();
+
+  useEffect(() => {
+    setCommentDraft(data.comment || "");
+  }, [data.comment]);
+
+  const handleSaveComment = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setIsEditingComment(false);
+    const cleaned = commentDraft.trim();
+    if (cleaned !== (data.comment || "")) {
+      updateEntityComment?.(id, cleaned || null);
+    }
+  };
+
   const updateNodeInternals = useUpdateNodeInternals();
 
   const columnOrderHash = useMemo(() => 
@@ -319,6 +336,77 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
             </DropdownMenu>
           )}
         </div>
+
+        {/* Table Description / Documentation Bubble */}
+        {(data.comment || isEditingComment) ? (
+          <div
+            className="px-3 py-1.5 bg-muted/40 border-b border-border/60 text-xs text-muted-foreground flex items-start gap-1.5 group/comment"
+            onDoubleClick={(e) => {
+              if (isReadOnly) return;
+              e.stopPropagation();
+              setIsEditingComment(true);
+            }}
+          >
+            <span className="text-[11px] select-none mt-0.5">📝</span>
+            {isEditingComment ? (
+              <form onSubmit={handleSaveComment} className="flex-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="text"
+                  autoFocus
+                  value={commentDraft}
+                  onChange={(e) => setCommentDraft(e.target.value)}
+                  onBlur={() => handleSaveComment()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setIsEditingComment(false);
+                      setCommentDraft(data.comment || "");
+                    }
+                  }}
+                  placeholder="Describe table purpose..."
+                  className="flex-1 bg-background border border-primary/50 rounded px-1.5 py-0.5 text-xs text-foreground outline-none shadow-xs"
+                />
+                <button
+                  type="submit"
+                  onMouseDown={(e) => e.preventDefault()}
+                  className="p-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+                  title="Save description"
+                >
+                  <Check className="w-3 h-3" />
+                </button>
+              </form>
+            ) : (
+              <div className="flex-1 flex items-center justify-between gap-1">
+                <span className="text-[11px] leading-relaxed text-foreground/80 italic break-words line-clamp-2" title={data.comment}>
+                  {data.comment}
+                </span>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsEditingComment(true);
+                    }}
+                    className="opacity-0 group-hover/comment:opacity-100 p-0.5 rounded text-muted-foreground hover:text-foreground transition-opacity cursor-pointer shrink-0"
+                    title="Edit description"
+                  >
+                    <Pencil className="w-2.5 h-2.5" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (!isReadOnly && (
+          <div
+            className="px-3 py-1 bg-muted/20 border-b border-border/40 text-[10px] text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40 transition-colors flex items-center gap-1 cursor-pointer select-none group/adddesc"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsEditingComment(true);
+            }}
+            title="Click to add documentation / description for this table"
+          >
+            <span className="opacity-60 group-hover/adddesc:opacity-100">+ Add description...</span>
+          </div>
+        ))}
 
         {/* Columns */}
         <div
