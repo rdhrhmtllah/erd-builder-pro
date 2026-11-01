@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Entity } from '@/types';
-import { Pencil, Copy, Database, Sparkles, Trash2, X } from 'lucide-react';
+import { Pencil, Copy, Database, Sparkles, Trash2, X, Share2 } from 'lucide-react';
 
 interface MobileActionDrawerProps {
   open: boolean;
@@ -26,6 +26,7 @@ interface MobileActionDrawerProps {
   onOpenSampleData?: () => void;
   onDownloadMockSQL?: () => void;
   onDownloadMockJSON?: () => void;
+  onShare?: () => void;
   isReadOnly?: boolean;
 }
 
@@ -39,6 +40,7 @@ export function MobileActionDrawer({
   onOpenSampleData,
   onDownloadMockSQL,
   onDownloadMockJSON,
+  onShare,
   isReadOnly = false,
 }: MobileActionDrawerProps) {
   if (!entity) return null;
@@ -77,6 +79,20 @@ export function MobileActionDrawer({
             >
               <Pencil className="size-4 text-primary shrink-0" />
               <span>Edit Structure</span>
+            </Button>
+          )}
+
+          {onShare && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                onShare();
+              }}
+              className="h-12 flex items-center justify-start gap-2.5 px-3 text-xs font-semibold cursor-pointer text-primary border-primary/30"
+            >
+              <Share2 className="size-4 shrink-0 text-primary" />
+              <span>Share Diagram</span>
             </Button>
           )}
 

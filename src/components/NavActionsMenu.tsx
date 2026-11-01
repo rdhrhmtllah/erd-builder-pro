@@ -113,35 +113,25 @@ export const NavActionsMenu = ({
           </Button>
         } />
         <DropdownMenuContent align="end" className="w-56">
-          {isPublicView ? (
-            <DropdownMenuItem 
-              onClick={handleCopyLink}
-              className="gap-2 cursor-pointer"
-            >
-              <Link2 className="h-4 w-4 text-muted-foreground" />
-              <span>Copy Public Link</span>
-            </DropdownMenuItem>
-          ) : (
+          <DropdownMenuItem 
+            disabled={!isOnline} 
+            onClick={onShare}
+            className="gap-2 cursor-pointer font-medium text-foreground"
+          >
+            <Share2 className="h-4 w-4 text-primary" />
+            <span>Share & Permissions</span>
+          </DropdownMenuItem>
+          
+          <DropdownMenuItem 
+            onClick={handleCopyLink}
+            className="gap-2 cursor-pointer"
+          >
+            <Link2 className="h-4 w-4 text-muted-foreground" />
+            <span>Copy Public Link</span>
+          </DropdownMenuItem>
+
+          {!isPublicView && (
             <>
-              <DropdownMenuItem 
-                disabled={!isOnline} 
-                onClick={onShare}
-                className="gap-2 cursor-pointer"
-              >
-                <Share2 className="h-4 w-4 text-muted-foreground" />
-                <span>Share</span>
-              </DropdownMenuItem>
-              
-              {isPublic && (
-                <DropdownMenuItem 
-                  disabled={!isOnline} 
-                  onClick={handleCopyLink}
-                  className="gap-2 cursor-pointer"
-                >
-                  <Link2 className="h-4 w-4 text-muted-foreground" />
-                  <span>Copy Public Link</span>
-                </DropdownMenuItem>
-              )}
 
               <DropdownMenuSeparator />
 

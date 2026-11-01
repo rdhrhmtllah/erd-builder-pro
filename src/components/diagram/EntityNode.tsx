@@ -500,6 +500,7 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
         onOpenSampleData={() => setIsSampleDataOpen(true)}
         onDownloadMockSQL={() => handleDownloadMockData('sql', 10)}
         onDownloadMockJSON={() => handleDownloadMockData('json', 10)}
+        onShare={() => window.dispatchEvent(new CustomEvent('open-share-modal'))}
       />
 
       <TableSampleDataModal

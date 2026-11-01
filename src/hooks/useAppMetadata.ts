@@ -30,7 +30,7 @@ export const useAppMetadata = ({
   projects,
 }: AppMetadataProps) => {
   const currentActiveId = useMemo(() => {
-    if (isPublicView) return undefined;
+    if (isPublicView) return publicData?.id || publicData?.uid;
     const viewMap: Record<string, number | string | null> = { 
       erd: activeDiagramId, 
       notes: activeNoteUid, 
@@ -47,7 +47,7 @@ export const useAppMetadata = ({
   }, [view, currentActiveId, diagrams, notes, drawings, flowcharts, isPublicView, publicData]);
 
   const initialShareSettings = useMemo(() => {
-    if (isPublicView) return publicData ? { is_public: !!publicData.is_public, share_token: publicData.share_token, expiry_date: publicData.expiry_date } : undefined;
+    if (isPublicView) return publicData ? { is_public: !!publicData.is_public, share_token: publicData.share_token, share_role: publicData.share_role || 'view', expiry_date: publicData.expiry_date } : undefined;
     const docArr = view === 'erd' ? diagrams : view === 'notes' ? notes : view === 'drawings' ? drawings : flowcharts;
     const id = currentActiveId;
     const doc = docArr.find(d => String(d.id) === String(id) || (d.uid && String(d.uid) === String(id)));

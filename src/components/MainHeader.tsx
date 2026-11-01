@@ -11,7 +11,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { Globe, CloudOff, Cloud, Save, Check, Loader2, Copy } from 'lucide-react';
+import { Globe, CloudOff, Cloud, Save, Check, Loader2, Copy, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -122,10 +122,15 @@ export const MainHeader = React.memo(({
   React.useEffect(() => {
     setIsMac(window.navigator.userAgent.toLowerCase().includes('mac'));
   }, []);
+  React.useEffect(() => {
+    const handleOpenShare = () => setIsShareModalOpen(true);
+    window.addEventListener('open-share-modal', handleOpenShare);
+    return () => window.removeEventListener('open-share-modal', handleOpenShare);
+  }, []);
 
   return (
     <header className="flex h-12 sm:h-16 shrink-0 items-center gap-1.5 sm:gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 w-full overflow-hidden border-b bg-background/50 backdrop-blur-sm select-none">
-      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 min-w-0 flex-none">
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 min-w-0 flex-1 truncate">
         {!isPublicView && (
           <>
             <SidebarTrigger className="-ml-1 shrink-0" />
@@ -285,7 +290,7 @@ export const MainHeader = React.memo(({
         ) : null}
       </div>
 
-      <div className="px-2 sm:px-4 flex items-center gap-1 sm:gap-4">
+      <div className="px-2 sm:px-4 flex items-center gap-1 sm:gap-2 shrink-0">
         {(isPublicView || !!location.pathname.match(/^\/(notes|diagrams|drawings|flowcharts|view|share)\/[^/]+(\/[^/]+)?$/)) && (
           <div className="flex items-center gap-1 sm:gap-4">
             {!isPublicView && (
@@ -370,6 +375,19 @@ export const MainHeader = React.memo(({
               </div>
             )}
 
+            {activeFileUid && isOnline && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsShareModalOpen(true)}
+                className="h-8 px-2 sm:px-2.5 gap-1.5 text-xs font-semibold text-primary border-primary/40 hover:bg-primary/10 transition-all shrink-0 cursor-pointer shadow-2xs"
+                title="Share diagram and manage permissions"
+              >
+                <Share2 className="size-3.5" />
+                <span className="hidden xs:inline">Share</span>
+              </Button>
+            )}
+
             <NavActionsMenu 
               onShare={() => isOnline && setIsShareModalOpen(true)}
               onDelete={onDelete}
@@ -391,13 +409,13 @@ export const MainHeader = React.memo(({
               onOpenHistory={isGuest || isPublicView ? undefined : openHistory}
             />
 
-            {activeFileUid && activeFileId && isOnline && (
+            {activeFileUid && (activeFileId || isPublicView) && isOnline && (
               <ShareModal 
                 isOpen={isShareModalOpen} 
                 onOpenChange={setIsShareModalOpen}
                 documentType={view as any}
                 documentUid={activeFileUid}
-                documentId={activeFileId}
+                documentId={activeFileId || activeFileUid}
                 documentTitle={activeFileName || 'Untitled'}
                 isPublicView={isPublicView}
                 initialSettings={initialShareSettings}
