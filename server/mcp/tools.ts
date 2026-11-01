@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { applyColumnColorMarking, applyTableDocumentationBulk } from "./erd-meta-service.js";
 import * as z from "zod/v4";
 import {
   MCP_DOCUMENT_TYPES,
@@ -151,6 +152,35 @@ export function registerTools(server: McpServer) {
     inputSchema: { uid: z.string().min(1).max(100), expected_version: z.number().int().min(0).optional(), operations: z.array(erdPatchOperation).min(1).max(100) },
     annotations: readOnly,
   }, async ({ uid, expected_version, operations }) => jsonResult(await proposeErdPatch(await resolveMcpUserId(), uid, operations as any, expected_version)));
+
+  server.registerTool("erd_column_color_mark", {
+    description: "Mark colors on columns across tables in an ERD diagram (e.g. highlight foreign keys in Amber #f59e0b, PII/sensitive in Red #ef4444, or reset with null). Updates DB immediately and broadcasts live to canvas.",
+    inputSchema: {
+      diagram_uid: z.string().min(1).max(100),
+      assignments: z.array(z.object({
+        tableName: z.string().min(1),
+        columnNames: z.array(z.string().min(1)),
+        color: z.string().nullable().optional(),
+      })).min(1).max(100),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ diagram_uid, assignments }) => jsonResult(
+    await applyColumnColorMarking(await resolveMcpUserId(), diagram_uid, assignments as any)
+  ));
+
+  server.registerTool("erd_table_document_bulk", {
+    description: "Set descriptions/documentation bubbles on tables in an ERD diagram. Updates are saved to database immediately and broadcast live to active viewers.",
+    inputSchema: {
+      diagram_uid: z.string().min(1).max(100),
+      assignments: z.array(z.object({
+        tableName: z.string().min(1),
+        description: z.string(),
+      })).min(1).max(100),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ diagram_uid, assignments }) => jsonResult(
+    await applyTableDocumentationBulk(await resolveMcpUserId(), diagram_uid, assignments as any)
+  ));
 
   server.registerTool("erd_patch_apply", {
     description: "Apply one confirmed granular ERD patch. Rejects stale diagrams and requires confirmation to exactly equal proposal_id.",

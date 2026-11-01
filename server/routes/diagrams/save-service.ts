@@ -5,6 +5,7 @@ import type { ConnectionInfo } from "../../lib/db-connectors/types.js";
 import { encrypt } from "../../lib/crypto.js";
 import { captureEntityRevisionSafely } from "../../lib/entity-history.js";
 import { isDesktopMode, isLocalPostgres } from "../../lib/config.js";
+import { broadcastCollabEvent } from "../../lib/collab/server.js";
 import { governanceFrom } from "../../../shared/erd-governance.js";
 import {
   uidWhereClause,
@@ -240,9 +241,21 @@ export async function saveDiagram(
         },
   });
 
+  const nextVer = updatedDiagram?.version ?? (currentDiagram.version ?? 0) + 1;
+  try {
+    broadcastCollabEvent(currentDiagram.uid, {
+      t: "content-change",
+      id: "mcp-save",
+      version: nextVer,
+      editorName: "AI Assistant",
+    });
+  } catch (e) {
+    // Non-fatal if websocket relay is idle
+  }
+
   return {
     success: true,
-    version: updatedDiagram?.version ?? (currentDiagram.version ?? 0) + 1,
+    version: nextVer,
   };
 }
 
