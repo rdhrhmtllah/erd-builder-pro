@@ -33,6 +33,12 @@ export function JumpToNode({ nodes, className, label = 'Symbol' }: JumpToNodePro
   const [search, setSearch] = useState('');
   const inputRef = React.useRef<HTMLInputElement>(null);
 
+  React.useEffect(() => {
+    const handleOpen = () => setOpen(true);
+    window.addEventListener("open-jump-to-node", handleOpen);
+    return () => window.removeEventListener("open-jump-to-node", handleOpen);
+  }, []);
+
   // Focus input when dropdown opens
   React.useEffect(() => {
     if (open) {

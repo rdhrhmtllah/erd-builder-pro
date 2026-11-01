@@ -11,7 +11,7 @@ export interface UseWorkspaceCallbacksParams {
   publicData: any;
   diagrams: any[];
   activeDiagramId: any;
-  handleExportSQL: (dialect: 'postgresql' | 'mysql' | 'sqlserver', target: any, nodes: Node<Entity>[], edges: Edge[]) => void;
+  handleExportSQL: (dialect: any, target: any, nodes: Node<Entity>[], edges: Edge[]) => void;
   handleExportImage: (name: string) => void;
   nodes: Node<Entity>[];
   edges: Edge[];
@@ -79,7 +79,7 @@ export function useWorkspaceCallbacks(params: UseWorkspaceCallbacksParams) {
     setIsImportModalOpen(true);
   }, [setIsImportModalOpen]);
 
-  const handleWorkspaceExportSQL = useCallback((dialect: 'postgresql' | 'mysql' | 'sqlserver') => {
+  const handleWorkspaceExportSQL = useCallback((dialect: any) => {
     const target = isPublicView ? publicData : diagrams.find(f => f.id === activeDiagramId);
     if (target) handleExportSQL(dialect, target, nodes, edges);
   }, [isPublicView, publicData, diagrams, activeDiagramId, handleExportSQL, nodes, edges]);

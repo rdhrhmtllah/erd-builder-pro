@@ -572,7 +572,7 @@ export function WorkspaceProvider({
     setIsRenameDialogOpen, setCreateDialogOpen, setCreateDialogView,
   });
 
-  const handleHeaderExportSQL = useCallback((dialect: 'postgresql' | 'mysql' | 'sqlserver') => {
+  const handleHeaderExportSQL = useCallback((dialect: any) => {
     if (activeDocument) {
       handleExportSQL(dialect, { name: activeFileName || 'Untitled' }, nodesRef.current, edgesRef.current);
     }

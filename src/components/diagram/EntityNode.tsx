@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useMemo, CSSProperties } from 'react';
 import { Handle, Position, NodeProps, Node, useUpdateNodeInternals } from '@xyflow/react';
-import { MoreHorizontal, Pencil, Check, Trash2, Database, AlertTriangle, Copy, MessageSquare, Shield } from 'lucide-react';
+import { MoreHorizontal, Pencil, Sparkles, Check, Trash2, Database, AlertTriangle, Copy, MessageSquare, Shield } from 'lucide-react';
 import { Entity } from '../../types';
 import { cn } from '../../lib/utils';
 import { formatColumnType } from '../../lib/column-metadata';
@@ -15,6 +15,8 @@ import { CopyQuerySubMenu, copyToClipboard } from './CopyQuerySubMenu';
 import { buildCopyText, type CopyKind, type QueryOptions } from '@/lib/erd-query-builder';
 import { useEntityNodeRuntime } from '@/contexts/EntityNodeRuntimeContext';
 import { useColumnColor } from '@/contexts/ColumnColorContext';
+import { generateTableMockJSON, generateTableMockSQL } from '@/lib/mock-data-generator';
+import { toast } from 'sonner';
 import { governanceFrom } from '../../../shared/erd-governance';
 
 import {
@@ -212,6 +214,24 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
     void copyToClipboard(buildCopyText(kind, data, options), `${data.name} · ${COPY_LABELS[kind]}`);
   };
 
+  const handleDownloadMockData = (format: 'json' | 'sql', count: number = 10) => {
+    try {
+      const content = format === 'json' ? generateTableMockJSON(data, count) : generateTableMockSQL(data, count);
+      const ext = format === 'json' ? '.json' : '_seed.sql';
+      const filename = `${data.name.toLowerCase()}_mock_${count}${ext}`;
+      const blob = new Blob([content], { type: format === 'json' ? 'application/json' : 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Downloaded mock data: ${filename}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to generate mock data');
+    }
+  };
+
   const confirmDelete = () => {
     window.dispatchEvent(new CustomEvent('deleteEntity', { detail: id }));
     setShowDeleteConfirm(false);
@@ -327,6 +347,15 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-border" />
                 <CopyQuerySubMenu label="Copy query" onCopy={handleCopy} />
+                <DropdownMenuSeparator className="bg-border" />
+                <DropdownMenuItem onClick={() => handleDownloadMockData('sql', 10)} className="cursor-pointer hover:bg-muted focus:bg-muted">
+                  <Sparkles className="w-4 h-4 mr-2 text-primary" />
+                  <span>Mock Data (10 SQL)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleDownloadMockData('json', 10)} className="cursor-pointer hover:bg-muted focus:bg-muted">
+                  <Sparkles className="w-4 h-4 mr-2 text-primary" />
+                  <span>Mock Data (10 JSON)</span>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-border" />
                 <DropdownMenuItem onClick={handleDeleteClick} className="cursor-pointer text-destructive focus:text-destructive hover:bg-destructive/10 focus:bg-destructive/10">
                   <Trash2 className="w-4 h-4 mr-2" />

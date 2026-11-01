@@ -48,7 +48,7 @@ interface MainHeaderProps {
   onRename?: () => void;
   onSave?: () => void;
   onExportAll?: () => void;
-  onExportSQL?: (dialect: 'postgresql' | 'mysql' | 'sqlserver') => void;
+  onExportSQL?: (dialect: any) => void;
   onExportImage?: () => void;
   onExportMarkdown?: () => void;
   onCopyMarkdown?: () => void;

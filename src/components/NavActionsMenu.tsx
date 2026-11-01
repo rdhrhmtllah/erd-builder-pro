@@ -30,7 +30,7 @@ interface NavActionsMenuProps {
   onDelete?: () => void;
   onDuplicate?: () => void;
   onExportAll?: () => void;
-  onExportSQL?: (dialect: 'postgresql' | 'mysql' | 'sqlserver') => void;
+  onExportSQL?: (format: any) => void;
   onExportImage?: () => void;
   onExportMarkdown?: () => void;
   onCopyMarkdown?: () => void;

@@ -556,6 +556,15 @@ const ERDViewComponent = ({
   React.useEffect(() => {
     if (pendingDiff) return;
     const onKeyDown = (event: KeyboardEvent) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      const activeEl = document.activeElement;
+      const isInput = activeEl?.tagName === "INPUT" || activeEl?.tagName === "TEXTAREA";
+      if (!isInput) {
+        event.preventDefault();
+        window.dispatchEvent(new CustomEvent("open-jump-to-node"));
+      }
+    }
+
       const target = event.target as HTMLElement | null;
       // Never hijack shortcuts while the user is editing text.
       if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName || '')) return;
