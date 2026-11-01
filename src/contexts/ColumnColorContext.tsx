@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 export const COLUMN_PRESET_COLORS = [
   { name: 'Red', hex: '#ef4444', bg: 'rgba(239, 68, 68, 0.18)', border: '#ef4444' },
