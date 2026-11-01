@@ -279,6 +279,7 @@ export async function getPublic(req: ExpressRequest, res: ExpressResponse): Prom
             max_length: column.maxLength ?? column.max_length ?? null,
             numeric_precision: column.numericPrecision ?? column.numeric_precision ?? null,
             numeric_scale: column.numericScale ?? column.numeric_scale ?? null,
+            color: column.color || null,
           })),
         };
       })

@@ -77,6 +77,8 @@ import { analyzeErdGovernance } from '../../../shared/erd-governance';
 import type { ErdGovernanceMetadata } from '@/types';
 import { governanceFrom } from '../../../shared/erd-governance';
 import { EntityNodeRuntimeProvider } from '@/contexts/EntityNodeRuntimeContext';
+import { ColumnColorProvider, type SelectedColumnKey } from '@/contexts/ColumnColorContext';
+import { ColumnColorFloatingBar } from '@/components/diagram/ColumnColorFloatingBar';
 
 const nodeTypes = {
   entity: EntityNode,
@@ -303,6 +305,40 @@ const ERDViewComponent = ({
   const { registerContentHandler, setSelectionText, setActionContextData, setRightPanelMode } = useAIAction();
   const { getViewport, setViewport, fitView, screenToFlowPosition } = useReactFlow();
   const { publishCursor, publishViewport, isWatching } = usePresencePublisher();
+
+  const handleApplyColumnColor = useCallback((selected: SelectedColumnKey[], colorHex: string | null) => {
+    if (isReadOnly || selected.length === 0) return;
+    const lookup = new Map<string, Set<string>>();
+    for (const item of selected) {
+      if (!lookup.has(item.entityId)) lookup.set(item.entityId, new Set());
+      lookup.get(item.entityId)!.add(item.columnId);
+    }
+
+    takeSnapshot?.(nodesRef.current, edgesRef.current);
+    const nextNodes = nodesRef.current.map((node) => {
+      const colSet = lookup.get(node.id);
+      if (!colSet) return node;
+      const updatedColumns = node.data.columns.map((col) => {
+        if (!colSet.has(col.id)) return col;
+        return { ...col, color: colorHex };
+      });
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          columns: updatedColumns,
+        },
+      };
+    });
+
+    setNodes(nextNodes);
+    if (saveDiagram) {
+      void saveDiagram(nextNodes, edgesRef.current, getViewport())
+        .then(() => triggerDebouncedSync?.())
+        .catch(err => console.error("Error saving column color:", err));
+    }
+  }, [isReadOnly, takeSnapshot, setNodes, saveDiagram, triggerDebouncedSync, getViewport]);
+
   const bgColor = resolvedTheme === 'dark' ? '#222' : '#ccc';
   const isProductionDb = isDbClient;
   const isPublicView = Boolean(isReadOnly && !isProductionDb);
@@ -1251,6 +1287,7 @@ const ERDViewComponent = ({
         </div>
       )}
       <div ref={canvasRef} className="relative flex-1" onMouseMove={handleCanvasMouseMove}>
+        <ColumnColorProvider onApplyColor={handleApplyColumnColor}>
         <EntityNodeRuntimeProvider value={entityNodeRuntime}>
           <ReactFlow
           className={cn(isLargeDiagram && 'erd-large-diagram')}
@@ -1366,6 +1403,8 @@ const ERDViewComponent = ({
         {/* Above the flow pane, outside it: cursors must never take part in the
             diagram's layout, hit testing or export. */}
         <PresenceOverlay />
+        <ColumnColorFloatingBar isReadOnly={isReadOnly} />
+        </ColumnColorProvider>
       </div>
 
       {/* Floating Diff Merge Panel */}

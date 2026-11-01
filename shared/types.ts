@@ -22,6 +22,7 @@ export interface Column {
   numeric_scale?: number | null;
   sort_order?: number;
   governance?: ErdGovernanceMetadata;
+  color?: string | null;
   governance_data?: string | ErdGovernanceMetadata | null;
   governanceData?: string | ErdGovernanceMetadata | null;
 }

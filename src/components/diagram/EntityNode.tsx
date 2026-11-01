@@ -14,6 +14,7 @@ import {
 import { CopyQuerySubMenu, copyToClipboard } from './CopyQuerySubMenu';
 import { buildCopyText, type CopyKind, type QueryOptions } from '@/lib/erd-query-builder';
 import { useEntityNodeRuntime } from '@/contexts/EntityNodeRuntimeContext';
+import { useColumnColor } from '@/contexts/ColumnColorContext';
 import { governanceFrom } from '../../../shared/erd-governance';
 
 import {
@@ -38,6 +39,7 @@ type EntityNodeProps = NodeProps<Node<Entity>>;
 
 interface ColumnRowProps {
   col: any;
+  entityId: string;
   borderColor: string;
   typeColor: string;
   hideHandles?: boolean;
@@ -48,7 +50,9 @@ interface ColumnRowProps {
 const handleBaseClass = '!w-2 !h-2 !border-none cursor-crosshair opacity-0 transition-opacity duration-150 group-hover:!opacity-100 group-focus-within:!opacity-100';
 const readOnlyHandleClass = '!w-2 !h-2 !border-none !opacity-0 !pointer-events-none';
 
-const EntityColumnRow = memo(({ col, borderColor, typeColor, hideHandles, onDoubleClick, tableClassification }: ColumnRowProps) => {
+const EntityColumnRow = memo(({ col, entityId, borderColor, typeColor, hideHandles, onDoubleClick, tableClassification }: ColumnRowProps) => {
+  const { isColumnSelected, toggleColumnSelection } = useColumnColor();
+  const isSelected = isColumnSelected(entityId, col.id);
   const isFk = col._is_fk;
   const diffState = col.diffState as 'new' | 'deleted' | undefined;
   const classification = governanceFrom(col).classification || tableClassification;
@@ -64,14 +68,37 @@ const EntityColumnRow = memo(({ col, borderColor, typeColor, hideHandles, onDoub
   const rowBgClass = useMemo(() => {
     if (diffState === 'new') return 'bg-emerald-500/10 hover:bg-emerald-500/15 border-b border-emerald-500/20';
     if (diffState === 'deleted') return 'bg-red-500/10 hover:bg-red-500/15 line-through opacity-50 border-b border-red-500/20';
+    if (isSelected) return 'bg-primary/20 hover:bg-primary/25 border-b border-primary/40 ring-1 ring-inset ring-primary/40';
     return 'border-border/50 hover:bg-muted';
-  }, [diffState]);
+  }, [diffState, isSelected]);
+
+  const customColorStyle = useMemo(() => {
+    if (!col.color) return undefined;
+    return {
+      backgroundColor: isSelected ? undefined : `${col.color}26`, // 15% tint
+      borderLeft: `3px solid ${col.color}`,
+    };
+  }, [col.color, isSelected]);
+
+  const handleRowClick = (e: React.MouseEvent) => {
+    // Click selects/toggles column with Ctrl/Cmd or Shift
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) {
+      e.stopPropagation();
+      toggleColumnSelection(entityId, col.id, true);
+    } else {
+      // Normal click can select column
+      e.stopPropagation();
+      toggleColumnSelection(entityId, col.id, false);
+    }
+  };
 
   return (
     <div
-      className={cn("erd-column-row group relative px-3 py-2 flex items-center justify-between transition-colors border-b last:border-b-0", rowBgClass)}
+      className={cn("erd-column-row group relative px-3 py-2 flex items-center justify-between transition-colors border-b last:border-b-0 cursor-pointer", rowBgClass)}
+      style={customColorStyle}
       data-erd-column-id={col.id}
       title={col.comment || undefined}
+      onClick={handleRowClick}
       onDoubleClick={onDoubleClick}
     >
       {hideHandles ? <>
@@ -85,6 +112,13 @@ const EntityColumnRow = memo(({ col, borderColor, typeColor, hideHandles, onDoub
       </>}
 
       <div className="flex items-center gap-2">
+        {col.color && (
+          <span
+            className="size-2 rounded-full shrink-0 shadow-xs"
+            style={{ backgroundColor: col.color }}
+            title={`Marked: ${col.color}`}
+          />
+        )}
         <span className={cn(
           "text-sm font-medium", 
           col.is_pk ? "text-foreground" : "text-foreground/80",
@@ -296,6 +330,7 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
             <EntityColumnRow
               key={col.id}
               col={col}
+              entityId={id}
               borderColor={borderColor}
               typeColor={typeColor}
               hideHandles={hideHandles}

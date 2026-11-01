@@ -323,6 +323,7 @@ model Column {
   enumValues String?   @map("enum_values")
   comment    String?
   governanceData String? @map("governance_data")
+  color      String?   @map("color")
   maxLength  Int?      @map("max_length")
   numericPrecision Int? @map("numeric_precision")
   numericScale Int? @map("numeric_scale")
