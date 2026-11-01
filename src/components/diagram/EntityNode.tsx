@@ -1,6 +1,6 @@
 import { MobileActionDrawer } from '@/components/diagram/MobileActionDrawer';
 import { TableSampleDataModal } from '@/components/modals/TableSampleDataModal';
-import React, { memo, useState, useEffect, useMemo, CSSProperties } from 'react';
+import React, { memo, useState, useEffect, useMemo, useRef, CSSProperties } from 'react';
 import { Handle, Position, NodeProps, Node, useUpdateNodeInternals } from '@xyflow/react';
 import { MoreHorizontal, Pencil, Sparkles, Check, Trash2, Database, AlertTriangle, Copy, MessageSquare, Shield } from 'lucide-react';
 import { Entity } from '../../types';
