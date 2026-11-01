@@ -89,7 +89,7 @@ export function JumpToNode({ nodes, className, label = 'Symbol' }: JumpToNodePro
           variant="outline"
           size="sm"
           className={cn(
-            "h-9 px-3 text-xs font-bold border-border/50 bg-muted/20 hover:bg-muted text-muted-foreground transition-all",
+            "h-9 px-3 text-xs font-bold shrink-0 touch-manipulation border-border/50 bg-muted/20 hover:bg-muted text-muted-foreground transition-all",
             className
           )}
         >

@@ -159,12 +159,12 @@ export function ErdToolbar({
   const PinnedIcon = pinnedPanel ? ERD_PANEL_META[pinnedPanel].icon : null;
 
   return (
-    <div className="flex items-center gap-1.5 p-1.5 bg-background/95 backdrop-blur-md border border-border/50 rounded-2xl shadow-2xl pointer-events-auto max-w-[95vw] overflow-x-auto no-scrollbar">
+    <div className="flex items-center gap-1.5 p-1.5 bg-background/95 backdrop-blur-md border border-border/50 rounded-2xl shadow-2xl pointer-events-auto max-w-[96vw] overflow-x-auto touch-pan-x no-scrollbar select-none">
       <JumpToNode nodes={nodes} label="Table" />
       <div className="w-px h-6 bg-border mx-0.5" />
 
       {!isReadOnly && (
-        <Button onClick={onAddTable} size="sm" className="h-9 px-3 sm:px-4 font-bold shadow-lg shadow-primary/20 cursor-pointer">
+        <Button onClick={onAddTable} size="sm" className="h-9 px-3 sm:px-4 font-bold shrink-0 touch-manipulation shadow-lg shadow-primary/20 cursor-pointer">
           <Plus className="w-4 h-4 sm:mr-2" />
           <span className="hidden sm:inline">Add Table</span>
         </Button>
@@ -174,7 +174,7 @@ export function ErdToolbar({
         onClick={onAutoLayout}
         variant="outline"
         size="sm"
-        className="h-9 px-3 border-border hover:bg-muted bg-muted/50 text-xs font-semibold cursor-pointer"
+        className="h-9 px-3 shrink-0 touch-manipulation border-border hover:bg-muted bg-muted/50 text-xs font-semibold cursor-pointer"
         title={activePerspectiveName ? 'Re-layout current perspective without changing the main ERD' : 'Auto-layout canonical ERD'}
       >
         <LayoutGrid className="w-3.5 h-3.5 sm:mr-1.5" />
@@ -186,7 +186,7 @@ export function ErdToolbar({
           onClick={() => togglePanel('organizer')}
           variant={activePanel === 'organizer' ? 'default' : 'outline'}
           size="sm"
-          className="h-9 px-3 text-xs font-semibold cursor-pointer"
+          className="h-9 px-3 shrink-0 touch-manipulation text-xs font-semibold cursor-pointer"
           title="Analyze and group related tables into saved Subject Areas"
         >
           <WandSparkles className="w-3.5 h-3.5 sm:mr-1.5" />
@@ -206,7 +206,7 @@ export function ErdToolbar({
           onClick={() => onPanelChange(null)}
           variant="default"
           size="sm"
-          className="h-9 px-3 text-xs font-semibold cursor-pointer"
+          className="h-9 px-3 shrink-0 touch-manipulation text-xs font-semibold cursor-pointer"
           title={`Close ${ERD_PANEL_META[pinnedPanel].label}`}
         >
           <PinnedIcon className="w-3.5 h-3.5 sm:mr-1.5" />

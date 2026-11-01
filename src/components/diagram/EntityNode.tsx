@@ -1,3 +1,4 @@
+import { MobileActionDrawer } from '@/components/diagram/MobileActionDrawer';
 import { TableSampleDataModal } from '@/components/modals/TableSampleDataModal';
 import React, { memo, useState, useEffect, useMemo, CSSProperties } from 'react';
 import { Handle, Position, NodeProps, Node, useUpdateNodeInternals } from '@xyflow/react';
@@ -162,6 +163,25 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSampleDataOpen, setIsSampleDataOpen] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleTouchStart = () => {
+    longPressTimerRef.current = setTimeout(() => {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+      setIsMobileDrawerOpen(true);
+    }, 450);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
   const [isEditingComment, setIsEditingComment] = useState(false);
   const [commentDraft, setCommentDraft] = useState(data.comment || "");
   const { updateEntityComment, updateEntitySampleData } = useEntityNodeRuntime();
@@ -289,6 +309,14 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
       <div 
         className={containerClasses}
         style={{ borderColor: borderColor, overflow: 'visible' }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchEnd}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsMobileDrawerOpen(true);
+        }}
       >
         <div 
           className="px-3 py-2 flex items-center justify-between border-b-2 cursor-pointer group/header"
@@ -464,6 +492,19 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
           ))}
         </div>
       </div>
+
+      <MobileActionDrawer
+        open={isMobileDrawerOpen}
+        onOpenChange={setIsMobileDrawerOpen}
+        entity={data}
+        isReadOnly={isReadOnly}
+        onEdit={handleEdit}
+        onDuplicate={handleDuplicate}
+        onDelete={handleDeleteClick}
+        onOpenSampleData={() => setIsSampleDataOpen(true)}
+        onDownloadMockSQL={() => handleDownloadMockData('sql', 10)}
+        onDownloadMockJSON={() => handleDownloadMockData('json', 10)}
+      />
 
       <TableSampleDataModal
         open={isSampleDataOpen}
