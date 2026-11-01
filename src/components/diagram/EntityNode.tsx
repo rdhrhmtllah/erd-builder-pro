@@ -1,3 +1,4 @@
+import { TableSampleDataModal } from '@/components/modals/TableSampleDataModal';
 import React, { memo, useState, useEffect, useMemo, CSSProperties } from 'react';
 import { Handle, Position, NodeProps, Node, useUpdateNodeInternals } from '@xyflow/react';
 import { MoreHorizontal, Pencil, Sparkles, Check, Trash2, Database, AlertTriangle, Copy, MessageSquare, Shield } from 'lucide-react';
@@ -160,9 +161,10 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
   const isReadOnly = workspaceReadOnly || !!data.isDiffMode || !!(data as any).isReadOnly;
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isSampleDataOpen, setIsSampleDataOpen] = useState(false);
   const [isEditingComment, setIsEditingComment] = useState(false);
   const [commentDraft, setCommentDraft] = useState(data.comment || "");
-  const { updateEntityComment } = useEntityNodeRuntime();
+  const { updateEntityComment, updateEntitySampleData } = useEntityNodeRuntime();
 
   useEffect(() => {
     setCommentDraft(data.comment || "");
@@ -348,6 +350,11 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
                 <DropdownMenuSeparator className="bg-border" />
                 <CopyQuerySubMenu label="Copy query" onCopy={handleCopy} />
                 <DropdownMenuSeparator className="bg-border" />
+                <DropdownMenuItem onClick={() => setIsSampleDataOpen(true)} className="cursor-pointer hover:bg-muted focus:bg-muted font-medium text-foreground">
+                  <Database className="w-4 h-4 mr-2 text-primary" />
+                  <span>View / Edit Sample Data</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-border" />
                 <DropdownMenuItem onClick={() => handleDownloadMockData('sql', 10)} className="cursor-pointer hover:bg-muted focus:bg-muted">
                   <Sparkles className="w-4 h-4 mr-2 text-primary" />
                   <span>Mock Data (10 SQL)</span>
@@ -457,6 +464,16 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
           ))}
         </div>
       </div>
+
+      <TableSampleDataModal
+        open={isSampleDataOpen}
+        onOpenChange={setIsSampleDataOpen}
+        entity={data}
+        isReadOnly={isReadOnly}
+        onSaveSampleData={(entityId, sampleRows) => {
+          updateEntitySampleData?.(entityId, sampleRows);
+        }}
+      />
 
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent size="sm" className="max-w-100">

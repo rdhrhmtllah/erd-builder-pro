@@ -39,6 +39,7 @@ export interface Entity {
   constraints?: TableConstraint[];
   indexes?: TableIndex[];
   governance?: ErdGovernanceMetadata;
+  sample_data?: Record<string, any>[];
   governance_data?: string | ErdGovernanceMetadata | null;
   governanceData?: string | ErdGovernanceMetadata | null;
 }
