@@ -124,8 +124,8 @@ export const MainHeader = React.memo(({
   }, []);
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 w-full overflow-hidden border-b bg-background/50 backdrop-blur-sm">
-      <div className="flex items-center gap-2 px-4 min-w-0 flex-none">
+    <header className="flex h-12 sm:h-16 shrink-0 items-center gap-1.5 sm:gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 w-full overflow-hidden border-b bg-background/50 backdrop-blur-sm select-none">
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 min-w-0 flex-none">
         {!isPublicView && (
           <>
             <SidebarTrigger className="-ml-1 shrink-0" />

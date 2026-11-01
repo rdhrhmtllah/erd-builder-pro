@@ -1212,7 +1212,7 @@ const ERDViewComponent = ({
       )}
 
       {!pendingDiff && (
-        <div className="absolute top-6 inset-x-0 z-10 flex justify-center pointer-events-none">
+        <div className="absolute top-2 sm:top-6 inset-x-0 z-10 flex justify-center pointer-events-none px-1.5 sm:px-0">
           <ErdToolbar
             nodes={nodes}
             isReadOnly={Boolean(isReadOnly)}

@@ -225,7 +225,7 @@ export function PresencePill({
   return (
     <div
       data-testid="presence-pill"
-      className="absolute bottom-4 right-3 z-[6] flex items-center gap-2 rounded-full border bg-popover/90 px-2.5 py-1.5 text-[11px] font-medium shadow-sm backdrop-blur"
+      className="absolute bottom-2 sm:bottom-4 right-2 sm:right-3 z-[6] flex items-center gap-2 rounded-full border bg-popover/90 px-2.5 py-1.5 text-[11px] font-medium shadow-sm backdrop-blur"
     >
       <span className="flex items-center gap-1">
         {others.map((peer) => {
@@ -244,9 +244,9 @@ export function PresencePill({
         })}
       </span>
       <span className="text-muted-foreground text-[10px]">
-        {followingId ? 'Following' : `${others.length} online (Click avatar to follow)`}
+        {followingId ? 'Following' : `${others.length} online`}
       </span>
-      <span className="text-[10px] text-muted-foreground/60 border-l pl-1.5">
+      <span className="hidden sm:inline text-[10px] text-muted-foreground/60 border-l pl-1.5">
         Press <kbd className="px-1 py-0.5 rounded bg-muted font-mono">/</kbd> to chat
       </span>
     </div>
