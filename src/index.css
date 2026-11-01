@@ -1230,3 +1230,36 @@ code:not(pre code) {
 .cm-editor .cm-content {
   font-family: 'JetBrains Mono', 'Menlo', 'Monaco', 'Consolas', monospace !important;
 }
+
+
+/* Modern Ergonomic Relation Edge Styles */
+.react-flow__edge-path {
+  stroke: var(--edge-color) !important;
+  stroke-width: 2.2 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  transition: stroke 0.15s ease, stroke-width 0.15s ease;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--edge-selected, #6366f1) !important;
+  stroke-width: 3 !important;
+  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.5));
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--edge-selected, #6366f1) !important;
+  stroke-width: 2.8 !important;
+  filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.6));
+  stroke-dasharray: 6 4;
+  animation: erdEdgeFlow 1s linear infinite;
+}
+
+@keyframes erdEdgeFlow {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}

@@ -77,6 +77,7 @@ import { analyzeErdGovernance } from '../../../shared/erd-governance';
 import type { ErdGovernanceMetadata } from '@/types';
 import { governanceFrom } from '../../../shared/erd-governance';
 import { EntityNodeRuntimeProvider } from '@/contexts/EntityNodeRuntimeContext';
+import { RelationQuickPopover } from '@/components/diagram/RelationQuickPopover';
 import { ColumnColorProvider, type SelectedColumnKey } from '@/contexts/ColumnColorContext';
 import { ColumnColorFloatingBar } from '@/components/diagram/ColumnColorFloatingBar';
 
@@ -131,8 +132,8 @@ const ReadableRelationEdge = React.memo((props: EdgeProps) => {
       targetY,
       sourcePosition,
       targetPosition,
-      borderRadius: 10,
-      offset: 24,
+      borderRadius: 18,
+      offset: 32,
       stepPosition: 0.5,
     })[0]
     : routeY !== null ? (() => {
@@ -177,7 +178,7 @@ const ReadableRelationEdge = React.memo((props: EdgeProps) => {
         path={path}
         markerStart={markerStart}
         markerEnd={markerEnd}
-        interactionWidth={interactionWidth ?? 20}
+        interactionWidth={interactionWidth ?? 26}
         style={{
           ...style,
           strokeWidth: selected ? 2.5 : 2.2,
@@ -185,20 +186,34 @@ const ReadableRelationEdge = React.memo((props: EdgeProps) => {
           strokeLinejoin: 'round',
         }}
       />
-      <g className="erd-cardinality-labels" pointerEvents="none" aria-hidden="true">
+      <g className="erd-cardinality-labels select-none pointer-events-none" aria-hidden="true">
         <text
           x={sourceLabelX}
-          y={sourceY - 8}
+          y={sourceY - 9}
           textAnchor={horizontalDirection > 0 ? 'start' : 'end'}
-          className="erd-cardinality-label"
+          className="erd-cardinality-label font-mono font-bold text-[11px]"
         >{semantics.sourceSymbol}</text>
         <text
           x={targetLabelX}
-          y={targetY - 8}
+          y={targetY - 9}
           textAnchor={horizontalDirection > 0 ? 'end' : 'start'}
-          className="erd-cardinality-label"
+          className="erd-cardinality-label font-mono font-bold text-[11px]"
         >{semantics.targetSymbol}</text>
       </g>
+      {selected && (
+        <RelationQuickPopover
+          edgeId={id}
+          sourceSymbol={semantics.sourceSymbol}
+          targetSymbol={semantics.targetSymbol}
+          currentType={semantics.type}
+          centerX={(sourceX + targetX) / 2}
+          centerY={(sourceY + targetY) / 2}
+          isReadOnly={(data as any)?.isReadOnly}
+          onUpdateCardinality={(data as any)?.onUpdateCardinality}
+          onFlip={(data as any)?.onFlip}
+          onDelete={(data as any)?.onDelete}
+        />
+      )}
     </>
   );
 });
@@ -794,8 +809,64 @@ const ERDViewComponent = ({
       const styledEdge = {
         ...edge,
         className: newClassName,
-        style: { ...edge.style, stroke: edgeColor, strokeWidth: 2 },
-        markerEnd: { type: MarkerType.Arrow, color: edgeColor, width: 10, height: 10 },
+        style: { ...edge.style, stroke: edgeColor, strokeWidth: edge.selected ? 2.8 : 2.2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor, width: 12, height: 12 },
+        data: {
+          ...edge.data,
+          isReadOnly: isReadOnly,
+          onUpdateCardinality: (edgeId: string, srcCard: any, tgtCard: any) => {
+            if (isReadOnly) return;
+            takeSnapshot?.(nodesRef.current, edgesRef.current);
+            const nextEdges = edgesRef.current.map((ed) => {
+              if (ed.id !== edgeId) return ed;
+              return {
+                ...ed,
+                data: {
+                  ...ed.data,
+                  source_cardinality: srcCard,
+                  target_cardinality: tgtCard,
+                },
+              };
+            });
+            setEdges(nextEdges);
+            if (saveDiagram) {
+              void saveDiagram(nodesRef.current, nextEdges, getViewport())
+                .then(() => triggerDebouncedSync?.())
+                .catch(err => console.error("Error saving cardinality:", err));
+            }
+          },
+          onFlip: (edgeId: string) => {
+            if (isReadOnly) return;
+            takeSnapshot?.(nodesRef.current, edgesRef.current);
+            const nextEdges = edgesRef.current.map((ed) => {
+              if (ed.id !== edgeId) return ed;
+              return {
+                ...ed,
+                source: ed.target,
+                target: ed.source,
+                sourceHandle: ed.targetHandle,
+                targetHandle: ed.sourceHandle,
+              };
+            });
+            setEdges(nextEdges);
+            if (saveDiagram) {
+              void saveDiagram(nodesRef.current, nextEdges, getViewport())
+                .then(() => triggerDebouncedSync?.())
+                .catch(err => console.error("Error flipping edge:", err));
+            }
+          },
+          onDelete: (edgeId: string) => {
+            if (isReadOnly) return;
+            takeSnapshot?.(nodesRef.current, edgesRef.current);
+            const nextEdges = edgesRef.current.filter((ed) => ed.id !== edgeId);
+            setEdges(nextEdges);
+            if (saveDiagram) {
+              void saveDiagram(nodesRef.current, nextEdges, getViewport())
+                .then(() => triggerDebouncedSync?.())
+                .catch(err => console.error("Error deleting edge:", err));
+            }
+          },
+        },
       };
       nextCache.set(edge.id, { base: edge, color: edgeColor, className: newClassName, edge: styledEdge });
       return styledEdge;
