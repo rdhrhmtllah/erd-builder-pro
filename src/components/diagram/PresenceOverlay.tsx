@@ -167,7 +167,7 @@ export function PresenceOverlay() {
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Type message on cursor... (Enter to send, Esc)"
               maxLength={80}
-              className="w-64 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none py-1"
+              className="w-[min(280px,65vw)] bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none py-1"
             />
           </form>
         </div>

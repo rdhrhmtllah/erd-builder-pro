@@ -228,7 +228,7 @@ export function ErdToolbar({
             </Button>
           }
         />
-        <DropdownMenuContent align="end" className="w-[290px] p-1.5">
+        <DropdownMenuContent align="end" className="w-[min(290px,calc(100vw-1.5rem))] max-w-[96vw] p-1.5">
           <DropdownMenuGroup>
             <DropdownMenuLabel className="px-2 text-[10px] font-bold uppercase tracking-wider">Selection</DropdownMenuLabel>
             <DropdownMenuItem onClick={onSelectAll} className="cursor-pointer gap-2 px-2 py-1.5">

@@ -99,7 +99,7 @@ export function JumpToNode({ nodes, className, label = 'Symbol' }: JumpToNodePro
           <ChevronDown className="w-3 h-3 ml-2 opacity-50" />
         </Button>
       } />
-      <DropdownMenuContent align="start" className="w-[320px] p-0 shadow-2xl border-border/50 bg-background/95 backdrop-blur-xl">
+      <DropdownMenuContent align="start" className="w-[min(320px,calc(100vw-1.5rem))] max-w-[96vw] p-0 shadow-2xl border-border/50 bg-background/95 backdrop-blur-xl">
         <div className="p-3 pb-2" onPointerDown={(e) => e.stopPropagation()}>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />

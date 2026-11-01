@@ -747,7 +747,7 @@ function AppLayoutInner() {
 
       <SidebarInset className={cn(
         isPublicView ? "w-full" : "",
-        rightPanelOpen && "mr-90 transition-[margin] duration-200"
+        rightPanelOpen && "hidden sm:block sm:mr-90 transition-[margin] duration-200"
       )}>
         <MainHeader
           featureLabel={featureLabel}
