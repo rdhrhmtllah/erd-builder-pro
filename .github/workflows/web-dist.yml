@@ -7,15 +7,12 @@ permissions:
 concurrency:
   group: web-dist
   cancel-in-progress: true
-env:
-  TARGET_SHA: 1c237bd123f80cffb3687be69d58a5dafb92ae95
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with: { ref: "${{ env.TARGET_SHA }}", persist-credentials: false }
       - uses: actions/setup-node@v4
         with: { node-version: 26, cache: npm }
       - run: npm ci --ignore-scripts --no-audit --no-fund
@@ -27,7 +24,7 @@ jobs:
       - run: cd dist && find . -type f ! -name SHA256SUMS -exec sha256sum {} + > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: web-dist-${{ env.TARGET_SHA }}
+          name: web-dist-latest
           path: dist/
           retention-days: 3
           if-no-files-found: error
