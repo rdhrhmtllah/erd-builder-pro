@@ -276,6 +276,12 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
   };
 
   const [isDescOpen, setIsDescOpen] = useState(false);
+  const [isDataBubbleOpen, setIsDataBubbleOpen] = useState(false);
+  const sampleRows: Record<string, any>[] = useMemo(() => {
+    const raw = data.sample_data || (data as any).sampleData;
+    return Array.isArray(raw) ? raw : [];
+  }, [data.sample_data, (data as any).sampleData]);
+  const sampleCount = sampleRows.length;
   const [isEditingComment, setIsEditingComment] = useState(false);
   const [commentDraft, setCommentDraft] = useState(data.comment || "");
   const { updateEntityComment, updateEntitySampleData } = useEntityNodeRuntime();
@@ -535,6 +541,144 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
                       </Button>
                     </div>
                   </>
+                )}
+              </PopoverContent>
+            </Popover>
+
+            {/* Interactive Mock Data Bubble Button */}
+            <Popover open={isDataBubbleOpen} onOpenChange={setIsDataBubbleOpen}>
+              <PopoverTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsDataBubbleOpen(true);
+                    }}
+                    className={cn(
+                      "nodrag nopan flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-all cursor-pointer select-none",
+                      sampleCount > 0
+                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 shadow-xs"
+                        : "opacity-0 group-hover/header:opacity-100 hover:bg-muted/70 text-muted-foreground/70 border border-dashed border-border/70"
+                    )}
+                    title={sampleCount > 0 ? `Sample mock data: ${sampleCount} records` : "View or generate sample data"}
+                  >
+                    <Sparkles className="w-3 h-3 text-emerald-500" />
+                    {sampleCount > 0 ? (
+                      <span className="text-[9px] font-semibold">{sampleCount} rows</span>
+                    ) : (
+                      <span className="text-[9px]">+Mock</span>
+                    )}
+                  </button>
+                }
+              />
+              <PopoverContent
+                align="start"
+                side="bottom"
+                className="w-88 p-3 space-y-3 z-[1200] bg-popover text-popover-foreground shadow-2xl border border-border rounded-xl"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Sparkles className="size-3.5 text-emerald-500 shrink-0" />
+                    <span className="text-xs font-bold uppercase truncate">{data.name}</span>
+                    <span className="text-[10px] text-muted-foreground">· Mock Data ({sampleCount})</span>
+                  </div>
+                  {sampleCount > 0 && !isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateEntitySampleData?.(id, []);
+                      }}
+                      className="text-[10px] text-destructive hover:underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {sampleCount === 0 ? (
+                  <div className="text-center py-4 px-2 space-y-2 bg-muted/30 rounded-lg border border-dashed border-border/60">
+                    <p className="text-xs text-muted-foreground">No sample data attached yet.</p>
+                    {!isReadOnly && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          try {
+                            const generated = JSON.parse(generateTableMockJSON(data, 5));
+                            updateEntitySampleData?.(id, generated);
+                          } catch (err) {
+                            toast.error("Failed to generate sample data");
+                          }
+                        }}
+                        className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer"
+                      >
+                        <Sparkles className="w-3 h-3 mr-1.5" />
+                        Generate 5 Mock Records
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="max-h-48 overflow-auto rounded border border-border/60 bg-muted/20 custom-scrollbar text-[10px]">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="bg-muted/80 sticky top-0 border-b border-border/60">
+                          <tr>
+                            <th className="px-2 py-1 text-muted-foreground font-mono">#</th>
+                            {data.columns.slice(0, 4).map(c => (
+                              <th key={c.id} className="px-2 py-1 font-semibold text-foreground truncate max-w-[100px]">
+                                {c.name}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sampleRows.slice(0, 4).map((row, idx) => (
+                            <tr key={idx} className="border-b border-border/30 last:border-b-0 hover:bg-muted/40">
+                              <td className="px-2 py-1 text-muted-foreground font-mono">{idx + 1}</td>
+                              {data.columns.slice(0, 4).map(c => (
+                                <td key={c.id} className="px-2 py-1 font-mono text-muted-foreground truncate max-w-[100px]">
+                                  {String(row[c.name] ?? row[c.name.toLowerCase()] ?? "-")}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              const generated = JSON.parse(generateTableMockJSON(data, 5));
+                              updateEntitySampleData?.(id, generated);
+                            } catch (err) {
+                              toast.error("Failed to regenerate mock data");
+                            }
+                          }}
+                          className="text-[10px] text-muted-foreground hover:text-foreground hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          <Sparkles className="size-2.5 text-emerald-500" />
+                          Regenerate
+                        </button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setIsDataBubbleOpen(false);
+                          setIsSampleDataOpen(true);
+                        }}
+                        className="h-7 px-2.5 text-xs font-semibold ml-auto cursor-pointer"
+                      >
+                        Open Full View
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </PopoverContent>
             </Popover>
