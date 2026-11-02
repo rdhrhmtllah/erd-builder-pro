@@ -1,0 +1,33 @@
+name: Web dist
+on:
+  push:
+    branches: [ci/web-dist]
+permissions:
+  contents: read
+concurrency:
+  group: web-dist
+  cancel-in-progress: true
+env:
+  TARGET_SHA: 2a540d0f3b2916fdbbf0372d395b7f194fc17b9a
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.TARGET_SHA }}", persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 26, cache: npm }
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vite build
+        env:
+          ERD_WEB_BUILD: "1"
+          NODE_OPTIONS: --max-old-space-size=6144
+      - run: test -f dist/index.html
+      - run: cd dist && find . -type f ! -name SHA256SUMS -exec sha256sum {} + > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist-${{ env.TARGET_SHA }}
+          path: dist/
+          retention-days: 3
+          if-no-files-found: error
