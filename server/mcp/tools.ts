@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { applyColumnColorMarking, applyTableDocumentationBulk } from "./erd-meta-service.js";
+import { applyColumnColorMarking, applyTableDocumentationBulk, applyTableSampleDataBulk } from "./erd-meta-service.js";
 import * as z from "zod/v4";
 import {
   MCP_DOCUMENT_TYPES,
@@ -180,6 +180,20 @@ export function registerTools(server: McpServer) {
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   }, async ({ diagram_uid, assignments }) => jsonResult(
     await applyTableDocumentationBulk(await resolveMcpUserId(), diagram_uid, assignments as any)
+  ));
+
+  server.registerTool("erd_table_sample_data_bulk", {
+    description: "Attach realistic sample/mock data records to tables in an ERD diagram. Allows AI to provide example rows for tables (e.g. 3-5 realistic example records per table) so users can immediately see example content in the canvas and table views. Updates are saved to DB immediately and broadcast live to active viewers.",
+    inputSchema: {
+      diagram_uid: z.string().min(1).max(100),
+      assignments: z.array(z.object({
+        tableName: z.string().min(1),
+        sampleRows: z.array(z.record(z.string(), z.any())).min(1).max(50),
+      })).min(1).max(50),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ diagram_uid, assignments }) => jsonResult(
+    await applyTableSampleDataBulk(await resolveMcpUserId(), diagram_uid, assignments as any)
   ));
 
   server.registerTool("erd_patch_apply", {
