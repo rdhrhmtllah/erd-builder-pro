@@ -347,35 +347,7 @@ const ERDViewComponent = ({
   const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null);
   const [showMiniMap, setShowMiniMap] = React.useState(false);
 
-  const activeFocusIds = React.useMemo(() => {
-    const ids = new Set<string>();
-    if (hoveredNodeId) ids.add(hoveredNodeId);
-    allSelectedIds.forEach(id => ids.add(id));
-    return ids;
-  }, [hoveredNodeId, allSelectedIds]);
 
-  const hasActiveFocus = activeFocusIds.size > 0 && !explorerSelection && !schemaHealthSelection && !impactSelection && !migrationSelection && !governanceSelection;
-
-  const connectedEdgeIds = React.useMemo(() => {
-    if (!hasActiveFocus) return new Set<string>();
-    const edgeIds = new Set<string>();
-    edges.forEach(edge => {
-      if (activeFocusIds.has(edge.source) || activeFocusIds.has(edge.target)) {
-        edgeIds.add(edge.id);
-      }
-    });
-    return edgeIds;
-  }, [hasActiveFocus, activeFocusIds, edges]);
-
-  const connectedNodeIds = React.useMemo(() => {
-    if (!hasActiveFocus) return new Set<string>();
-    const nodeIds = new Set<string>(activeFocusIds);
-    edges.forEach(edge => {
-      if (activeFocusIds.has(edge.source)) nodeIds.add(edge.target);
-      if (activeFocusIds.has(edge.target)) nodeIds.add(edge.source);
-    });
-    return nodeIds;
-  }, [hasActiveFocus, activeFocusIds, edges]);
 
   const handleAddPrimaryKeyColumn = React.useCallback((entityId: string) => {
     if (isReadOnly) return;
@@ -653,6 +625,36 @@ const ERDViewComponent = ({
     // determined by it, so dragging a table keeps the array identity stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionKey, selectedNodeId]);
+
+  const activeFocusIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    if (hoveredNodeId) ids.add(hoveredNodeId);
+    allSelectedIds.forEach(id => ids.add(id));
+    return ids;
+  }, [hoveredNodeId, allSelectedIds]);
+
+  const hasActiveFocus = activeFocusIds.size > 0 && !explorerSelection && !schemaHealthSelection && !impactSelection && !migrationSelection && !governanceSelection;
+
+  const connectedEdgeIds = React.useMemo(() => {
+    if (!hasActiveFocus) return new Set<string>();
+    const edgeIds = new Set<string>();
+    edges.forEach(edge => {
+      if (activeFocusIds.has(edge.source) || activeFocusIds.has(edge.target)) {
+        edgeIds.add(edge.id);
+      }
+    });
+    return edgeIds;
+  }, [hasActiveFocus, activeFocusIds, edges]);
+
+  const connectedNodeIds = React.useMemo(() => {
+    if (!hasActiveFocus) return new Set<string>();
+    const nodeIds = new Set<string>(activeFocusIds);
+    edges.forEach(edge => {
+      if (activeFocusIds.has(edge.source)) nodeIds.add(edge.target);
+      if (activeFocusIds.has(edge.target)) nodeIds.add(edge.source);
+    });
+    return nodeIds;
+  }, [hasActiveFocus, activeFocusIds, edges]);
 
   React.useEffect(() => {
     handlePanelChange(null);
