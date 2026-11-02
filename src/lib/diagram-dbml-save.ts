@@ -11,10 +11,10 @@ export function schemaFingerprint(nodes: Node<Entity>[], edges: Edge[]): string 
   const columnName = (nodeId: string, handle?: string | null) => {
     const node = tableById.get(nodeId);
     const colId = handle?.replace(/^col-/, '').replace(/-(source|target)(-(l|r))?$/, '');
-    return node?.data.columns.find(c => c.id === colId)?.name ?? '';
+    return node?.data?.columns?.find(c => c.id === colId)?.name ?? '';
   };
   return JSON.stringify({
-    nodes: nodes.map(n => ({
+    nodes: nodes.filter(n => n.data?.columns && n.data?.name !== '__note__').map(n => ({
       name: n.data.name,
       columns: (n.data.columns || []).map(c => ({
         name: c.name,

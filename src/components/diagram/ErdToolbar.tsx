@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Node } from '@xyflow/react';
 import {
-  BookOpenCheck, BoxSelect, Database, Download, Eraser, FilePlus2, FolderKanban, GitBranch, GitCompareArrows,
+  StickyNote, BookOpenCheck, BoxSelect, Database, Download, Eraser, FilePlus2, FolderKanban, GitBranch, GitCompareArrows,
   LayoutGrid, Layers3, MoreHorizontal, Plus, Radar, RefreshCw, Redo2, ShieldCheck, Undo2,
   Upload, WandSparkles,
 } from 'lucide-react';
@@ -65,6 +65,7 @@ type Props = {
   onClearSelection: () => void;
   onCopySelection: (kind: CopyKind, options: QueryOptions) => void;
   onAddTable: () => void;
+  onAddStickyNote?: () => void;
   onImportSQL?: () => void;
   onOpenDbml: () => void;
   onAutoLayout: () => void;
@@ -94,6 +95,7 @@ export function ErdToolbar({
   onClearSelection,
   onCopySelection,
   onAddTable,
+  onAddStickyNote,
   onImportSQL,
   onOpenDbml,
   onAutoLayout,
@@ -167,6 +169,13 @@ export function ErdToolbar({
         <Button onClick={onAddTable} size="sm" className="h-9 px-3 sm:px-4 font-bold shrink-0 touch-manipulation shadow-lg shadow-primary/20 cursor-pointer">
           <Plus className="w-4 h-4 sm:mr-2" />
           <span className="hidden sm:inline">Add Table</span>
+        </Button>
+      )}
+
+      {!isReadOnly && onAddStickyNote && (
+        <Button onClick={onAddStickyNote} variant="outline" size="sm" className="h-9 px-2.5 sm:px-3 shrink-0 touch-manipulation border-amber-500/30 hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-semibold cursor-pointer shadow-xs" title="Add Sticky Note to canvas">
+          <StickyNote className="w-3.5 h-3.5 sm:mr-1.5" />
+          <span className="hidden sm:inline">Add Note</span>
         </Button>
       )}
 

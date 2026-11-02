@@ -68,6 +68,7 @@ import { useSchemaSnapshot } from '@/hooks/useSchemaSnapshot';
 import { clearPendingErdFocus, flashErdColumn, peekPendingErdFocus } from '@/lib/erd-focus-flash';
 import { ErdPerspectivePanel, type ErdPerspective } from '@/components/diagram/ErdPerspectivePanel';
 import { PerspectiveSectionNode } from '@/components/diagram/PerspectiveSectionNode';
+import { StickyNoteNode } from '@/components/diagram/StickyNoteNode';
 import { layoutErdPerspective } from '../../../shared/erd-perspectives';
 import { analyzeErdSchemaHealth } from '@/lib/erd-schema-health';
 import { ErdSchemaHealthPanel, type SchemaHealthSelection } from '@/components/diagram/ErdSchemaHealthPanel';
@@ -86,6 +87,7 @@ import { ColumnColorFloatingBar } from '@/components/diagram/ColumnColorFloating
 const nodeTypes = {
   entity: EntityNode,
   perspectiveSection: PerspectiveSectionNode,
+  stickyNote: StickyNoteNode,
 };
 
 /**
@@ -383,6 +385,69 @@ const ERDViewComponent = ({
     }
   }, [isReadOnly, takeSnapshot, setNodes, saveDiagram, triggerDebouncedSync, getViewport]);
 
+  const handleUpdateNodeData = React.useCallback((nodeId: string, patch: Record<string, any>) => {
+    if (isReadOnly) return;
+    const nextNodes = nodesRef.current.map((node) => {
+      if (node.id !== nodeId) return node;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          ...patch,
+        },
+      };
+    });
+    setNodes(nextNodes);
+    if (saveDiagram) {
+      void saveDiagram(nextNodes, edgesRef.current, getViewport())
+        .then(() => triggerDebouncedSync?.())
+        .catch(err => console.error("Error updating node data:", err));
+    }
+  }, [isReadOnly, setNodes, saveDiagram, triggerDebouncedSync, getViewport]);
+
+  const handleDeleteNode = React.useCallback((nodeId: string) => {
+    if (isReadOnly) return;
+    takeSnapshot?.(nodesRef.current, edgesRef.current);
+    const nextNodes = nodesRef.current.filter((node) => node.id !== nodeId);
+    const nextEdges = edgesRef.current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId);
+    setNodes(nextNodes);
+    setEdges(nextEdges);
+    if (saveDiagram) {
+      void saveDiagram(nextNodes, nextEdges, getViewport())
+        .then(() => triggerDebouncedSync?.())
+        .catch(err => console.error("Error deleting node:", err));
+    }
+  }, [isReadOnly, takeSnapshot, setNodes, setEdges, saveDiagram, triggerDebouncedSync, getViewport]);
+
+  const handleAddStickyNote = React.useCallback(() => {
+    if (isReadOnly) return;
+    takeSnapshot?.(nodesRef.current, edgesRef.current);
+    const vp = getViewport();
+    const centerX = (-vp.x + 300) / (vp.zoom || 1);
+    const centerY = (-vp.y + 200) / (vp.zoom || 1);
+    const noteId = `note-${Date.now().toString(36)}`;
+    const newNote: any = {
+      id: noteId,
+      type: "stickyNote",
+      position: { x: centerX, y: centerY },
+      data: {
+        id: noteId,
+        name: "__note__",
+        color: "#fef08a",
+        comment: "Write your notes or reminders here...",
+        columns: [],
+        governance_data: JSON.stringify({ is_note: true }),
+      },
+    };
+    const nextNodes = [...nodesRef.current, newNote];
+    setNodes(nextNodes);
+    if (saveDiagram) {
+      void saveDiagram(nextNodes, edgesRef.current, getViewport())
+        .then(() => triggerDebouncedSync?.())
+        .catch(err => console.error("Error adding sticky note:", err));
+    }
+  }, [isReadOnly, takeSnapshot, getViewport, setNodes, saveDiagram, triggerDebouncedSync]);
+
   const openEntityProperties = React.useCallback(() => setRightPanelMode('properties'), [setRightPanelMode]);
   const entityNodeRuntime = React.useMemo(() => ({
     isReadOnly,
@@ -392,7 +457,9 @@ const ERDViewComponent = ({
     openProperties: openEntityProperties,
     updateEntityComment: handleUpdateEntityComment,
     updateEntitySampleData: handleUpdateEntitySampleData,
-  }), [isReadOnly, isProductionDb, duplicateEntity, setSelectedNodeId, openEntityProperties, handleUpdateEntityComment, handleUpdateEntitySampleData]);
+    updateNodeData: handleUpdateNodeData,
+    deleteNode: handleDeleteNode,
+  }), [isReadOnly, isProductionDb, duplicateEntity, setSelectedNodeId, openEntityProperties, handleUpdateEntityComment, handleUpdateEntitySampleData, handleUpdateNodeData, handleDeleteNode]);
   const isLargeDiagram = React.useMemo(() => nodes.length >= LARGE_ERD_TABLE_THRESHOLD
     || edges.length >= LARGE_ERD_EDGE_THRESHOLD
     || nodes.reduce((total, node) => total + (node.data.columns?.length || 0), 0) >= LARGE_ERD_COLUMN_THRESHOLD,
@@ -1287,6 +1354,7 @@ const ERDViewComponent = ({
             onClearSelection={clearSelection}
             onCopySelection={handleCopySelection}
             onAddTable={addEntity}
+            onAddStickyNote={handleAddStickyNote}
             onImportSQL={onImportSQL}
             onOpenDbml={() => setRightPanelMode('dbml')}
             onAutoLayout={autoLayoutActivePerspective}

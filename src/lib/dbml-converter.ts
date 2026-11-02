@@ -76,6 +76,7 @@ export function erdToDBML(nodes: Node<Entity>[], edges: Edge[]): string {
   const enumColumns: { nodeId: string; colId: string; tableName: string; colName: string; values: string; enumName?: string }[] = [];
 
   for (const node of nodes) {
+    if (!node.data?.columns || node.data?.name === "__note__") continue;
     for (const col of node.data.columns) {
       if (col.type.toUpperCase() === 'ENUM' && col.enum_values) {
         enumColumns.push({
@@ -109,6 +110,7 @@ export function erdToDBML(nodes: Node<Entity>[], edges: Edge[]): string {
   }
 
   for (const node of nodes) {
+    if (!node.data?.columns || node.data?.name === "__note__") continue;
     const tableName = needsQuote(node.data.name) ? `"${node.data.name}"` : node.data.name;
     lines.push(`Table ${tableName} {`);
     const tableGovernance = governanceFrom(node.data);
