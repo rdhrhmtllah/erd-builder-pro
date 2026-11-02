@@ -253,9 +253,10 @@ export function useERDSession(
       if (!finalData.relationships) finalData.relationships = [];
 
       const flowNodes: Node<Entity>[] = finalData.entities.map(e => {
+        const isNote = e.name === '__note__' || ((e as any).governance_data && String((e as any).governance_data).includes('"is_note":true'));
         return {
           id: e.id,
-          type: 'entity',
+          type: isNote ? 'stickyNote' : 'entity',
           position: { x: e.x, y: e.y },
           data: e,
         };

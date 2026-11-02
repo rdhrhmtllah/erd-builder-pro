@@ -8,6 +8,8 @@ type EntityNodeRuntime = {
   openProperties: () => void;
   updateEntityComment?: (entityId: string, comment: string | null) => void;
   updateEntitySampleData?: (entityId: string, sampleData: Record<string, any>[]) => void;
+  updateNodeData?: (id: string, patch: Record<string, any>) => void;
+  deleteNode?: (id: string) => void;
 };
 
 const EntityNodeRuntimeContext = React.createContext<EntityNodeRuntime | null>(null);
