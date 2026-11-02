@@ -16,6 +16,7 @@ import {
   BaseEdge,
   getSmoothStepPath,
   getBezierPath,
+  Position,
   useReactFlow,
   addEdge,
   reconnectEdge,
@@ -137,8 +138,8 @@ const ReadableRelationEdge = React.memo((props: EdgeProps) => {
   const path = bezierPath;
   const smoothCenter = { x: labelCenterX, y: labelCenterY };
   const semantics = inferRelationshipSemantics({ data, label: props.label, type: props.type });
-  const sourceOffset = sourcePosition === Position.Left ? -16 : 16;
-  const targetOffset = targetPosition === Position.Right ? 16 : -16;
+  const sourceOffset = sourcePosition === 'left' ? -16 : 16;
+  const targetOffset = targetPosition === 'right' ? 16 : -16;
   const sourceLabelX = sourceX + sourceOffset;
   const targetLabelX = targetX + targetOffset;
 
