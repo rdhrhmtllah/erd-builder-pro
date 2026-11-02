@@ -277,6 +277,7 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
 
   const [isDescOpen, setIsDescOpen] = useState(false);
   const [isDataBubbleOpen, setIsDataBubbleOpen] = useState(false);
+  const [isLintOpen, setIsLintOpen] = useState(false);
   const sampleRows: Record<string, any>[] = useMemo(() => {
     const raw = data.sample_data || (data as any).sampleData;
     return Array.isArray(raw) ? raw : [];
@@ -284,7 +285,31 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
   const sampleCount = sampleRows.length;
   const [isEditingComment, setIsEditingComment] = useState(false);
   const [commentDraft, setCommentDraft] = useState(data.comment || "");
-  const { updateEntityComment, updateEntitySampleData } = useEntityNodeRuntime();
+  const { updateEntityComment, updateEntitySampleData, addPrimaryKeyColumn } = useEntityNodeRuntime();
+
+  const lintWarnings = useMemo(() => {
+    if (data.name === "__note__" || !Array.isArray(data.columns) || data.columns.length === 0) return [];
+    const warnings: { id: string; label: string; desc: string; fixable?: boolean }[] = [];
+    const hasPk = data.columns.some(c => c.is_pk);
+    if (!hasPk) {
+      warnings.push({
+        id: "no-pk",
+        label: "No PK",
+        desc: "Table has no Primary Key. Relational tables require a primary key for unique row identification.",
+        fixable: true,
+      });
+    }
+    const names = data.columns.map(c => c.name.toLowerCase().trim());
+    const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+    if (duplicates.length > 0) {
+      warnings.push({
+        id: "dup-cols",
+        label: "Duplicate Cols",
+        desc: `Duplicate column name(s) detected: ${duplicates.join(", ")}.`,
+      });
+    }
+    return warnings;
+  }, [data.columns, data.name]);
 
   useEffect(() => {
     setCommentDraft(data.comment || "");
@@ -451,6 +476,65 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
             )}
             {diffState === 'modified' && (
               <span className="px-1 py-0.5 text-[8px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded uppercase tracking-wider">MOD</span>
+            )}
+
+            {/* Schema Linter Warning Badge */}
+            {lintWarnings.length > 0 && (
+              <Popover open={isLintOpen} onOpenChange={setIsLintOpen}>
+                <PopoverTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsLintOpen(true);
+                      }}
+                      className="nodrag nopan flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/40 hover:bg-amber-500/25 transition-all cursor-pointer shadow-xs select-none"
+                      title={`${lintWarnings.length} schema warning(s)`}
+                    >
+                      <AlertTriangle className="size-2.5 text-amber-500 shrink-0" />
+                      <span>{lintWarnings[0].label}</span>
+                    </button>
+                  }
+                />
+                <PopoverContent
+                  align="start"
+                  side="bottom"
+                  className="w-72 p-3 space-y-2.5 z-[1200] bg-popover text-popover-foreground shadow-2xl border border-border rounded-xl"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-1.5 border-b border-border/60 pb-1.5">
+                    <AlertTriangle className="size-3.5 text-amber-500 shrink-0" />
+                    <span className="text-xs font-bold uppercase truncate">{data.name}</span>
+                    <span className="text-[10px] text-muted-foreground">· Schema Linter</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {lintWarnings.map(w => (
+                      <div key={w.id} className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20 space-y-1.5">
+                        <div className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                          <span>⚠️</span>
+                          <span>{w.label}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">{w.desc}</p>
+                        {w.fixable && !isReadOnly && (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              addPrimaryKeyColumn?.(id);
+                              setIsLintOpen(false);
+                            }}
+                            className="h-6 px-2.5 text-[10px] bg-amber-600 hover:bg-amber-700 text-white font-semibold cursor-pointer w-full mt-1"
+                          >
+                            + Add &apos;id&apos; BIGSERIAL PK
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
 
             {/* Compact Table Description Bubble Button */}

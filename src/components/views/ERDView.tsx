@@ -20,6 +20,7 @@ import {
   useReactFlow,
   addEdge,
   reconnectEdge,
+  MiniMap,
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -343,6 +344,71 @@ const ERDViewComponent = ({
   const isProductionDb = isDbClient;
   const isPublicView = Boolean(isReadOnly && !isProductionDb);
   const [canvasMode, setCanvasMode] = React.useState<CanvasMode>(DEFAULT_CANVAS_MODE);
+  const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null);
+  const [showMiniMap, setShowMiniMap] = React.useState(false);
+
+  const activeFocusIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    if (hoveredNodeId) ids.add(hoveredNodeId);
+    allSelectedIds.forEach(id => ids.add(id));
+    return ids;
+  }, [hoveredNodeId, allSelectedIds]);
+
+  const hasActiveFocus = activeFocusIds.size > 0 && !explorerSelection && !schemaHealthSelection && !impactSelection && !migrationSelection && !governanceSelection;
+
+  const connectedEdgeIds = React.useMemo(() => {
+    if (!hasActiveFocus) return new Set<string>();
+    const edgeIds = new Set<string>();
+    edges.forEach(edge => {
+      if (activeFocusIds.has(edge.source) || activeFocusIds.has(edge.target)) {
+        edgeIds.add(edge.id);
+      }
+    });
+    return edgeIds;
+  }, [hasActiveFocus, activeFocusIds, edges]);
+
+  const connectedNodeIds = React.useMemo(() => {
+    if (!hasActiveFocus) return new Set<string>();
+    const nodeIds = new Set<string>(activeFocusIds);
+    edges.forEach(edge => {
+      if (activeFocusIds.has(edge.source)) nodeIds.add(edge.target);
+      if (activeFocusIds.has(edge.target)) nodeIds.add(edge.source);
+    });
+    return nodeIds;
+  }, [hasActiveFocus, activeFocusIds, edges]);
+
+  const handleAddPrimaryKeyColumn = React.useCallback((entityId: string) => {
+    if (isReadOnly) return;
+    takeSnapshot?.(nodesRef.current, edgesRef.current);
+    const nextNodes = nodesRef.current.map((node) => {
+      if (node.id !== entityId) return node;
+      const currentCols = node.data.columns || [];
+      const hasId = currentCols.some((c: any) => c.name.toLowerCase() === "id");
+      const pkName = hasId ? `${node.data.name.toLowerCase()}_id` : "id";
+      const newPkCol: any = {
+        id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
+        name: pkName,
+        type: "BIGSERIAL",
+        is_pk: true,
+        is_nullable: false,
+        sort_order: 0,
+      };
+      const reindexed = [newPkCol, ...currentCols].map((c: any, idx: number) => ({ ...c, sort_order: idx }));
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          columns: reindexed,
+        },
+      };
+    });
+    setNodes(nextNodes);
+    if (saveDiagram) {
+      void saveDiagram(nextNodes, edgesRef.current, getViewport())
+        .then(() => triggerDebouncedSync?.())
+        .catch(err => console.error("Error adding PK:", err));
+    }
+  }, [isReadOnly, takeSnapshot, setNodes, saveDiagram, triggerDebouncedSync, getViewport]);
   const handleUpdateEntitySampleData = React.useCallback((entityId: string, sampleData: Record<string, any>[]) => {
     if (isReadOnly) return;
     takeSnapshot?.(nodesRef.current, edgesRef.current);
@@ -485,7 +551,8 @@ const ERDViewComponent = ({
     updateNodeData: handleUpdateNodeData,
     deleteNode: handleDeleteNode,
     updateColumnComment: handleUpdateColumnComment,
-  }), [isReadOnly, isProductionDb, duplicateEntity, setSelectedNodeId, openEntityProperties, handleUpdateEntityComment, handleUpdateEntitySampleData, handleUpdateNodeData, handleDeleteNode, handleUpdateColumnComment]);
+    addPrimaryKeyColumn: handleAddPrimaryKeyColumn,
+  }), [isReadOnly, isProductionDb, duplicateEntity, setSelectedNodeId, openEntityProperties, handleUpdateEntityComment, handleUpdateEntitySampleData, handleUpdateNodeData, handleDeleteNode, handleUpdateColumnComment, handleAddPrimaryKeyColumn]);
   const isLargeDiagram = React.useMemo(() => nodes.length >= LARGE_ERD_TABLE_THRESHOLD
     || edges.length >= LARGE_ERD_EDGE_THRESHOLD
     || nodes.reduce((total, node) => total + (node.data.columns?.length || 0), 0) >= LARGE_ERD_COLUMN_THRESHOLD,
@@ -778,13 +845,18 @@ const ERDViewComponent = ({
       const governanceClass = governanceSelection
         ? governanceSelection.nodeIds.has(node.id) ? `erd-governance-${governanceSelection.classification || 'selected'}` : 'erd-governance-dimmed'
         : '';
-      const className = [node.className, explorerClass, healthClass, impactClass, migrationClass, governanceClass].filter(Boolean).join(' ');
+      const focusClass = hasActiveFocus
+        ? connectedNodeIds.has(node.id) || node.type === "perspectiveSection"
+          ? "erd-relation-focused"
+          : "opacity-40 transition-opacity duration-200"
+        : "transition-opacity duration-200";
+      const className = [node.className, explorerClass, healthClass, impactClass, migrationClass, governanceClass, focusClass].filter(Boolean).join(' ');
       const hidden = subjectAreaVisibility ? !subjectAreaVisibility.visibleNodeIds.has(node.id) : !!node.hidden;
       // node.selected is left untouched: React Flow is the source of truth for it.
       if (node.className === className && !!node.hidden === hidden) return node;
       return { ...node, className, hidden };
     });
-  }, [routeNodes, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, governanceSelection, subjectAreaVisibility]);
+  }, [routeNodes, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, governanceSelection, subjectAreaVisibility, hasActiveFocus, connectedNodeIds]);
 
   const diffNodesWithMode = React.useMemo(() => {
     if (!pendingDiff) return [];
@@ -835,11 +907,12 @@ const ERDViewComponent = ({
 
     const result = displayEdges.map(edge => {
       const isConnectedToSelected = hasSelection && allSelectedIds.some(id => edge.source === id || edge.target === id);
+      const isFocused = isConnectedToSelected || (hasActiveFocus && connectedEdgeIds.has(edge.id));
       const isExplorerVisible = explorerSelection?.edgeIds.has(edge.id) === true;
       const isExplorerPath = explorerSelection?.pathEdgeIds.has(edge.id) === true;
       const edgeColor = isExplorerPath
         ? '#f59e0b'
-        : isExplorerVisible || isConnectedToSelected || edge.selected
+        : isExplorerVisible || isFocused || edge.selected
           ? 'var(--edge-selected)'
           : 'var(--edge-color)';
       const crossSection = edge.data?.crossSection === true;
@@ -854,8 +927,10 @@ const ERDViewComponent = ({
         classes.push('edge-explorer-active');
       } else if (explorerSelection) {
         classes.push('edge-explorer-dimmed');
-      } else if (isConnectedToSelected) {
-        classes.push('edge-animated-active');
+      } else if (isFocused) {
+        classes.push('edge-animated-active drop-shadow-sm');
+      } else if (hasActiveFocus) {
+        classes.push('edge-dimmed opacity-25 transition-opacity duration-200');
       } else if (hasSelection) {
         classes.push('edge-dimmed');
       }
@@ -885,7 +960,8 @@ const ERDViewComponent = ({
       const styledEdge = {
         ...edge,
         className: newClassName,
-        style: { ...edge.style, stroke: edgeColor, strokeWidth: edge.selected ? 2.8 : 2.2 },
+        style: { ...edge.style, stroke: edgeColor, strokeWidth: isFocused || edge.selected ? 3.4 : 2.2 },
+        zIndex: isFocused ? 20 : undefined,
         markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor, width: 12, height: 12 },
         data: {
           ...edge.data,
@@ -949,7 +1025,7 @@ const ERDViewComponent = ({
     });
     edgeVisualCacheRef.current = nextCache;
     return result;
-  }, [displayEdges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection]);
+  }, [displayEdges, allSelectedIds, explorerSelection, schemaHealthSelection, impactSelection, migrationSelection, hasActiveFocus, connectedEdgeIds]);
 
   const perspectiveSectionNodes = React.useMemo(() => perspectiveLayout?.sections.map(section => ({
     id: `perspective-section:${section.id}`,
@@ -1381,6 +1457,8 @@ const ERDViewComponent = ({
             onCopySelection={handleCopySelection}
             onAddTable={addEntity}
             onAddStickyNote={handleAddStickyNote}
+            showMiniMap={showMiniMap}
+            onToggleMiniMap={() => setShowMiniMap(prev => !prev)}
             onImportSQL={onImportSQL}
             onOpenDbml={() => setRightPanelMode('dbml')}
             onAutoLayout={autoLayoutActivePerspective}
@@ -1565,6 +1643,12 @@ const ERDViewComponent = ({
           edgeTypes={edgeTypes}
           onNodeClick={onNodeClick}
           onNodeDoubleClick={onNodeDoubleClick}
+          onNodeMouseEnter={(_, node) => {
+            if (node.type === "entity" || node.type === "stickyNote") {
+              setHoveredNodeId(node.id);
+            }
+          }}
+          onNodeMouseLeave={() => setHoveredNodeId(null)}
           onEdgeClick={onEdgeClick}
           onPaneClick={() => {
             onPaneClick?.();
@@ -1602,6 +1686,20 @@ const ERDViewComponent = ({
           <Panel position="bottom-left" className="!mb-[104px] !pointer-events-auto">
             <CanvasModeToggle mode={canvasMode} onChange={setCanvasMode} />
           </Panel>
+          {showMiniMap && (
+            <MiniMap
+              nodeColor={(node) => {
+                if (node.type === "stickyNote") return (node.data as any)?.color || "#fef08a";
+                return (node.data as any)?.color || "#6366f1";
+              }}
+              nodeStrokeWidth={2}
+              nodeBorderRadius={4}
+              maskColor={resolvedTheme === "dark" ? "rgba(0, 0, 0, 0.65)" : "rgba(255, 255, 255, 0.65)"}
+              className="!bottom-20 !right-4 !bg-card/90 !backdrop-blur-md !border-2 !border-border/80 !rounded-xl !shadow-2xl overflow-hidden z-30"
+              zoomable
+              pannable
+            />
+          )}
           </ReactFlow>
         </EntityNodeRuntimeProvider>
         {/* Above the flow pane, outside it: cursors must never take part in the

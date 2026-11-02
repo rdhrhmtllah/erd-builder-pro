@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Node } from '@xyflow/react';
 import {
-  StickyNote, BookOpenCheck, BoxSelect, Database, Download, Eraser, FilePlus2, FolderKanban, GitBranch, GitCompareArrows,
+  Map, StickyNote, BookOpenCheck, BoxSelect, Database, Download, Eraser, FilePlus2, FolderKanban, GitBranch, GitCompareArrows,
   LayoutGrid, Layers3, MoreHorizontal, Plus, Radar, RefreshCw, Redo2, ShieldCheck, Undo2,
   Upload, WandSparkles,
 } from 'lucide-react';
@@ -66,6 +66,8 @@ type Props = {
   onCopySelection: (kind: CopyKind, options: QueryOptions) => void;
   onAddTable: () => void;
   onAddStickyNote?: () => void;
+  showMiniMap?: boolean;
+  onToggleMiniMap?: () => void;
   onImportSQL?: () => void;
   onOpenDbml: () => void;
   onAutoLayout: () => void;
@@ -96,6 +98,8 @@ export function ErdToolbar({
   onCopySelection,
   onAddTable,
   onAddStickyNote,
+  showMiniMap,
+  onToggleMiniMap,
   onImportSQL,
   onOpenDbml,
   onAutoLayout,
@@ -189,6 +193,19 @@ export function ErdToolbar({
         <LayoutGrid className="w-3.5 h-3.5 sm:mr-1.5" />
         <span className="hidden sm:inline">{activePerspectiveName ? 'Re-layout' : 'Auto Layout'}</span>
       </Button>
+
+      {onToggleMiniMap && (
+        <Button
+          onClick={onToggleMiniMap}
+          variant={showMiniMap ? "default" : "outline"}
+          size="sm"
+          className="h-9 px-2.5 sm:px-3 shrink-0 touch-manipulation text-xs font-semibold cursor-pointer shadow-xs"
+          title={showMiniMap ? "Hide bird-eye mini-map navigator" : "Show bird-eye mini-map navigator"}
+        >
+          <Map className="w-3.5 h-3.5 sm:mr-1.5" />
+          <span className="hidden sm:inline">Map</span>
+        </Button>
+      )}
 
       {canEditDiagram && hasDiagramFile && !isPublicView && (
         <Button
