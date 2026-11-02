@@ -47,6 +47,7 @@ interface ColumnRowProps {
   borderColor: string;
   typeColor: string;
   hideHandles?: boolean;
+  isReadOnly?: boolean;
   onDoubleClick?: (event: React.MouseEvent) => void;
   tableClassification?: string;
 }
@@ -54,7 +55,7 @@ interface ColumnRowProps {
 const handleBaseClass = '!w-3 !h-3 sm:!w-2 sm:!h-2 !border-none cursor-crosshair opacity-75 sm:opacity-0 transition-opacity duration-150 group-hover:!opacity-100 group-focus-within:!opacity-100 touch-none';
 const readOnlyHandleClass = '!w-2 !h-2 !border-none !opacity-0 !pointer-events-none';
 
-const EntityColumnRow = memo(({ col, entityId, borderColor, typeColor, hideHandles, onDoubleClick, tableClassification }: ColumnRowProps) => {
+const EntityColumnRow = memo(({ col, entityId, borderColor, typeColor, hideHandles, isReadOnly = false, onDoubleClick, tableClassification }: ColumnRowProps) => {
   const { isColumnSelected, toggleColumnSelection } = useColumnColor();
   const isSelected = isColumnSelected(entityId, col.id);
   const isFk = col._is_fk;
@@ -482,6 +483,7 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
               borderColor={borderColor}
               typeColor={typeColor}
               hideHandles={hideHandles}
+              isReadOnly={isReadOnly}
               onDoubleClick={isReadOnly ? undefined : handleEdit}
               tableClassification={tableGovernance.classification}
             />
