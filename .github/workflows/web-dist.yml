@@ -8,7 +8,7 @@ concurrency:
   group: web-dist
   cancel-in-progress: true
 env:
-  TARGET_SHA: 2a540d0f3b2916fdbbf0372d395b7f194fc17b9a
+  TARGET_SHA: 1c237bd123f80cffb3687be69d58a5dafb92ae95
 jobs:
   build:
     runs-on: ubuntu-latest
