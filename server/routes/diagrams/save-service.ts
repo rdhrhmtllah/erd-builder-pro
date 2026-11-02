@@ -306,8 +306,16 @@ export async function getDiagramWithData(uid: string, userId: string) {
       // Prisma exposes the mapped database field as `enumValues`; the ERD
       // client uses `enum_values`. Without this normalization enum metadata
       // disappeared after a browser reload, so DBML could no longer emit it.
+      let sampleData = entity.sample_data ?? (entity as any).sampleData ?? null;
+      if (!sampleData && entity.governanceData) {
+        try {
+          const parsedGov = JSON.parse(entity.governanceData);
+          if (Array.isArray(parsedGov.sample_data)) sampleData = parsedGov.sample_data;
+        } catch {}
+      }
       return {
         ...entity,
+        sample_data: sampleData,
         governance: governanceFrom(entity),
         constraints: constraints.filter(item => item.entityId === entity.id).map(item => ({
           ...item,

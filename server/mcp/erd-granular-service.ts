@@ -105,6 +105,13 @@ function normalizeColumn(value: any, generatedId?: string) {
 
 function normalizeEntity(value: any) {
   const columns = Array.isArray(value.columns) ? value.columns.map((column: any) => normalizeColumn(column)) : [];
+  let sampleData = value.sample_data ?? value.sampleData ?? null;
+  if (!sampleData && value.governanceData) {
+    try {
+      const parsedGov = JSON.parse(value.governanceData);
+      if (Array.isArray(parsedGov.sample_data)) sampleData = parsedGov.sample_data;
+    } catch {}
+  }
   return {
     id: requiredText(value.id, "entity.id", 160),
     name: requiredText(value.name, "entity.name", 200),
@@ -113,6 +120,7 @@ function normalizeEntity(value: any) {
     color: typeof value.color === "string" && /^#[0-9a-f]{6}$/i.test(value.color) ? value.color.toLowerCase() : "#6366f1",
     comment: optionalText(value.comment, "entity.comment", 10_000) ?? null,
     governance: normalizeErdGovernance(value.governance ?? value.governance_data ?? value.governanceData),
+    sample_data: Array.isArray(sampleData) ? sampleData : [],
     columns,
     constraints: Array.isArray(value.constraints) ? value.constraints.map((item: any) => ({
       id: item.id, entity_id: value.id, kind: item.kind, name: item.name ?? null,

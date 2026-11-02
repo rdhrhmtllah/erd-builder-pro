@@ -103,6 +103,26 @@ function legacyRelationshipCardinalities(row: any) {
   return { source: 'zero-or-many', target: 'exactly-one' };
 }
 
+function serializeEntityPayload(e: any): string | null {
+  let base: Record<string, any> = {};
+  const rawGov = e.governance ?? e.governance_data ?? e.governanceData;
+  if (rawGov) {
+    if (typeof rawGov === "string") {
+      try { base = JSON.parse(rawGov); } catch {}
+    } else if (typeof rawGov === "object") {
+      base = { ...rawGov };
+    }
+  }
+  const sampleData = e.sample_data ?? e.sampleData;
+  if (Array.isArray(sampleData) && sampleData.length > 0) {
+    base.sample_data = sampleData;
+  }
+  if (e.name === "__note__" || (e.governance_data && String(e.governance_data).includes('"is_note":true'))) {
+    base.is_note = true;
+  }
+  return Object.keys(base).length ? JSON.stringify(base) : null;
+}
+
 async function upsertEntities(rows: any[], diagramId: number) {
   if (rows.length === 0 || !prisma) return;
   await prisma.$transaction(
@@ -114,13 +134,13 @@ async function upsertEntities(rows: any[], diagramId: number) {
           name: e.name, x: e.x, y: e.y,
           color: e.color || "#6366f1",
           comment: e.comment || null,
-          governanceData: serializeErdGovernance(e.governance ?? e.governance_data ?? e.governanceData),
+          governanceData: serializeEntityPayload(e),
         },
         update: {
           name: e.name, x: e.x, y: e.y,
           color: e.color || "#6366f1",
           comment: e.comment || null,
-          governanceData: serializeErdGovernance(e.governance ?? e.governance_data ?? e.governanceData),
+          governanceData: serializeEntityPayload(e),
         },
       })
     ),

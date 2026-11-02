@@ -47,6 +47,11 @@ import {
   listSubjectAreas,
   proposeSubjectAreaChange,
 } from "../routes/diagrams/subject-area-service.js";
+import {
+  applyColumnColorMarking,
+  applyTableDocumentationBulk,
+  applyTableSampleDataBulk,
+} from "./erd-meta-service.js";
 
 const documentType = z.enum(PUBLIC_MCP_DOCUMENT_TYPES);
 const operation = z.enum(WORKSPACE_WRITE_OPERATIONS);
@@ -278,6 +283,49 @@ export function registerWorkspaceWriteTools(server: McpServer, userId: string) {
     inputSchema: { proposal_id: z.string().uuid(), confirmation: z.string().uuid() },
     annotations: destructiveWrite,
   }, async ({ proposal_id, confirmation }) => jsonResult(await applyWorkspaceMutation(userId, proposal_id, confirmation)));
+
+  server.registerTool("erd_table_sample_data_bulk", {
+    description: "Attach realistic sample/mock data records to tables in an ERD diagram. Allows AI to provide example rows for tables (e.g. 3-5 realistic example records per table) so users can immediately see example content in the canvas and table views. Updates are saved to DB immediately and broadcast live to active viewers.",
+    inputSchema: {
+      diagram_uid: z.string().min(1).max(100),
+      assignments: z.array(z.object({
+        tableName: z.string().min(1),
+        sampleRows: z.array(z.record(z.string(), z.any())).min(1).max(50),
+      })).min(1).max(50),
+    },
+    annotations: write,
+  }, async ({ diagram_uid, assignments }) => jsonResult(
+    await applyTableSampleDataBulk(userId, diagram_uid, assignments as any)
+  ));
+
+  server.registerTool("erd_column_color_mark", {
+    description: "Mark colors on columns across tables in an ERD diagram (e.g. highlight foreign keys in Amber #f59e0b, PII/sensitive in Red #ef4444, or reset with null). Updates DB immediately and broadcasts live to canvas.",
+    inputSchema: {
+      diagram_uid: z.string().min(1).max(100),
+      assignments: z.array(z.object({
+        tableName: z.string().min(1),
+        columnNames: z.array(z.string().min(1)),
+        color: z.string().nullable().optional(),
+      })).min(1).max(100),
+    },
+    annotations: write,
+  }, async ({ diagram_uid, assignments }) => jsonResult(
+    await applyColumnColorMarking(userId, diagram_uid, assignments as any)
+  ));
+
+  server.registerTool("erd_table_document_bulk", {
+    description: "Set descriptions/documentation bubbles on tables in an ERD diagram. Updates are saved to database immediately and broadcast live to active viewers.",
+    inputSchema: {
+      diagram_uid: z.string().min(1).max(100),
+      assignments: z.array(z.object({
+        tableName: z.string().min(1),
+        description: z.string(),
+      })).min(1).max(100),
+    },
+    annotations: write,
+  }, async ({ diagram_uid, assignments }) => jsonResult(
+    await applyTableDocumentationBulk(userId, diagram_uid, assignments as any)
+  ));
 }
 
 export function registerWorkspaceMcpTools(server: McpServer, userId: string, canWrite: boolean) {

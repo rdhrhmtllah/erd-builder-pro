@@ -271,8 +271,16 @@ export async function getPublic(req: ExpressRequest, res: ExpressResponse): Prom
           where: { entityId: entity.id },
           orderBy: { sortOrder: "asc" },
         });
+        let sampleData = entity.sample_data ?? (entity as any).sampleData ?? null;
+        if (!sampleData && entity.governanceData) {
+          try {
+            const parsedGov = JSON.parse(entity.governanceData);
+            if (Array.isArray(parsedGov.sample_data)) sampleData = parsedGov.sample_data;
+          } catch {}
+        }
         return {
           ...entity,
+          sample_data: sampleData,
           columns: columns.map((column: any) => ({
             ...column,
             enum_values: column.enumValues ?? column.enum_values ?? '',
