@@ -10,6 +10,7 @@ type EntityNodeRuntime = {
   updateEntitySampleData?: (entityId: string, sampleData: Record<string, any>[]) => void;
   updateNodeData?: (id: string, patch: Record<string, any>) => void;
   deleteNode?: (id: string) => void;
+  updateColumnComment?: (entityId: string, colId: string, comment: string | null) => void;
 };
 
 const EntityNodeRuntimeContext = React.createContext<EntityNodeRuntime | null>(null);

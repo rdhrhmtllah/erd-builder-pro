@@ -1,6 +1,9 @@
 import { MobileActionDrawer } from '@/components/diagram/MobileActionDrawer';
 import { TableSampleDataModal } from '@/components/modals/TableSampleDataModal';
 import { TableDialog } from '@/components/modals/TableDialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 import React, { memo, useState, useEffect, useMemo, useRef, CSSProperties } from 'react';
 import { Handle, Position, NodeProps, Node, useUpdateNodeInternals } from '@xyflow/react';
 import { MoreHorizontal, Pencil, Sparkles, Check, Trash2, Database, AlertTriangle, Copy, MessageSquare, Shield } from 'lucide-react';
@@ -58,7 +61,22 @@ const readOnlyHandleClass = '!w-2 !h-2 !border-none !opacity-0 !pointer-events-n
 
 const EntityColumnRow = memo(({ col, entityId, borderColor, typeColor, hideHandles, isReadOnly = false, onDoubleClick, tableClassification }: ColumnRowProps) => {
   const { isColumnSelected, toggleColumnSelection } = useColumnColor();
+  const { updateColumnComment } = useEntityNodeRuntime();
   const isSelected = isColumnSelected(entityId, col.id);
+  const [isCommentOpen, setIsCommentOpen] = useState(false);
+  const [commentDraft, setCommentDraft] = useState(col.comment || "");
+
+  useEffect(() => {
+    setCommentDraft(col.comment || "");
+  }, [col.comment]);
+
+  const handleSaveComment = () => {
+    setIsCommentOpen(false);
+    const cleaned = commentDraft.trim();
+    if (cleaned !== (col.comment || "")) {
+      updateColumnComment?.(entityId, col.id, cleaned || null);
+    }
+  };
   const isFk = col._is_fk;
   const diffState = col.diffState as 'new' | 'deleted' | undefined;
   const classification = governanceFrom(col).classification || tableClassification;
@@ -136,7 +154,83 @@ const EntityColumnRow = memo(({ col, entityId, borderColor, typeColor, hideHandl
           <span className="text-[11px] font-mono font-semibold" style={{ color: diffState === 'new' ? '#10b981' : diffState === 'deleted' ? '#ef4444' : typeColor }}>
             {formatColumnType(col.type, col.max_length, col.numeric_precision, col.numeric_scale).toLowerCase()}
           </span>
-          {col.comment && <MessageSquare className="w-3 h-3 text-muted-foreground" />}
+          <Popover open={isCommentOpen} onOpenChange={setIsCommentOpen}>
+            <PopoverTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsCommentOpen(true);
+                  }}
+                  className={cn(
+                    "size-4 rounded flex items-center justify-center transition-all cursor-pointer",
+                    col.comment
+                      ? "text-primary hover:bg-primary/20"
+                      : "text-muted-foreground/30 hover:text-foreground hover:bg-muted opacity-0 group-hover:opacity-100 sm:opacity-0 focus:opacity-100"
+                  )}
+                  title={col.comment ? `Comment: ${col.comment}` : "Add comment to column"}
+                >
+                  <MessageSquare className={cn("w-3 h-3", col.comment ? "fill-primary/20 text-primary" : "")} />
+                </button>
+              }
+            />
+            <PopoverContent
+              align="end"
+              side="bottom"
+              className="w-72 p-3 space-y-2.5 z-[1200] bg-popover text-popover-foreground shadow-2xl border border-border rounded-xl"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <MessageSquare className="size-3.5 text-primary shrink-0" />
+                  <span className="text-xs font-bold truncate">{col.name}</span>
+                  <span className="text-[10px] text-muted-foreground">· Comment</span>
+                </div>
+                {col.comment && !isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCommentDraft("");
+                      updateColumnComment?.(entityId, col.id, null);
+                      setIsCommentOpen(false);
+                    }}
+                    className="text-[10px] text-destructive hover:underline cursor-pointer"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+
+              {isReadOnly ? (
+                <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed min-h-8 py-1">
+                  {col.comment || <span className="text-muted-foreground/50 italic">No comment added</span>}
+                </p>
+              ) : (
+                <>
+                  <Textarea
+                    value={commentDraft}
+                    onChange={(e) => setCommentDraft(e.target.value)}
+                    placeholder="Add documentation or business notes for this column..."
+                    className="min-h-[70px] text-xs resize-y bg-background/60 leading-relaxed"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                        handleSaveComment();
+                      }
+                    }}
+                  />
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] text-muted-foreground">Ctrl+Enter to save</span>
+                    <Button size="sm" onClick={handleSaveComment} className="h-7 px-3 text-xs font-semibold cursor-pointer">
+                      Save
+                    </Button>
+                  </div>
+                </>
+              )}
+            </PopoverContent>
+          </Popover>
           {(classification === 'confidential' || classification === 'restricted') && <Shield className={cn('h-3 w-3', classification === 'restricted' ? 'text-red-500' : 'text-amber-500')} aria-label={`${classification} data`} />}
           {(col.is_pk || isFk) && (
             <div className="flex items-center gap-1">

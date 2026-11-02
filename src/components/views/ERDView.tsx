@@ -385,6 +385,31 @@ const ERDViewComponent = ({
     }
   }, [isReadOnly, takeSnapshot, setNodes, saveDiagram, triggerDebouncedSync, getViewport]);
 
+  const handleUpdateColumnComment = React.useCallback((entityId: string, colId: string, comment: string | null) => {
+    if (isReadOnly) return;
+    takeSnapshot?.(nodesRef.current, edgesRef.current);
+    const nextNodes = nodesRef.current.map((node) => {
+      if (node.id !== entityId) return node;
+      const nextColumns = (node.data.columns || []).map((col: any) => {
+        if (col.id !== colId) return col;
+        return { ...col, comment: comment || null };
+      });
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          columns: nextColumns,
+        },
+      };
+    });
+    setNodes(nextNodes);
+    if (saveDiagram) {
+      void saveDiagram(nextNodes, edgesRef.current, getViewport())
+        .then(() => triggerDebouncedSync?.())
+        .catch(err => console.error("Error saving column comment:", err));
+    }
+  }, [isReadOnly, takeSnapshot, setNodes, saveDiagram, triggerDebouncedSync, getViewport]);
+
   const handleUpdateNodeData = React.useCallback((nodeId: string, patch: Record<string, any>) => {
     if (isReadOnly) return;
     const nextNodes = nodesRef.current.map((node) => {
@@ -459,7 +484,8 @@ const ERDViewComponent = ({
     updateEntitySampleData: handleUpdateEntitySampleData,
     updateNodeData: handleUpdateNodeData,
     deleteNode: handleDeleteNode,
-  }), [isReadOnly, isProductionDb, duplicateEntity, setSelectedNodeId, openEntityProperties, handleUpdateEntityComment, handleUpdateEntitySampleData, handleUpdateNodeData, handleDeleteNode]);
+    updateColumnComment: handleUpdateColumnComment,
+  }), [isReadOnly, isProductionDb, duplicateEntity, setSelectedNodeId, openEntityProperties, handleUpdateEntityComment, handleUpdateEntitySampleData, handleUpdateNodeData, handleDeleteNode, handleUpdateColumnComment]);
   const isLargeDiagram = React.useMemo(() => nodes.length >= LARGE_ERD_TABLE_THRESHOLD
     || edges.length >= LARGE_ERD_EDGE_THRESHOLD
     || nodes.reduce((total, node) => total + (node.data.columns?.length || 0), 0) >= LARGE_ERD_COLUMN_THRESHOLD,
