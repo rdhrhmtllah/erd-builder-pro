@@ -13,7 +13,7 @@ const publicDoc = (over: Record<string, unknown> = {}) => ({
 
 describe("evaluatePublicDocAccess", () => {
   it("lets an anonymous visitor read a plain public document", () => {
-    expect(evaluatePublicDocAccess(publicDoc())).toEqual({ ok: true, isOwner: false });
+    expect(evaluatePublicDocAccess(publicDoc())).toEqual({ ok: true, isOwner: false, role: "view" });
   });
 
   it.each([
@@ -41,12 +41,13 @@ describe("evaluatePublicDocAccess", () => {
     expect(evaluatePublicDocAccess(publicDoc({ shareToken: "s3cret" }), { providedToken: "s3cret" })).toEqual({
       ok: true,
       isOwner: false,
+      role: "view",
     });
   });
 
   it("exempts the owner from expiry and token checks", () => {
     const doc = publicDoc({ expiryDate: "2020-01-01T00:00:00.000Z", shareToken: "s3cret" });
-    expect(evaluatePublicDocAccess(doc, { viewerId: "owner-1" })).toEqual({ ok: true, isOwner: true });
+    expect(evaluatePublicDocAccess(doc, { viewerId: "owner-1" })).toEqual({ ok: true, isOwner: true, role: "edit" });
   });
 
   it("keeps a private document private for the public route, even for its owner", () => {
@@ -62,7 +63,7 @@ describe("evaluatePublicDocAccess", () => {
     const doc = publicDoc({ isPublic: false });
     expect(
       evaluatePublicDocAccess(doc, { viewerId: "owner-1", ownerMaySeeUnpublished: true }),
-    ).toEqual({ ok: true, isOwner: true });
+    ).toEqual({ ok: true, isOwner: true, role: "edit" });
     expect(
       evaluatePublicDocAccess(doc, { viewerId: "someone-else", ownerMaySeeUnpublished: true }),
     ).toMatchObject({ ok: false, code: "private" });
@@ -77,10 +78,18 @@ describe("evaluatePublicDocAccess", () => {
   });
 
   it("keeps an ownerless document readable", () => {
-    expect(evaluatePublicDocAccess(publicDoc({ userId: null }))).toEqual({ ok: true, isOwner: false });
+    expect(evaluatePublicDocAccess(publicDoc({ userId: null }))).toEqual({ ok: true, isOwner: false, role: "view" });
     expect(evaluatePublicDocAccess(publicDoc({ userId: null }), { viewerId: "someone-else" })).toEqual({
       ok: true,
       isOwner: false,
+      role: "view",
+    });
+  });
+it("respects shareRole edit for anonymous visitor", () => {
+    expect(evaluatePublicDocAccess(publicDoc({ shareRole: "edit" }))).toEqual({
+      ok: true,
+      isOwner: false,
+      role: "edit",
     });
   });
 });
