@@ -1,6 +1,6 @@
 import { toast } from 'sonner';
 import { lazy, Suspense, useState, useEffect, useRef, type PointerEvent } from 'react';
-import { ArrowLeft, Plus, Trash2, Key, Check, X, Type, GripVertical, Wand2, MoreHorizontal, Clock3 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Key, Check, X, Type, GripVertical, Wand2, MoreHorizontal, Clock3, MessageSquare } from 'lucide-react';
 import { Entity, Column } from '../types';
 import { cn } from '../lib/utils';
 import ConfirmModal from './ConfirmModal';
@@ -661,6 +661,13 @@ export default function PropertiesPanel({
                   placeholder="Enum values: active, inactive..."
                   className="h-8 text-[10px] bg-background/50 border-border/50"
                 />
+              )}
+
+              {col.comment && (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-muted/40 rounded border border-border/40 text-[11px] text-muted-foreground mt-1 min-w-0" title={col.comment}>
+                  <MessageSquare className="size-3 text-primary shrink-0" />
+                  <span className="truncate">{col.comment}</span>
+                </div>
               )}
 
             </Card>
