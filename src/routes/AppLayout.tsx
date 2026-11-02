@@ -681,10 +681,10 @@ function AppLayoutInner() {
 
   // ── Auto-close right panel when leaving file pages ──
   useEffect(() => {
-    if (!showAIChat) {
+    if (!showAIChat && rightPanelMode !== 'properties') {
       setRightPanelMode('closed');
     }
-  }, [showAIChat, setRightPanelMode]);
+  }, [showAIChat, rightPanelMode, setRightPanelMode]);
 
   // Table properties belong to the currently opened ERD file only.
   const previousEntityContextKeyRef = useRef<string | null>(null);
@@ -747,7 +747,7 @@ function AppLayoutInner() {
 
       <SidebarInset className={cn(
         isPublicView ? "w-full" : "",
-        rightPanelOpen && "hidden sm:block sm:mr-90 transition-[margin] duration-200"
+        rightPanelOpen && "sm:mr-90 transition-[margin] duration-200"
       )}>
         <MainHeader
           featureLabel={featureLabel}
@@ -949,13 +949,13 @@ function AppLayoutInner() {
         )}
 
         {/* Right panel with tabs — sticky right sidebar */}
-        {showAIChat && rightPanelOpen && (
+        {(showAIChat || rightPanelMode === 'properties') && rightPanelOpen && (
           <RightChatSidebar>
             <div className="h-full flex flex-col">
               {/* ── Tab bar ── */}
               <div className="shrink-0 flex items-center border-b border-border bg-muted/20">
                 <div className="flex-1 flex">
-                  {isActiveDiagramContext && !isPublicView && !activeDiagramIsProductionDb && (
+                  {isActiveDiagramContext && !activeDiagramIsProductionDb && (
                     <button
                       onClick={() => setRightPanelMode('properties')}
                       className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors ${

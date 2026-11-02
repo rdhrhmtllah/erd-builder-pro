@@ -1,5 +1,6 @@
 import { MobileActionDrawer } from '@/components/diagram/MobileActionDrawer';
 import { TableSampleDataModal } from '@/components/modals/TableSampleDataModal';
+import { TableDialog } from '@/components/modals/TableDialog';
 import React, { memo, useState, useEffect, useMemo, useRef, CSSProperties } from 'react';
 import { Handle, Position, NodeProps, Node, useUpdateNodeInternals } from '@xyflow/react';
 import { MoreHorizontal, Pencil, Sparkles, Check, Trash2, Database, AlertTriangle, Copy, MessageSquare, Shield } from 'lucide-react';
@@ -160,6 +161,7 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSampleDataOpen, setIsSampleDataOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -207,10 +209,14 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
     updateNodeInternals(id);
   }, [id, columnOrderHash, updateNodeInternals]);
 
-  const handleEdit = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleEdit = (e?: React.MouseEvent) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
     if (isReadOnly) return;
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsEditDialogOpen(true);
+      return;
+    }
     setSelectedNodeId(id);
     openProperties();
   };
@@ -496,7 +502,7 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
         onOpenChange={setIsMobileDrawerOpen}
         entity={data}
         isReadOnly={isReadOnly}
-        onEdit={handleEdit}
+        onEdit={() => setIsEditDialogOpen(true)}
         onDuplicate={handleDuplicate}
         onDelete={handleDeleteClick}
         onOpenSampleData={() => setIsSampleDataOpen(true)}
@@ -513,6 +519,12 @@ const EntityNode = ({ data, id, selected }: EntityNodeProps) => {
         onSaveSampleData={(entityId, sampleRows) => {
           updateEntitySampleData?.(entityId, sampleRows);
         }}
+      />
+
+      <TableDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        entity={data}
       />
 
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
